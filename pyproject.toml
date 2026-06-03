@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "terroir-backend"
+version = "0.1.0"
+python = "^3.9"
+
+[tool.poetry.dependencies]
+fastapi = "^0.115"
+uvicorn = {extras = ["standard"], version = "^0.32"}
+supabase = "^2.10"
+anthropic = "^0.40"
+playwright = "^1.49"
+python-dotenv = "^1.0"
+pydantic-settings = "^2.6"
+httpx = "^0.28"
+beautifulsoup4 = "^4.12"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3"
+pytest-asyncio = "^0.24"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

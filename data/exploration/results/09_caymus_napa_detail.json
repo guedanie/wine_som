@@ -1,0 +1,27 @@
+{
+    "data": {
+        "id": 113817,
+        "display_name": "Caymus Vineyards, Cabernet Sauvignon Napa Valley",
+        "color": "red",
+        "type": "wine",
+        "sub_type": "still",
+        "residual_sugar": null,
+        "producer": {
+            "id": 2519,
+            "name": "Caymus Vineyards",
+            "title": null,
+            "display_name": "Caymus Vineyards"
+        },
+        "region": {
+            "id": 22,
+            "name": "California",
+            "country": "us",
+            "language": "en"
+        },
+        "grapes": [],
+        "description": null,
+        "pairing": null,
+        "tasting_notes": null,
+        "flavor_profile": null
+    }
+}

@@ -1,0 +1,35 @@
+{
+    "data": [
+        {
+            "id": 365597,
+            "display_name": "Caymus, Cabernet Sauvignon",
+            "color": "red",
+            "residual_sugar": null,
+            "producer_name": "Caymus",
+            "producer_title": null,
+            "producer_display_name": "Caymus"
+        },
+        {
+            "id": 113817,
+            "display_name": "Caymus Vineyards, Cabernet Sauvignon Napa Valley",
+            "color": "red",
+            "residual_sugar": null,
+            "producer_name": "Caymus Vineyards",
+            "producer_title": null,
+            "producer_display_name": "Caymus Vineyards"
+        },
+        {
+            "id": 113723,
+            "display_name": "Caymus Vineyards, Cabernet Sauvignon (Rotwein)",
+            "color": "red",
+            "residual_sugar": null,
+            "producer_name": "Caymus Vineyards",
+            "producer_title": null,
+            "producer_display_name": "Caymus Vineyards"
+        }
+    ],
+    "meta": {
+        "query": "caymus cabernet",
+        "count": 3
+    }
+}

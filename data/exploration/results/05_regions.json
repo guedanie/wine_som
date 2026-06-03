@@ -1,0 +1,43 @@
+{
+    "data": [
+        {
+            "id": 1432,
+            "name": "Aargau",
+            "country": "ch",
+            "language": "en"
+        },
+        {
+            "id": 1273,
+            "name": "Abruzzi",
+            "country": "it",
+            "language": "en"
+        },
+        {
+            "id": 216,
+            "name": "Abruzzo",
+            "country": "it",
+            "language": "en"
+        },
+        {
+            "id": 1085,
+            "name": "Achaia",
+            "country": "gr",
+            "language": "en"
+        },
+        {
+            "id": 180,
+            "name": "Aconcagua",
+            "country": "cl",
+            "language": "en"
+        }
+    ],
+    "meta": {
+        "current_page": 1,
+        "last_page": 433,
+        "per_page": 5,
+        "total": 2165,
+        "from": 1,
+        "to": 5,
+        "language": "en"
+    }
+}

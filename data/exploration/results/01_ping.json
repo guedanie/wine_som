@@ -1,0 +1,17 @@
+{
+    "message": "API authentication successful",
+    "authenticated_as": {
+        "user_id": 619,
+        "user_name": "Daniel",
+        "user_email": "danguerrero93@gmail.com"
+    },
+    "api_key": {
+        "name": "wine_app",
+        "prefix": "GMUOGJOCMXYO",
+        "abilities": [
+            "*"
+        ],
+        "rate_limit_per_minute": 60
+    },
+    "timestamp": "2026-06-02T05:36:31+02:00"
+}

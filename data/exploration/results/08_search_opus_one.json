@@ -1,0 +1,35 @@
+{
+    "data": [
+        {
+            "id": 365313,
+            "display_name": "Opus One Winery, Overture",
+            "color": "red",
+            "residual_sugar": null,
+            "producer_name": "Opus One Winery",
+            "producer_title": null,
+            "producer_display_name": "Opus One Winery"
+        },
+        {
+            "id": 365312,
+            "display_name": "Opus One Winery, Opus One",
+            "color": "red",
+            "residual_sugar": null,
+            "producer_name": "Opus One Winery",
+            "producer_title": null,
+            "producer_display_name": "Opus One Winery"
+        },
+        {
+            "id": 358324,
+            "display_name": "Opus One, Overture Vintage, Napa Valley",
+            "color": "red",
+            "residual_sugar": null,
+            "producer_name": "Opus One",
+            "producer_title": null,
+            "producer_display_name": "Opus One"
+        }
+    ],
+    "meta": {
+        "query": "opus one",
+        "count": 3
+    }
+}

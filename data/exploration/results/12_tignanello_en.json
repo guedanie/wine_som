@@ -1,0 +1,59 @@
+{
+    "data": {
+        "id": 9146,
+        "display_name": "Tenuta Tignanello (Antinori), Tignanello Toscana IGT",
+        "color": "red",
+        "type": "wine",
+        "sub_type": "still",
+        "residual_sugar": null,
+        "producer": {
+            "id": 1772,
+            "name": "Tignanello (Antinori)",
+            "title": "Tenuta",
+            "display_name": "Tenuta Tignanello (Antinori)"
+        },
+        "region": {
+            "id": 210,
+            "name": "Toscana",
+            "country": "it",
+            "language": "en"
+        },
+        "grapes": [
+            {
+                "id": 376,
+                "name": "Cabernet Franc"
+            },
+            {
+                "id": 375,
+                "name": "Cabernet Sauvignon"
+            },
+            {
+                "id": 374,
+                "name": "Sangiovese"
+            }
+        ],
+        "description": {
+            "text": "Tignanello, a renowned Super Tuscan wine from Tuscany, Italy, is produced by Marchesi Antinori. It primarily consists of Sangiovese (80%), with Cabernet Sauvignon (15%) and Cabernet Franc (5%). The wine is known for its rich, complex flavors of cherry, plum, and spice, along with a well-integrated oak influence. Tignanello is celebrated for its fine tannins, excellent structure, and long aging potential. It represents a revolutionary moment in Italian winemaking, breaking traditional blending rules and showcasing Tuscany's potential for producing world-class, innovative wines.",
+            "text_long": "Tignanello, crafted by the prestigious Marchesi Antinori in Tuscany, Italy, stands as a hallmark in the Super Tuscan wine category. This iconic wine broke traditional Italian winemaking boundaries by incorporating non-indigenous grape varieties and eschewing the regional Chianti Classico rules. Tignanello is primarily composed of Sangiovese (80%), along with smaller proportions of Cabernet Sauvignon (15%) and Cabernet Franc (5%). Its production involves meticulous vinification and aging in French and Hungarian oak barrels, which imparts a sophisticated structure and depth.On the palate, Tignanello offers a luxurious experience with striking flavors of ripe cherry, dark plum, and hints of blackberry, seamlessly interwoven with notes of vanilla, tobacco, and spices derived from its oak aging. The wine's texture is marked by refined tannins and a balanced acidity that provide both elegance and power. Aromatically, it boasts an enticing bouquet of red and black fruits, alongside floral undertones and earthy nuances.Tignanello's reputation is not merely a result of its bold, innovative blend but also its capacity to age gracefully, developing further complexity and depth over years. This wine exemplifies the potential of Tuscany's terroir when tradition meets modern winemaking innovation. It has paved the way for a new era in Italian wine, elevating the global perception and quality of Tuscan wines. Pairing it with rich meat dishes, aged cheeses, or hearty pasta can further accentuate its complex flavor profile, making every sip a memorable experience.",
+            "language": "en"
+        },
+        "pairing": {
+            "text": "Tignanello Toscana IGT pairs beautifully with rich dishes that match its robust character. Ideal companions include Bistecca alla Fiorentina, roasted lamb with herbs, and wild mushroom risotto. The wine's balanced acidity, firm tannins, and complex fruit notes complement hearty meat dishes while also working wonderfully with vegetarian options like eggplant parmesan. Its elegant structure and depth enhance traditional Tuscan cuisine, creating harmonious flavor combinations that highlight both the food and wine.",
+            "text_long": "Tignanello Toscana IGT, a prestigious Super Tuscan blend of Sangiovese, Cabernet Sauvignon, and Cabernet Franc, demands thoughtful food pairings that match its sophistication. The wine's complex profile of black cherry, plum, and spice notes pairs exceptionally with traditional Italian dishes. Bistecca alla Fiorentina serves as a classic match, the wine's structured tannins complementing the grilled beef's richness. Herb-roasted lamb enhances the wine's earthy qualities while harmonizing with its fruit character. For pasta lovers, tomato-based dishes like pappardelle with ragu work beautifully, the wine's acidity balancing the sauce's richness. Vegetarian options aren't forgotten - wild mushroom risotto brings out the wine's earthy nuances, while eggplant parmesan creates a perfect textural interplay. The wine's vibrant acidity and firm tannins cut through rich dishes while adding depth to simpler fare, making it a versatile dining companion that elevates any well-chosen dish.",
+            "language": "en"
+        },
+        "tasting_notes": {
+            "text": "Tignanello Toscana IGT is a super Tuscan blend showcasing Sangiovese, Cabernet Sauvignon, and Cabernet Franc. The wine displays ripe cherry, black currant, and plum aromas, with tobacco, leather, and violet notes. Full-bodied and opulent, it balances rich fruit flavors with ripe tannins and vibrant acidity. The complex finish reveals spice, dark chocolate, and vanilla notes, exemplifying modern Italian winemaking excellence.",
+            "text_long": "Tignanello Toscana IGT stands as a pioneering super Tuscan, masterfully blending Sangiovese with Cabernet Sauvignon and Cabernet Franc. The bouquet unfolds with intense dark cherry, black currant, and plum, layered with earthy leather and tobacco notes, complemented by subtle violet undertones. On the palate, this full-bodied wine showcases exceptional structure with perfectly integrated tannins and bright acidity. Rich berry flavors lead to complex notes of sweet spices, dark chocolate, and delicate vanilla from oak aging. The finish is remarkably long, revealing a sophisticated minerality that persists. Each sip demonstrates remarkable depth and precision, reflecting both traditional craftsmanship and modern innovation. Tignanello represents the pinnacle of Italian winemaking, consistently delivering a harmonious balance of power and elegance that has earned its reputation as a benchmark super Tuscan.",
+            "language": "en"
+        },
+        "flavor_profile": {
+            "sweetness": 2,
+            "acidity": 6,
+            "tannins": 7,
+            "alcohol": 8,
+            "body": 8,
+            "finish": 8
+        }
+    }
+}
