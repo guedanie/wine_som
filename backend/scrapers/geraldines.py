@@ -161,6 +161,10 @@ def fetch_all_wines() -> List[ShopifyProduct]:
         if len(raw_products) < 250:
             break
 
+        # Polite delay between pages — keeps us well under Shopify's rate limit
+        import time
+        time.sleep(2)
+
         # Advance cursor to the last product's ID
         since_id = raw_products[-1]["id"]
 
@@ -181,7 +185,7 @@ class GeraldinesScraper(BaseScraper):
                 wine_name=p.title,
                 retailer_name=STORE_NAME,
                 zip_code=STORE_ZIP,
-                upc=None,             # Shopify SKU is often blank for wine shops
+                upc=f"shopify-geraldines-{p.handle}",  # stable unique ID per product
                 price=p.price,
                 store_name=STORE_NAME,
                 store_id=STORE_ID,
@@ -240,10 +244,13 @@ class GeraldinesScraper(BaseScraper):
 
     async def run_full(self) -> dict:
         """
-        Full scrape: fetch all wines, upsert to wines + retail_inventory + wine_details.
-        Returns summary counts.
+        Full scrape: fetch and commit one page at a time so progress is never lost.
+        Each page is upserted immediately — if the job fails halfway, the DB keeps
+        everything fetched so far.
         """
         import uuid
+        import time
+
         run_id = str(uuid.uuid4())
         self.supabase.table("scraper_runs").insert({
             "id": run_id,
@@ -251,28 +258,42 @@ class GeraldinesScraper(BaseScraper):
             "status": "running",
         }).execute()
 
+        total_products = 0
+        since_id = 0
+
         try:
-            products = fetch_all_wines()
-            items = self._shopify_products_to_inventory_items(products)
+            while True:
+                raw_page = _fetch_page(since_id=since_id)
+                if not raw_page:
+                    break
 
-            # Upsert wines catalog
-            upc_to_id = self._upsert_wines(items)
+                # Parse wines from this page
+                page_products = [p for p in (_parse_product(r) for r in raw_page) if p]
+                page_items = self._shopify_products_to_inventory_items(page_products)
 
-            # Upsert retail inventory
-            self._upsert_inventory(items, upc_to_id)
+                # Commit this page immediately — progress is safe even if we crash later
+                upc_to_id = self._upsert_wines(page_items)
+                self._upsert_inventory(page_items, upc_to_id)
+                self._upsert_wine_details(page_products, upc_to_id)
 
-            # Upsert rich wine details from Shopify descriptions
-            self._upsert_wine_details(products, upc_to_id)
+                total_products += len(page_products)
+                print(f"   Committed page: {len(page_products)} wines (total so far: {total_products})")
+
+                if len(raw_page) < 250:
+                    break
+
+                since_id = raw_page[-1]["id"]
+                time.sleep(2)
 
             self.supabase.table("scraper_runs").update({
                 "status": "success",
-                "records_updated": len(products),
+                "records_updated": total_products,
                 "completed_at": datetime.now(timezone.utc).isoformat(),
             }).eq("id", run_id).execute()
 
             return {
-                "wines_fetched": len(products),
-                "inventory_records": len(items),
+                "wines_fetched": total_products,
+                "inventory_records": total_products,
                 "store": STORE_NAME,
             }
 
