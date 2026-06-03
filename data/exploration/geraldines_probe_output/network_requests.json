@@ -1,0 +1,134 @@
+[
+  {
+    "url": "https://shopgeraldines.com/",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "body_preview": ""
+  },
+  {
+    "url": "https://shopgeraldines.com/cdn/shop/t/7/assets/js.cookie.mjs?v=38015963105781969301730877386",
+    "status": 200,
+    "content_type": "text/javascript",
+    "body_preview": ""
+  },
+  {
+    "url": "https://monorail-edge.shopifysvc.com/unstable/produce_batch",
+    "status": 200,
+    "content_type": "",
+    "body_preview": ""
+  },
+  {
+    "url": "https://shopgeraldines.com/web-pixels@c5a2dbecw2e5701dcp16d0b08em93d9521b/custom/web-pixel-shopify-custom-pixel@0460/sandbox/modern/",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "body_preview": ""
+  },
+  {
+    "url": "https://shopgeraldines.com/api/collect",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "body_preview": ""
+  },
+  {
+    "url": "https://otlp-http-production.shopifysvc.com/v1/metrics",
+    "status": 200,
+    "content_type": "application/json",
+    "body_preview": "{\"partialSuccess\":{}}"
+  },
+  {
+    "url": "https://otlp-http-production.shopifysvc.com/v1/metrics",
+    "status": 200,
+    "content_type": "application/json",
+    "body_preview": "{\"partialSuccess\":{}}"
+  },
+  {
+    "url": "https://shopgeraldines.com/services/login_with_shop/buyer/finalize",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "body_preview": "{\"recognized\":false}"
+  },
+  {
+    "url": "https://otlp-http-production.shopifysvc.com/v1/metrics",
+    "status": 200,
+    "content_type": "application/json",
+    "body_preview": "{\"partialSuccess\":{}}"
+  },
+  {
+    "url": "https://shopgeraldines.com/.well-known/shopify/monorail/unstable/produce_batch",
+    "status": 200,
+    "content_type": "",
+    "body_preview": ""
+  },
+  {
+    "url": "https://shopgeraldines.com/.well-known/shopify/monorail/unstable/produce_batch",
+    "status": 200,
+    "content_type": "",
+    "body_preview": ""
+  },
+  {
+    "url": "https://shopgeraldines.com/.well-known/shopify/monorail/unstable/produce_batch",
+    "status": 200,
+    "content_type": "",
+    "body_preview": ""
+  },
+  {
+    "url": "https://shopgeraldines.com/.well-known/shopify/monorail/unstable/produce_batch",
+    "status": 200,
+    "content_type": "",
+    "body_preview": ""
+  },
+  {
+    "url": "https://shopgeraldines.com/.well-known/shopify/monorail/unstable/produce_batch",
+    "status": 200,
+    "content_type": "",
+    "body_preview": ""
+  },
+  {
+    "url": "https://otlp-http-production.shopifysvc.com/v1/metrics",
+    "status": 200,
+    "content_type": "application/json",
+    "body_preview": "{\"partialSuccess\":{}}"
+  },
+  {
+    "url": "https://otlp-http-production.shopifysvc.com/v1/logs",
+    "status": 200,
+    "content_type": "application/json",
+    "body_preview": "{\"partialSuccess\":{}}"
+  },
+  {
+    "url": "https://shopgeraldines.com/cart?t=1780456366633&view=ajax",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "body_preview": ""
+  },
+  {
+    "url": "https://otlp-http-production.shopifysvc.com/v1/metrics",
+    "status": 200,
+    "content_type": "application/json",
+    "body_preview": "{\"partialSuccess\":{}}"
+  },
+  {
+    "url": "https://otlp-http-production.shopifysvc.com/v1/metrics",
+    "status": 200,
+    "content_type": "application/json",
+    "body_preview": "{\"partialSuccess\":{}}"
+  },
+  {
+    "url": "https://shopgeraldines.com/.well-known/shopify/monorail/unstable/produce_batch",
+    "status": 200,
+    "content_type": "",
+    "body_preview": ""
+  },
+  {
+    "url": "https://chimpstatic.com/pixel/v1/track",
+    "status": 201,
+    "content_type": "text/xml",
+    "body_preview": ""
+  },
+  {
+    "url": "https://shopgeraldines.com/.well-known/shopify/monorail/unstable/produce_batch",
+    "status": 200,
+    "content_type": "",
+    "body_preview": ""
+  }
+]

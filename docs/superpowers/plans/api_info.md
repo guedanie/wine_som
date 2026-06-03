@@ -1,6 +1,6 @@
 # Wine App — API Stack Summary & MVP Recommendation
 
-## API Key Status (as of 2026-06-02)
+## API Key Status (as of 2026-06-03)
 
 | API | Status |
 |---|---|
@@ -10,6 +10,7 @@
 | VineRadar | ⏳ Unreleased — on waitlist, timeline unknown |
 | Apify (Vivino scraper) | ⬜ Not yet set up |
 | GWDB | ⬜ Not yet emailed |
+| Instacart | ❌ Not accepting new developer accounts — removed from plan |
 
 ---
 

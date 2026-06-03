@@ -1,0 +1,282 @@
+[
+  {
+    "method": "GET",
+    "url": "https://www.totalwine.com/search/white-page?text=cabernet+sauvignon&sta=TX",
+    "status": 403,
+    "content_type": "text/html",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "blob:https://www.totalwine.com/16950a2f-b353-4f88-a730-735bd017479c",
+    "status": 200,
+    "content_type": "application/javascript",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "blob:https://www.totalwine.com/bc813582-2f39-4950-9435-a4049c50db1d",
+    "status": 200,
+    "content_type": "application/javascript",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "blob:https://www.totalwine.com/6bbebd22-70c0-4be9-b654-72cd8a2663e5",
+    "status": 200,
+    "content_type": "application/javascript",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "blob:https://www.totalwine.com/6a9d267e-11e5-4558-9ba0-16085d464928",
+    "status": 200,
+    "content_type": "application/javascript",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "blob:https://www.totalwine.com/7bfe0872-4088-46b3-8ec0-c0eab1272994",
+    "status": 200,
+    "content_type": "application/javascript",
+    "body_preview": ""
+  },
+  {
+    "method": "POST",
+    "url": "https://www.totalwine.com/FF0j69T5/xhr/assets/js/bundle",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "body_preview": "{\"do\":null,\"ob\":\"TRFNTRERXX5RWRNdEhIRXURYaxBoS05IeBNsE2x2cBFvW0JVb3Z3TG9iEVlsdnhZbXVJTW5lbFVvE3NLbmVwVntMdFlvZm9NaEhWSEVIaBdoTG9Le3ZoFW9lShFtdXdNe0twVWx1Z0xschBIbnZwFW11cBFsZm9LbHZ0E3tMbFl4WGhSaE9wSG5LZBJuZWARb3VwW251aBVsW3hSaExGSG5Ia0x4dXdMb0t7SXtMaBRvTHARb2V0W29meBVvZXBYeExsEG5ldBFsE2wTbExkW251b01udWwQbBN4FHtMbFlsdUIQbHZ7TG5lQhNsS3dMeHZ3TG9bSUpoTxEcXVVTVERdEhERX19fXxEREU1NEV1CQkRDGUcTEwwUREcVDBAQRxAMQxhFGQxAGUVAFhRDRRUVFhFfX19fTU0RTU0RXUJUX19fXxEREREREV0QGREYFxQWExEUEBEWEhgQEBcXGV9fX18RTU1NTU0"
+  },
+  {
+    "method": "GET",
+    "url": "https://tzm.px-cloud.net/ns?c=cc61d477-5ef4-11f1-8e83-7dc840fe14ce",
+    "status": 200,
+    "content_type": "text/html",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "https://crcldu.com/bd/sync.html?v=1780453800000",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "https://collector-pxff0j69t5.px-client.net/b/g?payload=aUkQRhAIEHtne1BgAFFad1xnDxAeEFYQCEkQYXBGS2pVB0tXdWcPEAhUU15BVx4QeWRdZmoARUh6X10PEAgQYmoDAwUGBxAeEFN6QWFUWwZqdWdjDxAIEEJKWlEQHhBWS1p8UGZ4cGB0UQ8QCFRTXkFXHhBXd0FxdlgCX3ZIBg8QCBBXS3gDe1hdW2sAfwB/ZWMCfEhRRnxlZF98cQJKf2VrSn5mWl59dn9GfABgWH12Y0VoX2dKfHV8XntbRVtWW3sEe198WGhlewZ8dlkCfmZkXmhYY0Z/ZnRff2EDW31lYwZ+ZmMCf3V8WG^H9lZwBoX3i%3E9Ka0t7QXtcY1t9WHcBfXZzAnxmY0h9ZnsGf0hrQXtfVVt9W3hfa2ZkGN[X3xYaFpoX3sHfF;D9jAnx2Z0hN8dWsGfHZjS2tffwN9dmcCfwB/AH9fd0h9ZnxefWZ/A38AawdoX39Kf2KZRA39laF99dlEAf1hkX2tlZF98SFpZe1wCDxAeEFFgeH?50SGAGdY0t`mnDxAISRBiagMABQEKEAgFBQAeEGJqAwAFAQsQCAIeEGJqAwAFBgIQCpAIeEGJqAwAFDBgMQCB8DTx4QdGcHRGEDf1toXEUPEAgQWkZGQkmEIHR1FRUUc7Rl1GU15FW1xXHFFdXx1BV1NAUVodRVpbRlcfQlNVVw1GV0pGD1FTUFdAXFdGGUFTR0R7bVVxdXBRBRlMPZmoQT09v&appId=PXFF0j69T5&tag=PSYHJHtMFFU5KQ==&uuid=cc61d477-5ef4-11f1-8e83-7dc840fe14ce&ft=405&seq=1&en=NTA&bi=DhE0HlspfD9ISls7F0IHPQ83KVkfG3Q4AgIpUzVWdxEJMXomSll7IWBFSWUPMDBHDSRxICYWeH1nRjsESX46NxYDOWJMFQgzHGEsRktXcDwCBnk3MV57HABofXQHTDI=&cs=5f05429b2ae9ea8f6c2470e931556a30565930a35b211a1fc062ded68f52ac7e&pc=4984555913187929&sid=cceb8f22-5ef4-11f1-b9d8-a8da75bd4470%F3%A0%84%B1%F3%A0%84%B7%F3%A0%84%B8%F3%A0%84%B0%F3%A0%84%B4%F3%A0%84%B5%F3%A0%84%B4%F3%A0%84%B0%F3%A0%84%B9%F3%A0%84%B2%F3%A0%84%B8%F3%A0%84%B3%F3%A0%84%B6&vid=cceb8494-5ef4-11f1-b9d8-440cc1e6fc1c&ci=ccedbe40-5ef4-11f1-9222-77555c499c32&cts=cceb9144-5ef4-11f1-b9d8-a8da75bd4470&hid=nZzbx6PoKBhAj/iETw78PS1qDQD1lUiX6/QIL7j3IA4=:HRL9XFV5no8BJegcfr7Lw9dJLkvMiMXj-94wMOmMcPavuL8q/3k3AE7b5vvcWweSxAfAHq-Js/muBrdcZFSXniUZn0yVyA21LdjUJ48DyfSycIdNR/Afx1pVPFK-wKrvO8n4BZN9o-iTqRHkYuiR-OsVTqzhs-U-5f5Z/lX92Ip7hPXmgcTlsZDWjPp7Qb-I",
+    "status": 200,
+    "content_type": "image/gif",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "https://fst-ec.perimeterx.net/?id=cceb8494-5ef4-11f1-b9d8-440cc1e6fc1c",
+    "status": 200,
+    "content_type": "text/plain; charset=utf-8",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "https://ift.px-cloud.net/ns?v=cceb8494-5ef4-11f1-b9d8-440cc1e6fc1c&j=1",
+    "status": 200,
+    "content_type": "text/html",
+    "body_preview": ""
+  },
+  {
+    "method": "POST",
+    "url": "https://www.totalwine.com/FF0j69T5/xhr/assets/js/bundle",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "body_preview": "{\"do\":null,\"ob\":\"TRFNTRERXX5RWRNdEhIRXURYaxBoS05IeBNsE2x2cBFvW0JVb3Z3TG9iEVlsdnhZbXVJTW5lbFVvE3NLbmVwVntMdFlvZm9NaEhWSEVIaBdoTG9Le3ZoFW9lShFtdXdNe0twVWx1Z0xschBIbnZwFW11cBFsZm9LbHZ0E3tMbFl4WGhSaE9wSG5LeFhsZWhbbFtGFWxlYFlsSFZIQGJoF2hMd0l7ZW9IbnVJTW9Le0p7S2Rbe0tjTGxLc0h4W3AUe0tvSW9lRhRvE3AUeExzTW92ZBJvdntMeEx0EG5mcFhsE3ATe2VjTXhbSltsE2RYbFtzTWwTeEhHcBwcXVVTVERdEhERX19fX01NEU1NEV1CVF9fX18RTU1NERFNTV1Pe1tDWRdxTmpjSWBLDkhkdVYWGXFyEFBlcGUQTXRIeRcOcGhtFksSaGAVHBtpc20YeWd3FE9OGWNrREZCR1MWbVYYRWttSldsSGx"
+  },
+  {
+    "method": "GET",
+    "url": "https://www.totalwine.com/wine/red-wine/cabernet-sauvignon/l/1484",
+    "status": 403,
+    "content_type": "text/html",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "https://tzm.px-cloud.net/ns?c=cc61d477-5ef4-11f1-8e83-7dc840fe14ce",
+    "status": 200,
+    "content_type": "text/html",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "blob:https://www.totalwine.com/67dfc472-597f-4eae-b4f3-83b9880941a3",
+    "status": 200,
+    "content_type": "application/javascript",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "blob:https://www.totalwine.com/f6a2f469-edf1-4cbb-a227-583fac981044",
+    "status": 200,
+    "content_type": "application/javascript",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "blob:https://www.totalwine.com/5c222f0f-70ea-4e2b-b1fa-35df93c43eea",
+    "status": 200,
+    "content_type": "application/javascript",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "blob:https://www.totalwine.com/93b64333-d5dd-4ec3-9ad2-786cda0562d1",
+    "status": 200,
+    "content_type": "application/javascript",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "https://crcldu.com/bd/sync.html?v=1780453800000",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "blob:https://www.totalwine.com/c51d0887-5bef-4cd7-b98f-bdeb7962083e",
+    "status": 200,
+    "content_type": "application/javascript",
+    "body_preview": ""
+  },
+  {
+    "method": "POST",
+    "url": "https://www.totalwine.com/FF0j69T5/xhr/assets/js/bundle",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "body_preview": "{\"do\":null,\"ob\":\"TRFNTRERXX5RWRNdEhIRXURYaxBoS05IeBNsE2x2cBFvW0JVb3Z3TG9iEVlsdnhZbXVJTW5lbFVvE3NLbmVwVntMdFlvZm9NaEhWSEVIaBdoTG9Le3ZoFW9lShFtdXdNe0twVWx1Z0xschBIbnZwFW11cBFsZm9LbHZ0E3tMbFl4WGhSaE9wSG5LZBJuZWARb3VwW251RlhvZXhSaExGSG5Ia0h7S0ISeHVkE3t1eFZsE2tMe2ZoE3t1RlZsW3dKbGVzSHh2dBJsdUIVe2VnSGxMdFt7ZmwTe3ZwWGx2d0tsdUIRb1tNTWxMdFZ4W0VKb2VGW3tLaBBoTxEcXVVTVERdEhERX19fX01NEU1NEV1CVF9fX18RERERERFdEBATFBUVFRQQFxYZEhMSFxAQFBZfX19fEU1NTU1NERFdEBYZERUUFREYGRMVF19fX19NEU1NEU1dRRlHURRKS0oXFVFSFhJAQFBCGEZ"
+  },
+  {
+    "method": "GET",
+    "url": "https://fst-ec.perimeterx.net/?id=cceb8494-5ef4-11f1-b9d8-440cc1e6fc1c",
+    "status": 200,
+    "content_type": "text/plain; charset=utf-8",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "https://ift.px-cloud.net/ns?v=cceb8494-5ef4-11f1-b9d8-440cc1e6fc1c&j=1",
+    "status": 200,
+    "content_type": "text/html",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "https://collector-pxff0j69t5.px-client.net/b/g?payload=aUkQRhAIEHtne1BgAFFad1xnDxAeEFYQCEkQYXBGS2pVB0tXdWcPEAhUU15BVx4QeWRdZmoARUh6X10PEAgQYmoDAwUGBxAeEFN6QWFUWwZqdWdjDxAIEEJKWlEQHhBWS1p8UGZ4cGB0UQ8QCFRTXkFXHhBXd0FxdlgCX3ZIBg8QCBBXS3gDe1hdW2sAfwB/ZWMCfEhRRnxlZF98cQJKf2VrSn5mWl59dn9GfABgWH12Y0VoX2dKfHV8XntbRVtWW3sEe198WGhlewZ8dlkCfmZkXmhYY0Z/ZnRff2EDW31lYwZ+ZmMG^Cf3V8WH9li%3EZwBoX39Ka0t7QXtcY1t9WHcBfXZzAnxmY0h9ZlVLfHZrQXtfVVt9W3GN[hbaFhRAWtmdwB;DoZmtFfwB4NX2h1ewBoZlVFf0hkWX92YFtrZWcBf2ZRBmh2dFt/X2dIaHV/AGhlY0Kt/ZWRYf2ZRAnxIXl5/X2dFa0hWWXx2VUhoWHsDe1wCD?xAeEFEFgeHNC50SGAdY0tnDxAISRBiagMABQEKEAgBBwQeEGJqAwAFAQsQCAIeEGJq:AwAFBgIQCADIeEGJqAwAFBgMQCB8DTx4QdGcHRGEDf1toXEUmPEAgQWkZGQ7kEIHR1FRUUcRl1GU15FW1xXHFFdXx1FW1xXHUBXVh9FW1xXHVFTUFdAXFdGH0FTR0R7bVVxdXB1eHQMGCgYQT09v&appId=PXFF0j69T5&tag=PSYHJHtMFFU5KQ==&uuid=cc61d477-5ef4-11f1-8e83-7dc840fe14ce&ft=405&seq=1&en=NTA&bi=DhE0HlspfD9ISls7F0IHPQ83KVkfG3Q4AgIpUzVWdxEJMXomSll7IWBFSWUPMDBHDSRxICYWeH1nRjsESX46NxYDOWJMFQgzHGEsRktXcDwCBnk3MV57HABofXQHTDI=&cs=5f05429b2ae9ea8f6c2470e931556a30565930a35b211a1fc062ded68f52ac7e&pc=5075262826890711&sid=cceb8f22-5ef4-11f1-b9d8-a8da75bd4470%F3%A0%84%B1%F3%A0%84%B7%F3%A0%84%B8%F3%A0%84%B0%F3%A0%84%B4%F3%A0%84%B5%F3%A0%84%B4%F3%A0%84%B0%F3%A0%84%B9%F3%A0%84%B8%F3%A0%84%B2%F3%A0%84%B4%F3%A0%84%B6&vid=cceb8494-5ef4-11f1-b9d8-440cc1e6fc1c&ci=d0273e60-5ef4-11f1-aa62-1d0ef53c0f46&cts=cceb9144-5ef4-11f1-b9d8-a8da75bd4470&hid=nZzbx6PoKBhAj/iETw78PS1qDQD1lUiX6/QIL7j3IA4=:HRL9XFV5no8BJegcfr7Lw9dJLkvMiMXj-94wMOmMcPavuL8q/3k3AE7b5vvcWweSxAfAHq-Js/muBrdcZFSXniUZn0yVyA21LdjUJ48DyfSycIdNR/Afx1pVPFK-wKrvO8n4BZN9o-iTqRHkYuiR-OsVTqzhs-U-5f5Z/lX92IpfySro0aQHTHj-7k671QTk",
+    "status": 200,
+    "content_type": "image/gif",
+    "body_preview": ""
+  },
+  {
+    "method": "POST",
+    "url": "https://www.totalwine.com/FF0j69T5/xhr/assets/js/bundle",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "body_preview": "{\"do\":null,\"ob\":\"TRFNTRERXX5RWRNdEhIRXURYaxBoS05IeBNsE2x2cBFvW0JVb3Z3TG9iEVlsdnhZbXVJTW5lbFVvE3NLbmVwVntMdFlvZm9NaEhWSEVIaBdoTG9Le3ZoFW9lShFtdXdNe0twVWx1Z0xschBIbnZwFW11cBFsZm9LbHZ0E3tMbFl4WGhSaE9wSG5LeFhsZWhbbFtGFWxlYFlsSFZIQGJoF2hMd0l7ZW9IbnVJTW9Le0p7S2Rbe0tjTGxLc0h4W3AUe0tvSW9lRhRvE3AUeExzTW92ZBJvdntMeEx0EG5mcFhsE3ATe2VjTXhbSltsE2RYbFtzTWwTeEhHcBwcXVVTVERdEhERX19fX01NEU1NEV1CVF9fX18RTU1NERFNTV1Pe1tDWRdxTmpjSWBLDkhkdVYWGXFyEFBlcGUQTXRIeRcOcGhtFksSaGAVHBtpc20YeWd3FE9OGWNrREZCR1MWbVYYRWttSldsSGx"
+  },
+  {
+    "method": "GET",
+    "url": "https://www.totalwine.com/store/tx/san-antonio",
+    "status": 403,
+    "content_type": "text/html",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "https://tzm.px-cloud.net/ns?c=cc61d477-5ef4-11f1-8e83-7dc840fe14ce",
+    "status": 200,
+    "content_type": "text/html",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "blob:https://www.totalwine.com/fd34f5cc-31d7-44ef-83f7-2db445a9ac71",
+    "status": 200,
+    "content_type": "application/javascript",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "blob:https://www.totalwine.com/c38ff28a-2e10-4b20-94cd-1eb58bfde956",
+    "status": 200,
+    "content_type": "application/javascript",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "blob:https://www.totalwine.com/a32e40f2-62e8-4798-ad3c-06855a73b801",
+    "status": 200,
+    "content_type": "application/javascript",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "blob:https://www.totalwine.com/4d90f418-09b5-4d61-bc66-64e75ed5e7f8",
+    "status": 200,
+    "content_type": "application/javascript",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "blob:https://www.totalwine.com/caedf501-2fb9-4627-87dd-c51604cd6eac",
+    "status": 200,
+    "content_type": "application/javascript",
+    "body_preview": ""
+  },
+  {
+    "method": "POST",
+    "url": "https://www.totalwine.com/FF0j69T5/xhr/assets/js/bundle",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "body_preview": "{\"do\":null,\"ob\":\"TRFNTRERXX5RWRNdEhIRXURYaxBoS05IeBNsE2x2cBFvW0JVb3Z3TG9iEVlsdnhZbXVJTW5lbFVvE3NLbmVwVntMdFlvZm9NaEhWSEVIaBdoTG9Le3ZoFW9lShFtdXdNe0twVWx1Z0xschBIbnZwFW11cBFsZm9LbHZ0E3tMbFl4WGhSaE9wSG5LZBJuZWARb3VwEWxlcFtvdWhSaExGSG5IaFt7dXdLeEtrSXh2d0h4dW9Ib0t0Vm9LeBV7THNNbGVsEG92b0p7TGRbeHZ0WG51eBFudWxWbBNoVm9McFhvS2BYbmZ3THhbdBB4W3ASbBNvTXhLRUxoTxEcXVVTVERdEhERX19fX01NEU1NEV1CVF9fX18RERERERFdFRYZExYSEhEVFBMYExEYERIWERVfX19fEU1NTU1NERFdEBYZERUUFRARFRIUE19fX19NEU1NEU1dRRlHURRMFhlCR0VSFhJAGE9AGBF"
+  },
+  {
+    "method": "GET",
+    "url": "https://crcldu.com/bd/sync.html?v=1780453800000",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "https://fst-ec.perimeterx.net/?id=cceb8494-5ef4-11f1-b9d8-440cc1e6fc1c",
+    "status": 200,
+    "content_type": "text/plain; charset=utf-8",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "https://ift.px-cloud.net/ns?v=cceb8494-5ef4-11f1-b9d8-440cc1e6fc1c&j=1",
+    "status": 200,
+    "content_type": "text/html",
+    "body_preview": ""
+  },
+  {
+    "method": "GET",
+    "url": "https://collector-pxff0j69t5.px-client.net/b/g?payload=aUkQRhAIEHtne1BgAFFad1xnDxAeEFYQCEkQYXBGS2pVB0tXdWcPEAhUU15BVx4QeWRdZmoARUh6X10PEAgQYmoDAwUGBxAeEFN6QWFUWwZqdWdjDxAIEEJKWlEQHhBWS1p8UGZ4cGB0UQ8QCFRTXkFXHhBXd0FxdlgCX3ZIBg8QCBBXS3gDe1hdW2sAfwB/ZWMCfEhRRnxlZF98cQJKf2VrSn5mWl59dn9GfABgWH12Y0VoX2dKfHV8XntbRVtWW3sEe198WGhlewZ8dlkCfmZkXmhYY0Z/ZnRff2EDWG^31lYwZ+Zi%3EmMCf3V8WH9lZwBoX39Ka0t7QXtcY1t9WHcBfXZzAnxmYwJ/dmNIfGN[GZ7QXtfVVt9W3;DtIaGZkWGNtYeFprZWRba2Z8W3xYZ0V8WGsGaF9gXn92fwN8ZXxZaF93SGtlZ0tO9ZmsCfWZ/RX8Ae0V8X2NLfFhzS311ZF9rSGcDa0hj}AX8ADfF5rWNGFZfe1wCDxAeEFFgeH50SGAdY0tnDxAISRBiagMABQEKEAgBBQUe;EGJqAwAFAQGsQCAIeEGJqAwAFBgIQCAIeEGJqAwAFBgMQCBm8DTx4QdGcH7RGEDf1toXEUPEAgQWkZGQkEIHR1FRUUcRl1GU15FW1xXHFFdXx1BRl1AVx1GSh17BU1wfU1xGXVxbXRBPT28=&appId=PXFF0j69T5&tag=PSYHJHtMFFU5KQ==&uuid=cc61d477-5ef4-11f1-8e83-7dc840fe14ce&ft=405&seq=1&en=NTA&bi=DhE0HlspfD9ISls7F0IHPQ83KVkfG3Q4AgIpUzVWdxEJMXomSll7IWBFSWUPMDBHDSRxICYWeH1nRjsESX46NxYDOWJMFQgzHGEsRktXcDwCBnk3MV57HABofXQHTDI=&cs=5f05429b2ae9ea8f6c2470e931556a30565930a35b211a1fc062ded68f52ac7e&pc=2940105036207229&sid=cceb8f22-5ef4-11f1-b9d8-a8da75bd4470%F3%A0%84%B1%F3%A0%84%B7%F3%A0%84%B8%F3%A0%84%B0%F3%A0%84%B4%F3%A0%84%B5%F3%A0%84%B4%F3%A0%84%B1%F3%A0%84%B0%F3%A0%84%B4%F3%A0%84%B3%F3%A0%84%B5%F3%A0%84%B2&vid=cceb8494-5ef4-11f1-b9d8-440cc1e6fc1c&ci=d3caf200-5ef4-11f1-a4d4-531e2b857177&cts=cceb9144-5ef4-11f1-b9d8-a8da75bd4470&hid=nZzbx6PoKBhAj/iETw78PS1qDQD1lUiX6/QIL7j3IA4=:HRL9XFV5no8BJegcfr7Lw9dJLkvMiMXj-94wMOmMcPavuL8q/3k3AE7b5vvcWweSxAfAHq-Js/muBrdcZFSXniUZn0yVyA21LdjUJ48DyfSycIdNR/Afx1pVPFK-wKrvO8n4BZN9o-iTqRHkYuiR-OsVTqzhs-U-5f5Z/lX92IoJjJyD-kvswJpRgnU2OxhU",
+    "status": 200,
+    "content_type": "image/gif",
+    "body_preview": ""
+  },
+  {
+    "method": "POST",
+    "url": "https://www.totalwine.com/FF0j69T5/xhr/assets/js/bundle",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "body_preview": "{\"do\":null,\"ob\":\"TRFNTRERXX5RWRNdEhIRXURYaxBoS05IeBNsE2x2cBFvW0JVb3Z3TG9iEVlsdnhZbXVJTW5lbFVvE3NLbmVwVntMdFlvZm9NaEhWSEVIaBdoTG9Le3ZoFW9lShFtdXdNe0twVWx1Z0xschBIbnZwFW11cBFsZm9LbHZ0E3tMbFl4WGhSaE9wSG5LeFhsZWhbbFtGFWxlYFlsSFZIQGJoF2hMd0l7ZW9IbnVJTW9Le0p7S2Rbe0tjTGxLc0h4W3AUe0tvSW9lRhRvE3AUeExzTW92ZBJvdntMeEx0EG5mcFhsE3ATe2VjTXhbSltsE2RYbFtzTWwTeEhHcBwcXVVTVERdEhERX19fX01NEU1NEV1CVF9fX18RTU1NERFNTV1Pe1tDWRdxTmpjSWBLDkhkdVYWGXFyEFBlcGUQTXRIeRcOcGhtFksSaGAVHBtpc20YeWd3FE9OGWNrREZCR1MWbVYYRWttSldsSGx"
+  },
+  {
+    "method": "POST",
+    "url": "https://www.totalwine.com/FF0j69T5/xhr/assets/js/bundle",
+    "status": 200,
+    "content_type": "application/json; charset=utf-8",
+    "body_preview": "{\"do\":null,\"ob\":\"TRFNTRERXX5RWRNdEhIRXURYaxBoS05IeBNsE2x2cBFvW0JVb3Z3TG9iEVlsdnhZbXVJTW5lbFVvE3NLbmVwVntMdFlvZm9NaEhWSEVIaBdoTG9Le3ZoFW9lShFtdXdNe0twVWx1Z0xschBIbnZwFW11cBFsZm9LbHZ0E3tMbFl4WGhSaE9wSG5LZBJuZWARb3VwEWxldBRsdWxSaExGSG5IaFlsS0YSbmZwW3hMZBJvZm9Je2VoEnt1d0h7S29IbFt0FW91eFZ4dmdMbmVJS2xbd0x7ZUlLeHZoEnt1bBFuZWtKe3Z0EGx1Sll7ZmQSb3VrSm51SUxoTxEcXVVTVERdEhERX19fX01NEU1NEV1CVF9fX18RTU1NERFNTV1Pe1tDWRdxTmpjSWBLDkhkdVYWGXFyEFBlcGUQTXRIeRcOcGhtFksSaGAVHBtpc20YeWd3FE9OGWNrREZCR1MWbVYYRWttSldsSGx"
+  }
+]
