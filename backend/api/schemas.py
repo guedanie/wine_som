@@ -23,6 +23,15 @@ class RecommendRequest(BaseModel):
     message: str = "Recommend wines based on my preferences"
 
 
+class WinePick(BaseModel):
+    wine_id: str
+    name: str
+    price: float
+    retailer: str
+    why: str
+
+
 class RecommendResponse(BaseModel):
-    recommendation: str
+    narrative: str
+    picks: List[WinePick]
     session_id: str
