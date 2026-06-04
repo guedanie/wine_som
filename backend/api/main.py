@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from api.routers import wines, enrichment
+from api.routers import wines, enrichment, recommend
 
 app = FastAPI(
     title="Terroir API",
@@ -9,6 +9,7 @@ app = FastAPI(
 
 app.include_router(wines.router)
 app.include_router(enrichment.router)
+app.include_router(recommend.router)
 
 
 @app.get("/health")
