@@ -78,6 +78,11 @@ async def recommend(req: RecommendRequest):
     except Exception:
         raise HTTPException(status_code=500, detail="Recommendation service unavailable")
 
+    valid_ids = {c["wine_id"] for c in top}
+    picks_data = [p for p in picks_data if p.get("wine_id") in valid_ids]
+    if not picks_data:
+        raise HTTPException(status_code=500, detail="Recommendation service unavailable")
+
     session_id = str(uuid.uuid4())
     try:
         service = get_service_client()

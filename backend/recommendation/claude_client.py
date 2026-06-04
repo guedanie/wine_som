@@ -30,9 +30,6 @@ _TOOL = {
     },
 }
 
-_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-
-
 def _format_wine(wine: Dict[str, Any]) -> str:
     location = ", ".join(filter(None, [
         wine.get("varietal") or "",
@@ -65,6 +62,7 @@ def get_recommendations(
     avoid: List[str],
     wine_type: Optional[str],
 ) -> Tuple[str, List[Dict[str, Any]]]:
+    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     listings = "\n\n".join(f"{i + 1}. {_format_wine(w)}" for i, w in enumerate(candidates))
     count_instruction = "3–5" if len(candidates) >= 3 else "as many as you can"
     style_str = ", ".join(style_preferences) if style_preferences else "no specific style"
@@ -81,7 +79,7 @@ def get_recommendations(
         f"it characteristic of that area."
     )
 
-    response = _client.messages.create(
+    response = client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=1024,
         system=(

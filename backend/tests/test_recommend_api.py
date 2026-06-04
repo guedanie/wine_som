@@ -106,6 +106,20 @@ async def test_recommend_missing_zip_returns_422():
 
 
 @pytest.mark.asyncio
+async def test_recommend_claude_failure_returns_500():
+    with patch("api.routers.recommend.get_recommendations", side_effect=Exception("API down")), \
+         patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([WINE_ROW])):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/recommend", json={
+                "zip_code": "78209",
+                "budget_min": 15.0,
+                "budget_max": 35.0,
+            })
+    assert response.status_code == 500
+    assert "unavailable" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_recommend_picks_have_required_fields():
     with patch("recommendation.claude_client.anthropic.Anthropic", _make_anthropic_mock()), \
          patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([WINE_ROW])), \
