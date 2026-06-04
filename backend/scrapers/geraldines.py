@@ -115,6 +115,28 @@ def _parse_product(raw: dict) -> Optional[ShopifyProduct]:
     )
 
 
+def _fetch_page_url(url: str, retries: int = 3) -> List[dict]:
+    """Fetch products from an explicit URL (used for collection-scoped requests)."""
+    import time
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": "Mozilla/5.0", "Accept": "application/json"},
+    )
+    for attempt in range(retries):
+        try:
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = json.loads(resp.read())
+            return data.get("products", [])
+        except urllib.error.HTTPError as e:
+            if e.code == 429 and attempt < retries - 1:
+                wait = 10 * (attempt + 1)
+                print(f"   Rate limited — waiting {wait}s before retry {attempt + 2}/{retries}")
+                time.sleep(wait)
+            else:
+                raise
+    return []
+
+
 def _fetch_page(since_id: int = 0, limit: int = 250, retries: int = 3) -> List[dict]:
     """Fetch one page of products from Shopify. Uses since_id for pagination."""
     import time
@@ -143,30 +165,27 @@ def _fetch_page(since_id: int = 0, limit: int = 250, retries: int = 3) -> List[d
 def fetch_all_wines() -> List[ShopifyProduct]:
     """
     Fetch all wine products from Geraldine's Shopify store.
-    Paginates via since_id until no more results.
+
+    The public /products.json endpoint without a collection filter returns Shopify's
+    broader product catalog (not just this store), so we do NOT paginate — we fetch
+    each wine collection separately and deduplicate by handle.
     """
+    WINE_COLLECTIONS = ["red", "white", "rose", "bubbles", "orange", "other-alcohol"]
+
+    seen_handles = set()
     wines = []
-    since_id = 0
 
-    while True:
-        raw_products = _fetch_page(since_id=since_id)
-        if not raw_products:
-            break
-
+    for collection in WINE_COLLECTIONS:
+        url_path = f"/collections/{collection}/products.json?limit=250"
+        raw_products = _fetch_page_url(f"{BASE_URL}{url_path}")
         for raw in raw_products:
+            handle = raw.get("handle", "")
+            if handle in seen_handles:
+                continue
+            seen_handles.add(handle)
             product = _parse_product(raw)
             if product:
                 wines.append(product)
-
-        if len(raw_products) < 250:
-            break
-
-        # Polite delay between pages — keeps us well under Shopify's rate limit
-        import time
-        time.sleep(2)
-
-        # Advance cursor to the last product's ID
-        since_id = raw_products[-1]["id"]
 
     return wines
 
@@ -261,28 +280,37 @@ class GeraldinesScraper(BaseScraper):
         total_products = 0
         since_id = 0
 
-        try:
-            while True:
-                raw_page = _fetch_page(since_id=since_id)
-                if not raw_page:
-                    break
+        WINE_COLLECTIONS = ["red", "white", "rose", "bubbles", "orange", "other-alcohol"]
+        seen_handles: set = set()
 
-                # Parse wines from this page
-                page_products = [p for p in (_parse_product(r) for r in raw_page) if p]
+        try:
+            for collection in WINE_COLLECTIONS:
+                url = f"{BASE_URL}/collections/{collection}/products.json?limit=250"
+                raw_page = _fetch_page_url(url)
+
+                page_products = []
+                for raw in raw_page:
+                    handle = raw.get("handle", "")
+                    if handle in seen_handles:
+                        continue
+                    seen_handles.add(handle)
+                    product = _parse_product(raw)
+                    if product:
+                        page_products.append(product)
+
+                if not page_products:
+                    print(f"   {collection}: no wine products found, skipping")
+                    continue
+
                 page_items = self._shopify_products_to_inventory_items(page_products)
 
-                # Commit this page immediately — progress is safe even if we crash later
+                # Commit this collection immediately
                 upc_to_id = self._upsert_wines(page_items)
                 self._upsert_inventory(page_items, upc_to_id)
                 self._upsert_wine_details(page_products, upc_to_id)
 
                 total_products += len(page_products)
-                print(f"   Committed page: {len(page_products)} wines (total so far: {total_products})")
-
-                if len(raw_page) < 250:
-                    break
-
-                since_id = raw_page[-1]["id"]
+                print(f"   {collection}: {len(page_products)} wines committed (total: {total_products})")
                 time.sleep(2)
 
             self.supabase.table("scraper_runs").update({

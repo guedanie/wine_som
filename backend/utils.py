@@ -19,8 +19,26 @@ DESSERT_TERMS = {"port", "sherry", "madeira", "sauternes", "ice wine", "icewine"
 
 
 def infer_wine_type(text: str) -> Optional[str]:
-    """Infer wine type (red/white/rosé/sparkling/dessert) from varietal or category text."""
+    """Infer wine type (red/white/rosé/sparkling/dessert) from varietal or category text.
+    Handles both Shopify product_type strings ('Red Wine') and varietal names ('Cabernet Sauvignon').
+    """
     s = text.lower()
+    # Direct product type strings (e.g. from Shopify product_type field)
+    if s in ("red wine", "red"):
+        return "red"
+    if s in ("white wine", "white"):
+        return "white"
+    if s in ("rosé wine", "rose wine", "rosé", "rose"):
+        return "rosé"
+    if s in ("sparkling wine", "sparkling", "champagne"):
+        return "sparkling"
+    if s in ("orange wine", "orange"):
+        return "orange"
+    if s in ("fortified wine", "vermouth"):
+        return "fortified"
+    if s in ("dessert wine",):
+        return "dessert"
+    # Varietal / keyword matching
     if any(t in s for t in SPARKLING_TERMS):
         return "sparkling"
     if any(t in s for t in ROSE_TERMS):

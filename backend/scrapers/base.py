@@ -66,6 +66,7 @@ class BaseScraper(ABC):
                 "brand": item.brand,
                 "varietal": item.varietal,
                 "wine_type": infer_wine_type(item.varietal or item.wine_name),
+                "avg_price": item.price,
             }.items() if v is not None}
             records.append(record)
 
