@@ -12,6 +12,7 @@ _TOOL = {
             "narrative": {"type": "string"},
             "picks": {
                 "type": "array",
+                "minItems": 1,
                 "items": {
                     "type": "object",
                     "properties": {
@@ -29,6 +30,8 @@ _TOOL = {
     },
 }
 
+_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+
 
 def _format_wine(wine: Dict[str, Any]) -> str:
     location = ", ".join(filter(None, [
@@ -43,6 +46,7 @@ def _format_wine(wine: Dict[str, Any]) -> str:
     structure = wine.get("structure_profile") or {}
     struct_parts = [
         f"{k} {v}" for k, v in structure.items()
+        # body/tannins/acidity/sweetness are the most sommelier-relevant for matching; alcohol/finish omitted
         if k in ("body", "tannins", "acidity", "sweetness") and v is not None
     ]
 
@@ -61,8 +65,6 @@ def get_recommendations(
     avoid: List[str],
     wine_type: Optional[str],
 ) -> Tuple[str, List[Dict[str, Any]]]:
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-
     listings = "\n\n".join(f"{i + 1}. {_format_wine(w)}" for i, w in enumerate(candidates))
     count_instruction = "3–5" if len(candidates) >= 3 else "as many as you can"
     style_str = ", ".join(style_preferences) if style_preferences else "no specific style"
@@ -79,7 +81,7 @@ def get_recommendations(
         f"it characteristic of that area."
     )
 
-    response = client.messages.create(
+    response = _client.messages.create(
         model="claude-haiku-4-5-20251001",
         max_tokens=1024,
         system=(
