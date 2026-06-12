@@ -92,7 +92,7 @@ def _parse_record(raw: Dict[str, Any]) -> Optional[HEBProduct]:
     skus = raw.get("SKUs") or []
     if not skus:
         return None
-    sku = skus[0]
+    sku = skus[0]  # MVP: use first SKU only; multi-pack/size products lose secondary SKUs
 
     brand = (raw.get("brand") or {}).get("name")
     wine_type = infer_wine_type(name)
