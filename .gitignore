@@ -13,3 +13,4 @@ node_modules/
 frontend/dist/
 supabase/.branches/
 supabase/.temp/
+data/exploration/
