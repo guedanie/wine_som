@@ -116,3 +116,27 @@ def test_scraper_maps_to_inventory_items():
     assert item.upc == "669576019191"
     assert item.price == 18.97
     assert item.brand == "Decoy"
+
+
+def test_upsert_wine_details_builds_records():
+    scraper = HebScraper.__new__(HebScraper)
+    captured = {}
+
+    class FakeTable:
+        def upsert(self, records, on_conflict=None):
+            captured["records"] = records
+            captured["on_conflict"] = on_conflict
+            return self
+        def execute(self):
+            return MagicMock(data=[])
+
+    scraper.supabase = MagicMock()
+    scraper.supabase.table.return_value = FakeTable()
+
+    p = _parse_record(_raw_record())
+    scraper._upsert_wine_details([p], {"669576019191": "wine-uuid-1"})
+
+    assert captured["on_conflict"] == "wine_id"
+    assert captured["records"][0]["wine_id"] == "wine-uuid-1"
+    assert captured["records"][0]["source"] == "scraped_heb"
+    assert "Californian red" in captured["records"][0]["description"]
