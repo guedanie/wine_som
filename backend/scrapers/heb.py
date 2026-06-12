@@ -118,3 +118,80 @@ def _parse_record(raw: Dict[str, Any]) -> Optional[HEBProduct]:
         wine_type=wine_type,
         description=_strip_html(raw.get("productDescription") or "") or None,
     )
+
+
+def _graphql_post(query: str, timeout: int = 20) -> Dict[str, Any]:
+    """POST a GraphQL query to HEB and return the parsed JSON."""
+    body = json.dumps({"query": query}).encode("utf-8")
+    req = urllib.request.Request(GRAPHQL_URL, data=body, headers=_HEADERS, method="POST")
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read())
+
+
+def fetch_wine_page(offset: int = 0, limit: int = 60, store_id: str = STORE_ID):
+    """
+    Fetch one page of wine products. Returns (server_total, [HEBProduct]).
+    Non-wine rows are filtered out by _parse_record.
+    """
+    query = (
+        "{ productSearch(shoppingContext: CURBSIDE_PICKUP, query: \"wine\", "
+        f"storeId: {store_id}, limit: {limit}, offset: {offset}) {{ total records {{ {_PRODUCT_FIELDS} }} }} }}"
+    )
+    data = _graphql_post(query)
+    ps = (data.get("data") or {}).get("productSearch") or {}
+    total = ps.get("total") or 0
+    products = []
+    for raw in ps.get("records") or []:
+        product = _parse_record(raw)
+        if product:
+            products.append(product)
+    return total, products
+
+
+class HebScraper(BaseScraper):
+    """HEB scraper — pure-curl GraphQL, hardcoded to store 567 (San Antonio) for MVP."""
+
+    def _products_to_inventory_items(self, products: List[HEBProduct]) -> List[RetailInventoryItem]:
+        return [
+            RetailInventoryItem(
+                wine_name=p.name,
+                retailer_name=RETAILER_NAME,
+                zip_code=STORE_ZIP,
+                upc=p.upc,
+                price=p.price,
+                store_name=STORE_NAME,
+                store_id=STORE_ID,
+                address=STORE_ADDRESS,
+                city="San Antonio",
+                state="TX",
+                in_stock=p.in_stock,
+                varietal=None,
+                brand=p.brand,
+            )
+            for p in products
+        ]
+
+    async def search_by_zip(self, zip_code: str) -> List[RetailInventoryItem]:
+        """MVP: single hardcoded store. Paginate the full wine catalog."""
+        products = self._fetch_all()
+        return self._products_to_inventory_items(products)
+
+    async def search_by_wine(self, wine_name: str, zip_code: str) -> List[RetailInventoryItem]:
+        _total, products = fetch_wine_page(offset=0, limit=60)
+        matches = [p for p in products if wine_name.lower() in p.name.lower()]
+        return self._products_to_inventory_items(matches)
+
+    def _fetch_all(self, page_size: int = 60, max_pages: int = 60) -> List[HEBProduct]:
+        """Paginate productSearch via offset until all records are fetched."""
+        all_products: List[HEBProduct] = []
+        offset = 0
+        total = None
+        for _ in range(max_pages):
+            page_total, products = fetch_wine_page(offset=offset, limit=page_size)
+            if total is None:
+                total = page_total
+            all_products.extend(products)
+            offset += page_size
+            if total is not None and offset >= total:
+                break
+        return all_products

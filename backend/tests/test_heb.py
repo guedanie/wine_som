@@ -77,3 +77,42 @@ def test_parse_record_non_wine_returns_none():
 
 def test_parse_record_no_skus_returns_none():
     assert _parse_record(_raw_record(SKUs=[])) is None
+
+
+from unittest.mock import patch, MagicMock
+from scrapers.heb import fetch_wine_page, HebScraper
+
+
+def _fake_response(records, total=2):
+    return {"data": {"productSearch": {"total": total, "records": records}}}
+
+
+def test_fetch_wine_page_parses_records():
+    raw = _raw_record()
+    with patch("scrapers.heb._graphql_post", return_value=_fake_response([raw], total=1)):
+        total, products = fetch_wine_page(offset=0, limit=60)
+    assert total == 1
+    assert len(products) == 1
+    assert products[0].upc == "669576019191"
+
+
+def test_fetch_wine_page_filters_non_wine():
+    wine = _raw_record()
+    glass = _raw_record(displayName="Riedel Wine Glass", brand={"name": "Riedel"})
+    with patch("scrapers.heb._graphql_post", return_value=_fake_response([wine, glass], total=2)):
+        total, products = fetch_wine_page(offset=0, limit=60)
+    assert total == 2          # total is the server's count
+    assert len(products) == 1  # only the parseable wine survives
+
+
+def test_scraper_maps_to_inventory_items():
+    scraper = HebScraper.__new__(HebScraper)  # skip __init__ (no Supabase client)
+    p = _parse_record(_raw_record())
+    items = scraper._products_to_inventory_items([p])
+    assert len(items) == 1
+    item = items[0]
+    assert item.retailer_name == "H-E-B"
+    assert item.store_id == "567"
+    assert item.upc == "669576019191"
+    assert item.price == 18.97
+    assert item.brand == "Decoy"
