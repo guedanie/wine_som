@@ -73,8 +73,13 @@ class BaseScraper(ABC):
         if records:
             self.supabase.table("wines").upsert(records, on_conflict="upc").execute()
 
-        # Return upc -> id map for inventory linking
-        result = self.supabase.table("wines").select("id,upc").execute()
+        # Return upc -> id map for inventory linking. Filter to THIS batch's UPCs:
+        # an unfiltered select is capped at 1000 rows by PostgREST, which silently
+        # truncates the map and orphans inventory once the wines table exceeds 1000.
+        upcs = [r["upc"] for r in records if r.get("upc")]
+        if not upcs:
+            return {}
+        result = self.supabase.table("wines").select("id,upc").in_("upc", upcs).execute()
         return {w["upc"]: w["id"] for w in result.data if w["upc"]}
 
     def _upsert_inventory(self, items: List[RetailInventoryItem], upc_to_id: dict):
