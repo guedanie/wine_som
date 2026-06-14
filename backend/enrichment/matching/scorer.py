@@ -24,7 +24,7 @@ _STOPWORDS = {
     "argentina", "chile", "australia", "new", "zealand", "napa", "valley", "sonoma",
     "county", "paso", "robles", "lodi", "marlborough",
 }
-_SIZE_RE = re.compile(r"^\d+(ml|l)?$")        # 750, 750ml, 1l
+_SIZE_RE = re.compile(r"^(\d+(ml|l|cl|oz)?|ml|l|cl|oz)$")  # 750, 750ml, 1l, bare "ml"/"l"
 _VINTAGE_RE = re.compile(r"^(19|20)\d{2}$")   # 1999, 2021
 
 
@@ -64,3 +64,60 @@ def _color_score(wine_type: Optional[str], color: Optional[str]) -> float:
     if mapped is None:
         return 0.5
     return 1.0 if mapped == _normalize(wine_type) else 0.0
+
+
+def _content_tokens(s: str) -> set:
+    out = set()
+    for t in _tokens(s):
+        if t in _STOPWORDS or _SIZE_RE.match(t) or _VINTAGE_RE.match(t):
+            continue
+        out.add(t)
+    return out
+
+
+def _name_score(our_name: Optional[str], display_name: Optional[str]) -> float:
+    return _jaccard(_content_tokens(our_name or ""), _content_tokens(display_name or ""))
+
+
+def _score_hit(hit: Dict[str, Any], brand, wine_type, name) -> float:
+    score = (
+        _producer_score(brand, hit.get("producer_name")) * PRODUCER_WEIGHT
+        + _color_score(wine_type, hit.get("color")) * COLOR_WEIGHT
+        + _name_score(name, hit.get("display_name")) * NAME_WEIGHT
+    )
+    return round(max(0.0, min(1.0, score)), 3)
+
+
+def score_candidates(
+    hits: List[Dict[str, Any]],
+    brand: Optional[str],
+    wine_type: Optional[str],
+    name: Optional[str],
+    keep: int = 3,
+) -> List[Dict[str, Any]]:
+    """
+    Rank GrapeMinds search hits and return the top `keep` as candidate dicts:
+      {grapeminds_id, display_name, producer_name, color, confidence, rank, is_primary}
+    Dedupes by grapeminds_id, sorts by confidence desc (stable), marks rank 1 primary.
+    """
+    seen = set()
+    scored = []
+    for hit in hits:
+        gid = str(hit.get("id", ""))
+        if not gid or gid in seen:
+            continue
+        seen.add(gid)
+        scored.append({
+            "grapeminds_id": gid,
+            "display_name": hit.get("display_name"),
+            "producer_name": hit.get("producer_name"),
+            "color": hit.get("color"),
+            "confidence": _score_hit(hit, brand, wine_type, name),
+        })
+
+    scored.sort(key=lambda c: c["confidence"], reverse=True)
+    top = scored[:keep]
+    for i, c in enumerate(top):
+        c["rank"] = i + 1
+        c["is_primary"] = (i == 0)
+    return top
