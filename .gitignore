@@ -14,3 +14,6 @@ frontend/dist/
 supabase/.branches/
 supabase/.temp/
 data/exploration/
+backend/enrichment/matching/eval/eval_searches.json
+backend/enrichment/matching/eval/eval_candidates.csv
+backend/enrichment/matching/eval/eval_report.md
