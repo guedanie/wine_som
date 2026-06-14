@@ -15,7 +15,7 @@ async def enrich_single(wine_id: str, background_tasks: BackgroundTasks, force: 
     client = get_service_client()
     result = (
         client.table("wines")
-        .select("id,name,varietal,region")
+        .select("id,name,varietal,region,brand,wine_type")
         .eq("id", wine_id)
         .maybe_single()
         .execute()
@@ -48,7 +48,7 @@ async def enrich_pending(background_tasks: BackgroundTasks, limit: int = 20):
     )
     enriched_ids = {r["wine_id"] for r in (enriched_ids_result.data or [])}
 
-    all_wines = client.table("wines").select("id,name,varietal,region").limit(200).execute()
+    all_wines = client.table("wines").select("id,name,varietal,region,brand,wine_type").limit(200).execute()
     pending = [w for w in (all_wines.data or []) if w["id"] not in enriched_ids][:limit]
 
     if not pending:

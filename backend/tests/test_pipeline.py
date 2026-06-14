@@ -82,6 +82,7 @@ async def test_enrich_wine_full_enrichment_on_first_fetch():
 
     with patch("enrichment.pipeline.is_already_enriched", return_value=False), \
          patch("enrichment.pipeline.GrapeMindsClient", return_value=mock_client), \
+         patch("enrichment.pipeline.persist_candidates"), \
          patch("enrichment.pipeline._persist") as mock_persist:
         result = await enrich_wine(WINE_ROW)
 
@@ -100,6 +101,7 @@ async def test_enrich_wine_partial_first_fetch_sets_needs_refetch():
 
     with patch("enrichment.pipeline.is_already_enriched", return_value=False), \
          patch("enrichment.pipeline.GrapeMindsClient", return_value=mock_client), \
+         patch("enrichment.pipeline.persist_candidates"), \
          patch("enrichment.pipeline._persist") as mock_persist:
         result = await enrich_wine(WINE_ROW)
 
@@ -117,6 +119,7 @@ async def test_enrich_wine_with_refetch_does_second_pass():
 
     with patch("enrichment.pipeline.is_already_enriched", return_value=False), \
          patch("enrichment.pipeline.GrapeMindsClient", return_value=mock_client), \
+         patch("enrichment.pipeline.persist_candidates"), \
          patch("enrichment.pipeline._persist"), \
          patch("asyncio.sleep", new_callable=AsyncMock):
         result = await enrich_wine_with_refetch(WINE_ROW, refetch_delay=0)

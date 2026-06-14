@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 
 from db import get_service_client
 from enrichment.grapeminds import GrapeMindsClient, GrapeMindsWine, DrinkingPeriod
+from enrichment.matching.scorer import score_candidates
 from config import settings
 
 
@@ -40,6 +41,7 @@ class EnrichmentResult:
     drinking_window_storage: Optional[str] = None
     source: str = "grapeminds"
     needs_refetch: bool = False
+    match_confidence: Optional[float] = None
 
 
 def _result_from_wine_data(
@@ -91,11 +93,33 @@ def _persist(result: EnrichmentResult, final: bool = False):
         "drinking_window_ripe": result.drinking_window_ripe,
         "drinking_window_storage": result.drinking_window_storage,
         "source": result.source,
+        "match_confidence": result.match_confidence,
         "grapeminds_enriched_at": now if final else None,
         "enriched_at": now if final else None,
     }.items() if v is not None}
 
     client.table("wine_details").upsert(record, on_conflict="wine_id").execute()
+
+
+def persist_candidates(wine_id: str, candidates: list):
+    """Replace this wine's GrapeMinds candidate rows with a fresh top-N set."""
+    if not candidates:
+        return
+    client = get_service_client()
+    now = datetime.now(timezone.utc).isoformat()
+    client.table("wine_grapeminds_matches").delete().eq("wine_id", wine_id).execute()
+    records = [{
+        "wine_id": wine_id,
+        "grapeminds_id": c["grapeminds_id"],
+        "display_name": c.get("display_name"),
+        "producer_name": c.get("producer_name"),
+        "color": c.get("color"),
+        "confidence": c.get("confidence"),
+        "rank": c.get("rank"),
+        "is_primary": c.get("is_primary", False),
+        "matched_at": now,
+    } for c in candidates]
+    client.table("wine_grapeminds_matches").insert(records).execute()
 
 
 def is_already_enriched(wine_id: str) -> bool:
@@ -128,12 +152,21 @@ async def enrich_wine(wine_row: dict, force: bool = False) -> EnrichmentResult:
 
     gm = GrapeMindsClient(api_key=settings.grapeminds_api_key)
 
-    # ── Step 1: Search for the wine by name ───────────────────────────────────
-    hits = gm.search(wine_name, limit=3)
+    # ── Step 1: Search, score, and persist top-3 candidates ───────────────────
+    hits = gm.search(wine_name, limit=5)
     if not hits:
         return EnrichmentResult(wine_id=wine_id, source="not_found", needs_refetch=False)
 
-    gm_id = hits[0]["id"]
+    candidates = score_candidates(
+        hits,
+        brand=wine_row.get("brand"),
+        wine_type=wine_row.get("wine_type"),
+        name=wine_name,
+    )
+    persist_candidates(wine_id, candidates)
+    primary = candidates[0]
+    primary_confidence = primary["confidence"]
+    gm_id = int(primary["grapeminds_id"])
 
     # ── Step 2: First fetch — triggers async content generation ───────────────
     gm_wine = gm.get_wine(gm_id)
@@ -142,6 +175,7 @@ async def enrich_wine(wine_row: dict, force: bool = False) -> EnrichmentResult:
 
     drinking = gm.get_drinking_period(gm_id)
     result = _result_from_wine_data(wine_id, gm_wine, drinking)
+    result.match_confidence = primary_confidence
 
     if result.needs_refetch:
         # Content is generating async — persist partial, return with flag
