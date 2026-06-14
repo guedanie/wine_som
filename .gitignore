@@ -17,3 +17,4 @@ data/exploration/
 backend/enrichment/matching/eval/eval_searches.json
 backend/enrichment/matching/eval/eval_candidates.csv
 backend/enrichment/matching/eval/eval_report.md
+.DS_Store
