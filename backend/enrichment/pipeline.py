@@ -21,6 +21,10 @@ from enrichment.grapeminds import GrapeMindsClient, GrapeMindsWine, DrinkingPeri
 from enrichment.matching.scorer import score_candidates
 from config import settings
 
+# Below this primary-match confidence we store the candidates but skip the
+# (budget-spending) detail fetch — eval showed precision drops sharply under 0.80.
+MIN_ENRICH_CONFIDENCE = 0.80
+
 
 @dataclass
 class EnrichmentResult:
@@ -166,6 +170,16 @@ async def enrich_wine(wine_row: dict, force: bool = False) -> EnrichmentResult:
     persist_candidates(wine_id, candidates)
     primary = candidates[0]
     primary_confidence = primary["confidence"]
+
+    # ── Confidence gate: weak match → keep candidates, skip enrichment ────────
+    if primary_confidence < MIN_ENRICH_CONFIDENCE:
+        return EnrichmentResult(
+            wine_id=wine_id,
+            source="low_confidence",
+            match_confidence=primary_confidence,
+            needs_refetch=False,
+        )
+
     gm_id = int(primary["grapeminds_id"])
 
     # ── Step 2: First fetch — triggers async content generation ───────────────

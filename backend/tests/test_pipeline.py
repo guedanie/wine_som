@@ -11,7 +11,12 @@ from enrichment.pipeline import (
 from enrichment.grapeminds import GrapeMindsWine, DrinkingPeriod
 
 
-WINE_ROW = {"id": "uuid-abc", "name": "Caymus Cabernet Sauvignon", "varietal": "Cabernet Sauvignon", "region": "Napa"}
+WINE_ROW = {"id": "uuid-abc", "name": "Caymus Cabernet Sauvignon", "varietal": "Cabernet Sauvignon",
+            "region": "Napa", "brand": "Caymus Vineyards", "wine_type": "red"}
+
+# A high-confidence search hit (producer + color match) so enrichment clears the gate.
+CAYMUS_HIT = {"id": 113817, "display_name": "Caymus Vineyards, Cabernet Sauvignon Napa Valley",
+              "producer_name": "Caymus Vineyards", "color": "red"}
 
 FULL_WINE = GrapeMindsWine(
     grapeminds_id="113817",
@@ -76,7 +81,7 @@ async def test_enrich_wine_returns_not_found_when_no_search_hits():
 @pytest.mark.asyncio
 async def test_enrich_wine_full_enrichment_on_first_fetch():
     mock_client = MagicMock()
-    mock_client.search.return_value = [{"id": 113817, "display_name": "Caymus"}]
+    mock_client.search.return_value = [CAYMUS_HIT]
     mock_client.get_wine.return_value = FULL_WINE
     mock_client.get_drinking_period.return_value = DRINKING
 
@@ -95,7 +100,7 @@ async def test_enrich_wine_full_enrichment_on_first_fetch():
 @pytest.mark.asyncio
 async def test_enrich_wine_partial_first_fetch_sets_needs_refetch():
     mock_client = MagicMock()
-    mock_client.search.return_value = [{"id": 113817, "display_name": "Caymus"}]
+    mock_client.search.return_value = [CAYMUS_HIT]
     mock_client.get_wine.return_value = PARTIAL_WINE
     mock_client.get_drinking_period.return_value = None
 
@@ -110,9 +115,33 @@ async def test_enrich_wine_partial_first_fetch_sets_needs_refetch():
 
 
 @pytest.mark.asyncio
+async def test_enrich_wine_low_confidence_skips_enrichment():
+    # A poorly-matching hit scores below MIN_ENRICH_CONFIDENCE → candidates are
+    # stored, but no detail fetch and no wine_details write.
+    mock_client = MagicMock()
+    mock_client.search.return_value = [{
+        "id": 999, "display_name": "Totally Unrelated Wine",
+        "producer_name": "Someone Else", "color": "white",
+    }]
+    mock_client.get_wine.return_value = FULL_WINE  # must NOT be called
+
+    with patch("enrichment.pipeline.is_already_enriched", return_value=False), \
+         patch("enrichment.pipeline.GrapeMindsClient", return_value=mock_client), \
+         patch("enrichment.pipeline.persist_candidates") as mock_persist_cands, \
+         patch("enrichment.pipeline._persist") as mock_persist:
+        result = await enrich_wine(WINE_ROW)
+
+    assert result.source == "low_confidence"
+    assert result.match_confidence is not None and result.match_confidence < 0.80
+    mock_persist_cands.assert_called_once()    # candidates still stored
+    mock_client.get_wine.assert_not_called()   # no detail fetch
+    mock_persist.assert_not_called()           # no wine_details write
+
+
+@pytest.mark.asyncio
 async def test_enrich_wine_with_refetch_does_second_pass():
     mock_client = MagicMock()
-    mock_client.search.return_value = [{"id": 113817, "display_name": "Caymus"}]
+    mock_client.search.return_value = [CAYMUS_HIT]
     # First call returns partial, second returns full
     mock_client.get_wine.side_effect = [PARTIAL_WINE, FULL_WINE]
     mock_client.get_drinking_period.return_value = DRINKING

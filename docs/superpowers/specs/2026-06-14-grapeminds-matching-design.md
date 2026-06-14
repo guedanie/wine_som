@@ -230,7 +230,7 @@ Build **scorer + eval harness first**, run it, tune weights against the labeled 
 | Case | Behavior |
 |---|---|
 | No search hits | Write no candidate rows, no `wine_details`; return `source="not_found"`. Wine stays un-enriched (retry cadence is a follow-on refresh concern). |
-| Hits exist but all low-confidence | Still enrich rank 1; store its `match_confidence`. No skip branch. |
+| Primary confidence < `MIN_ENRICH_CONFIDENCE` (0.80) | **Store the candidate rows** (free, useful for the agent / future LLM-judge) but **skip the detail fetch and `wine_details` write**; return `source="low_confidence"` with `match_confidence` set. Threshold chosen from the eval (§6): calibration showed ≥0.8 ≈ 81% correct vs 0.5–0.8 ≈ 50%. |
 | Primary detail returns nulls (generating) | Candidates persisted already (from search); `wine_details` partial → 60s → refetch (existing warm-up). |
 | Re-run / `force=True` | Delete this wine's candidate rows, re-score, re-insert. Idempotent; primary may change; `wine_details` re-enriched. |
 | Duplicate `grapeminds_id` in hits | `UNIQUE(wine_id, grapeminds_id)` + defensive dedupe before insert. |
