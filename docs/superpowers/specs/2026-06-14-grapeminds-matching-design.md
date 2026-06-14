@@ -79,6 +79,11 @@ ALTER TABLE wine_details ADD COLUMN match_confidence NUMERIC(4,3);
 - Only the candidate table stores `display_name`/`producer_name`/`color` for *alternates*. Full tasting/structure/drinking data lives in `wine_details` for the primary only. `region`/`grapes` are **not** stored on candidates because the search response does not include them.
 - On a future refresh, if a better primary emerges, flip `is_primary` and re-enrich `wine_details`. The schema already supports this.
 
+**Field ownership in `wine_details`** (retail scrape + GrapeMinds share the row):
+- **Retail scrapers own** `description` / `description_long` (the product-page text). GrapeMinds enrichment must NOT write these — its `_persist` omits them so the upsert leaves the retailer's text intact.
+- **GrapeMinds owns** the structured fields it uniquely provides: `tasting_notes`, `pairing`, `structure_profile`, `drinking_window_*`, plus `match_confidence`, `grapeminds_id`, `grapeminds_enriched_at`.
+- The recommender feeds Claude a *prioritized, compact* descriptor (prefer GrapeMinds `tasting_notes`, fall back to retail `description`) — so richer storage does not bloat the prompt.
+
 ---
 
 ## 4. Confidence Scoring

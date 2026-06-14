@@ -80,11 +80,12 @@ def _persist(result: EnrichmentResult, final: bool = False):
     """Upsert enrichment result to wine_details table."""
     client = get_service_client()
     now = datetime.now(timezone.utc).isoformat()
+    # Retail scrapers own `description`/`description_long` (the product page text);
+    # GrapeMinds contributes only the structured fields below, so its upsert must
+    # NOT include the description columns or it would clobber the retailer's text.
     record = {k: v for k, v in {
         "wine_id": result.wine_id,
         "grapeminds_id": result.grapeminds_id,
-        "description": result.description,
-        "description_long": result.description_long,
         "tasting_notes": result.tasting_notes,
         "tasting_notes_long": result.tasting_notes_long,
         "pairing": result.pairing,

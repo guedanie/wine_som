@@ -61,6 +61,35 @@ def test_result_from_wine_data_partial_sets_needs_refetch():
     assert result.description is None
 
 
+def test_persist_does_not_overwrite_retail_description():
+    # Option 1: retail owns description/description_long; GrapeMinds enrichment
+    # contributes only the structured fields and leaves the retail text intact.
+    from enrichment.pipeline import _persist
+    captured = {}
+
+    class FakeTable:
+        def upsert(self, record, on_conflict=None):
+            captured["record"] = record
+            return self
+        def execute(self):
+            return MagicMock(data=[])
+
+    client = MagicMock()
+    client.table.return_value = FakeTable()
+    result = EnrichmentResult(
+        wine_id="w1", grapeminds_id="113817",
+        description="GM general description", description_long="GM long",
+        tasting_notes="Dark cherry, vanilla", structure_profile={"body": 8},
+    )
+    with patch("enrichment.pipeline.get_service_client", return_value=client):
+        _persist(result, final=True)
+
+    assert "description" not in captured["record"]
+    assert "description_long" not in captured["record"]
+    assert captured["record"]["tasting_notes"] == "Dark cherry, vanilla"
+    assert captured["record"]["structure_profile"] == {"body": 8}
+
+
 @pytest.mark.asyncio
 async def test_enrich_wine_skips_already_enriched():
     with patch("enrichment.pipeline.is_already_enriched", return_value=True):
