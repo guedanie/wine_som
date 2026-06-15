@@ -1,0 +1,68 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parents[1]))
+
+from unittest.mock import patch, MagicMock
+from enrichment.extraction.extractor import _post_process, extract_facts
+
+
+def test_post_process_maps_appellation_to_parent_region():
+    rec = {"wine_id": "w1", "region": "wrong", "sub_region": "Saint-Émilion",
+           "country": "France", "vintage_year": 2019, "varietal": "Merlot",
+           "grapes": ["Merlot"], "abv": None, "body": "FULL"}
+    out = _post_process(rec)
+    assert out["region"] == "Bordeaux"          # overridden via cheat sheet
+    assert out["sub_region"] == "Saint-Émilion"
+    assert out["body"] == "full"                 # normalized
+
+
+def test_post_process_coerces_ranges_and_defaults_varietal():
+    rec = {"wine_id": "w1", "region": "California", "sub_region": None,
+           "country": "US", "vintage_year": 1850, "varietal": None,
+           "grapes": ["Zinfandel"], "abv": 99.0, "body": "rich"}
+    out = _post_process(rec)
+    assert out["vintage_year"] is None           # out of range -> null
+    assert out["abv"] is None                    # out of range -> null
+    assert out["varietal"] == "Zinfandel"        # defaults to grapes[0]
+    assert out["body"] is None                   # unrecognized -> null
+
+
+def test_post_process_keeps_long_tail_region_when_not_in_cheatsheet():
+    rec = {"wine_id": "w1", "region": "Swartland", "sub_region": None,
+           "country": "South Africa", "vintage_year": 2020, "varietal": "Syrah",
+           "grapes": ["Syrah"], "abv": 13.5, "body": "medium"}
+    out = _post_process(rec)
+    assert out["region"] == "Swartland"
+
+
+def _mock_anthropic(records):
+    block = MagicMock()
+    block.type = "tool_use"
+    block.input = {"wines": records}
+    resp = MagicMock()
+    resp.content = [block]
+    cls = MagicMock()
+    cls.return_value.messages.create.return_value = resp
+    return cls
+
+
+def test_extract_facts_returns_postprocessed_records():
+    wines = [{"id": "w1", "name": "Château du Cauze Saint-Émilion Grand Cru 2019",
+              "brand": "", "wine_type": "red", "description": ""}]
+    model_out = [{"wine_id": "w1", "region": "France", "sub_region": "Saint-Émilion",
+                  "country": "France", "vintage_year": 2019, "varietal": "Merlot",
+                  "grapes": ["Merlot"], "abv": None, "body": "full"}]
+    with patch("enrichment.extraction.extractor.anthropic.Anthropic", _mock_anthropic(model_out)):
+        out = extract_facts(wines, batch_size=15)
+    assert len(out) == 1
+    assert out[0]["region"] == "Bordeaux"
+
+
+def test_extract_facts_batches_calls():
+    wines = [{"id": f"w{i}", "name": f"Wine {i}", "brand": "", "wine_type": "red",
+              "description": ""} for i in range(32)]
+    cls = _mock_anthropic([])   # each call returns no wines; we only count calls
+    with patch("enrichment.extraction.extractor.anthropic.Anthropic", cls):
+        extract_facts(wines, batch_size=15)
+    # 32 wines / 15 per batch = 3 calls
+    assert cls.return_value.messages.create.call_count == 3
