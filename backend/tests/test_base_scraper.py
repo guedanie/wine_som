@@ -75,3 +75,69 @@ def test_upsert_wines_empty_batch_returns_empty_map():
     scraper = HebScraper.__new__(HebScraper)
     scraper.supabase = FakeWinesDB([])
     assert scraper._upsert_wines([]) == {}
+
+
+class FakeStoresDB:
+    """Routes by table name; returns seeded stores for the lookup, captures upserts."""
+    def __init__(self, store_rows):
+        self.store_rows = store_rows           # [{"id","retailer_name","store_id"}]
+        self.captured = {}
+        self._table = None
+        self._op = None
+        self._filter = None
+
+    def table(self, name):
+        self._table = name
+        self._op = None
+        self._filter = None
+        return self
+
+    def upsert(self, records, on_conflict=None):
+        self.captured.setdefault("upsert", {})[self._table] = records
+        self._op = "upsert"
+        return self
+
+    def select(self, cols):
+        self._op = "select"
+        return self
+
+    def in_(self, col, vals):
+        self._filter = set(vals)
+        return self
+
+    def eq(self, *a, **k):
+        return self
+
+    def execute(self):
+        if self._op == "select" and self._table == "stores":
+            data = [s for s in self.store_rows
+                    if self._filter is None or s["store_id"] in self._filter]
+            return MagicMock(data=data)
+        return MagicMock(data=[])
+
+
+def test_upsert_stores_returns_keyed_map():
+    db = FakeStoresDB([{"id": "store-uuid-1", "retailer_name": "H-E-B", "store_id": "567"}])
+    scraper = HebScraper.__new__(HebScraper)
+    scraper.supabase = db
+    items = [RetailInventoryItem(
+        wine_name="X", retailer_name="H-E-B", zip_code="78208",
+        store_id="567", store_name="Lincoln Heights", upc="u1")]
+    m = scraper._upsert_stores(items)
+    assert m[("H-E-B", "567")] == "store-uuid-1"
+    assert db.captured["upsert"]["stores"][0]["retailer_name"] == "H-E-B"
+    assert db.captured["upsert"]["stores"][0]["name"] == "Lincoln Heights"
+
+
+def test_upsert_inventory_writes_store_ref_no_denorm():
+    db = FakeStoresDB([{"id": "store-uuid-1", "retailer_name": "H-E-B", "store_id": "567"}])
+    scraper = HebScraper.__new__(HebScraper)
+    scraper.supabase = db
+    items = [RetailInventoryItem(
+        wine_name="X", retailer_name="H-E-B", zip_code="78208",
+        store_id="567", upc="u1", price=20.0)]
+    scraper._upsert_inventory(items, {"u1": "wine-1"})
+    rec = db.captured["upsert"]["retail_inventory"][0]
+    assert rec["store_ref"] == "store-uuid-1"
+    assert rec["wine_id"] == "wine-1"
+    assert "retailer_name" not in rec and "zip_code" not in rec and "store_id" not in rec

@@ -82,31 +82,55 @@ class BaseScraper(ABC):
         result = self.supabase.table("wines").select("id,upc").in_("upc", upcs).execute()
         return {w["upc"]: w["id"] for w in result.data if w["upc"]}
 
+    def _upsert_stores(self, items: List[RetailInventoryItem]) -> dict:
+        """Upsert the distinct stores in this batch; return {(retailer_name, store_id): store_uuid}."""
+        seen = {}
+        for item in items:
+            key = (item.retailer_name, item.store_id)
+            if item.retailer_name and item.store_id and key not in seen:
+                seen[key] = {k: v for k, v in {
+                    "retailer_name": item.retailer_name,
+                    "store_id": item.store_id,
+                    "name": item.store_name,
+                    "address": item.address,
+                    "city": item.city,
+                    "state": item.state,
+                    "zip_code": item.zip_code,
+                }.items() if v is not None}
+        if not seen:
+            return {}
+        self.supabase.table("stores").upsert(
+            list(seen.values()), on_conflict="retailer_name,store_id"
+        ).execute()
+        store_ids = [k[1] for k in seen]
+        result = (
+            self.supabase.table("stores")
+            .select("id,retailer_name,store_id")
+            .in_("store_id", store_ids)
+            .execute()
+        )
+        return {(s["retailer_name"], s["store_id"]): s["id"] for s in result.data}
+
     def _upsert_inventory(self, items: List[RetailInventoryItem], upc_to_id: dict):
-        """Upsert retail inventory records, linking to wine IDs where known."""
+        """Upsert slim retail inventory rows referencing a store_ref."""
+        store_map = self._upsert_stores(items)
         now = datetime.now(timezone.utc).isoformat()
         records = []
         for item in items:
-            wine_id = upc_to_id.get(item.upc) if item.upc else None
-            record = {k: v for k, v in {
-                "wine_id": wine_id,
+            store_ref = store_map.get((item.retailer_name, item.store_id))
+            if not store_ref:
+                continue
+            records.append({k: v for k, v in {
+                "wine_id": upc_to_id.get(item.upc) if item.upc else None,
                 "upc": item.upc,
-                "retailer_name": item.retailer_name,
-                "store_id": item.store_id,
-                "store_name": item.store_name,
-                "address": item.address,
-                "city": item.city,
-                "state": item.state,
-                "zip_code": item.zip_code,
+                "store_ref": store_ref,
                 "price": item.price,
                 "in_stock": item.in_stock,
                 "last_scraped_at": now,
-            }.items() if v is not None}
-            records.append(record)
-
+            }.items() if v is not None})
         if records:
             self.supabase.table("retail_inventory").upsert(
-                records, on_conflict="upc,store_id"
+                records, on_conflict="upc,store_ref"
             ).execute()
 
     async def run(self, zip_codes: List[str]) -> int:
