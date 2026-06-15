@@ -206,24 +206,22 @@ class HebScraper(BaseScraper):
         return all_products
 
     def _upsert_inventory_with_curbside(self, products: List[HEBProduct]):
-        """Like base._upsert_inventory but includes curbside_price and links wine ids by UPC."""
+        """Like base._upsert_inventory but includes curbside_price; references store_ref."""
         from datetime import datetime, timezone
         items = self._products_to_inventory_items(products)
         upc_to_id = self._upsert_wines(items)
+        store_map = self._upsert_stores(items)
         now = datetime.now(timezone.utc).isoformat()
         curbside_by_upc = {p.upc: p.curbside_price for p in products if p.upc}
         records = []
         for item in items:
+            store_ref = store_map.get((item.retailer_name, item.store_id))
+            if not store_ref:
+                continue
             records.append({k: v for k, v in {
                 "wine_id": upc_to_id.get(item.upc) if item.upc else None,
                 "upc": item.upc,
-                "retailer_name": item.retailer_name,
-                "store_id": item.store_id,
-                "store_name": item.store_name,
-                "address": item.address,
-                "city": item.city,
-                "state": item.state,
-                "zip_code": item.zip_code,
+                "store_ref": store_ref,
                 "price": item.price,
                 "curbside_price": curbside_by_upc.get(item.upc),
                 "in_stock": item.in_stock,
@@ -231,7 +229,7 @@ class HebScraper(BaseScraper):
             }.items() if v is not None})
         if records:
             self.supabase.table("retail_inventory").upsert(
-                records, on_conflict="upc,store_id"
+                records, on_conflict="upc,store_ref"
             ).execute()
         return upc_to_id
 

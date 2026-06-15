@@ -140,3 +140,31 @@ def test_upsert_wine_details_builds_records():
     assert captured["records"][0]["wine_id"] == "wine-uuid-1"
     assert captured["records"][0]["source"] == "scraped_heb"
     assert "Californian red" in captured["records"][0]["description"]
+
+
+def test_upsert_inventory_with_curbside_uses_store_ref():
+    scraper = HebScraper.__new__(HebScraper)
+    captured = {}
+
+    class FakeTable:
+        def upsert(self, records, on_conflict=None):
+            captured["records"] = records
+            captured["on_conflict"] = on_conflict
+            return self
+        def execute(self):
+            return MagicMock(data=[])
+
+    scraper.supabase = MagicMock()
+    scraper.supabase.table.return_value = FakeTable()
+    scraper._upsert_wines = lambda items: {"669576019191": "wine-1"}
+    scraper._upsert_stores = lambda items: {("H-E-B", "567"): "store-1"}
+
+    p = _parse_record(_raw_record())  # Decoy, upc 669576019191, curbside 19.92
+    scraper._upsert_inventory_with_curbside([p])
+
+    rec = captured["records"][0]
+    assert captured["on_conflict"] == "upc,store_ref"
+    assert rec["store_ref"] == "store-1"
+    assert rec["wine_id"] == "wine-1"
+    assert rec["curbside_price"] == 19.92
+    assert "retailer_name" not in rec and "zip_code" not in rec and "store_id" not in rec
