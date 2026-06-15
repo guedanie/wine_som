@@ -10,8 +10,9 @@ from api.main import app
 
 WINE_ROW = {
     "price": 22.0,
-    "retailer_name": "Geraldine's",
+    "curbside_price": None,
     "wine_id": "abc-123",
+    "stores": {"retailer_name": "Geraldine's", "store_name": "Geraldine's", "zip_code": "78209"},
     "wines": {
         "id": "abc-123",
         "name": "Test Malbec",

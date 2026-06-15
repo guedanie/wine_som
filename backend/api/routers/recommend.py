@@ -17,11 +17,12 @@ async def recommend(req: RecommendRequest):
     result = (
         supabase.table("retail_inventory")
         .select(
-            "price, retailer_name, wine_id,"
+            "price, curbside_price, wine_id,"
+            "stores!inner(retailer_name, store_name, zip_code),"
             "wines(id, name, varietal, region, country, wine_type,"
             "wine_details(tasting_notes, flavor_profile, structure_profile, grapeminds_enriched_at))"
         )
-        .eq("zip_code", req.zip_code)
+        .eq("stores.zip_code", req.zip_code)
         .eq("in_stock", True)
         .gte("price", req.budget_min)
         .lte("price", req.budget_max)
@@ -48,7 +49,7 @@ async def recommend(req: RecommendRequest):
             "flavor_profile": details.get("flavor_profile") or [],
             "structure_profile": details.get("structure_profile") or {},
             "price": row.get("price"),
-            "retailer": row.get("retailer_name"),
+            "retailer": (row.get("stores") or {}).get("retailer_name"),
         })
 
     if not candidates:
