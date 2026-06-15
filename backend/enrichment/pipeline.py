@@ -128,18 +128,22 @@ def persist_candidates(wine_id: str, candidates: list):
 
 
 def is_already_enriched(wine_id: str) -> bool:
-    """Return True if wine already has a completed GrapeMinds enrichment."""
+    """Return True if wine already has a completed GrapeMinds enrichment.
+
+    Uses limit(1) rather than maybe_single(): supabase-py's maybe_single returns
+    None from execute() when there is no row, which crashes on `.data`. Many wines
+    have no wine_details row yet (no scraped description), so this must be robust.
+    """
     client = get_service_client()
     result = (
         client.table("wine_details")
         .select("grapeminds_enriched_at")
         .eq("wine_id", wine_id)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
-    if result.data and result.data.get("grapeminds_enriched_at"):
-        return True
-    return False
+    rows = (result.data if result else None) or []
+    return bool(rows and rows[0].get("grapeminds_enriched_at"))
 
 
 async def enrich_wine(wine_row: dict, force: bool = False) -> EnrichmentResult:

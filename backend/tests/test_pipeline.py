@@ -90,6 +90,31 @@ def test_persist_does_not_overwrite_retail_description():
     assert captured["record"]["structure_profile"] == {"body": 8}
 
 
+def test_is_already_enriched_handles_no_wine_details_row():
+    # Wines with no wine_details row must return False, not crash (the warm-up bug).
+    from enrichment.pipeline import is_already_enriched
+    client = MagicMock()
+    qb = client.table.return_value
+    qb.select.return_value = qb
+    qb.eq.return_value = qb
+    qb.limit.return_value = qb
+    qb.execute.return_value = MagicMock(data=[])      # no rows
+    with patch("enrichment.pipeline.get_service_client", return_value=client):
+        assert is_already_enriched("w1") is False
+
+
+def test_is_already_enriched_true_when_timestamp_set():
+    from enrichment.pipeline import is_already_enriched
+    client = MagicMock()
+    qb = client.table.return_value
+    qb.select.return_value = qb
+    qb.eq.return_value = qb
+    qb.limit.return_value = qb
+    qb.execute.return_value = MagicMock(data=[{"grapeminds_enriched_at": "2026-06-14T00:00:00Z"}])
+    with patch("enrichment.pipeline.get_service_client", return_value=client):
+        assert is_already_enriched("w1") is True
+
+
 @pytest.mark.asyncio
 async def test_enrich_wine_skips_already_enriched():
     with patch("enrichment.pipeline.is_already_enriched", return_value=True):
