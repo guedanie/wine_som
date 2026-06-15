@@ -48,7 +48,7 @@ def test_parse_detail_null_fields_returns_partial():
             "display_name": "Unknown Wine",
             "color": "red",
             "producer": {"name": "Producer"},
-            "region": {"name": "Napa"},
+            "region": None,
             "grapes": [],
             "description": None,
             "tasting_notes": None,
@@ -60,6 +60,7 @@ def test_parse_detail_null_fields_returns_partial():
     assert wine.grapeminds_id == "999"
     assert wine.description is None
     assert wine.structure_profile == {}
+    # No region/grapes/structure/text at all -> still partial (needs refetch)
     assert wine.is_fully_enriched is False
 
 

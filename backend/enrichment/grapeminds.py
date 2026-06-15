@@ -23,6 +23,7 @@ class GrapeMindsWine:
     color: Optional[str] = None
     producer_name: Optional[str] = None
     region_name: Optional[str] = None
+    region_country: Optional[str] = None
     grapes: List[str] = field(default_factory=list)
     description: Optional[str] = None
     description_long: Optional[str] = None
@@ -83,14 +84,20 @@ class GrapeMindsClient:
         notes_short, notes_long = self._parse_text_field(d.get("tasting_notes"))
         pairing_short, pairing_long = self._parse_text_field(d.get("pairing"))
         grapes = [g["name"] for g in (d.get("grapes") or []) if g.get("name")]
-        is_enriched = bool(fp or desc_short or notes_short)
+        region = d.get("region") or {}
+        region_name = region.get("name")
+        # Finalize when GrapeMinds gave us ANY substantive content — region/grapes/
+        # structure/text. Many wines have region + drinking window but no tasting notes;
+        # gating only on flavor_profile/description/tasting_notes left those stuck forever.
+        is_enriched = bool(fp or desc_short or notes_short or grapes or region_name)
 
         return GrapeMindsWine(
             grapeminds_id=str(d.get("id", "")),
             display_name=d.get("display_name", ""),
             color=d.get("color"),
             producer_name=(d.get("producer") or {}).get("name"),
-            region_name=(d.get("region") or {}).get("name"),
+            region_name=region_name,
+            region_country=region.get("country"),
             grapes=grapes,
             description=desc_short,
             description_long=desc_long,

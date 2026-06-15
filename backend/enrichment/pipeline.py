@@ -46,6 +46,8 @@ class EnrichmentResult:
     source: str = "grapeminds"
     needs_refetch: bool = False
     match_confidence: Optional[float] = None
+    region: Optional[str] = None
+    region_country: Optional[str] = None
 
 
 def _result_from_wine_data(
@@ -66,6 +68,8 @@ def _result_from_wine_data(
         flavor_profile=gm_wine.grapes,  # grapes as flavor tags until Vivino/Apify added
         needs_refetch=not gm_wine.is_fully_enriched,
         source="grapeminds",
+        region=gm_wine.region_name,
+        region_country=gm_wine.region_country,
     )
     if drinking:
         result.drinking_window_start = drinking.from_year
@@ -104,6 +108,18 @@ def _persist(result: EnrichmentResult, final: bool = False):
     }.items() if v is not None}
 
     client.table("wine_details").upsert(record, on_conflict="wine_id").execute()
+
+    # Backfill GrapeMinds region/country onto the wines row (only where still empty —
+    # don't overwrite a scraped region). Scrapers leave these null, so this fills the gap.
+    if final and result.region:
+        wine_update = {k: v for k, v in {
+            "region": result.region,
+            "country": result.region_country,
+        }.items() if v is not None}
+        if wine_update:
+            client.table("wines").update(wine_update).eq(
+                "id", result.wine_id
+            ).is_("region", "null").execute()
 
 
 def persist_candidates(wine_id: str, candidates: list):

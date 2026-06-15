@@ -90,6 +90,73 @@ def test_persist_does_not_overwrite_retail_description():
     assert captured["record"]["structure_profile"] == {"body": 8}
 
 
+def test_parse_detail_region_only_finalizes():
+    # A wine with region (but no flavor_profile/description/tasting_notes) is still
+    # "enriched enough" to finalize — GrapeMinds gave us real data.
+    from enrichment.grapeminds import GrapeMindsClient
+    gm = GrapeMindsClient(api_key="x")
+    payload = {"data": {
+        "id": 1, "display_name": "Austin Hope Cab", "color": "red",
+        "region": {"name": "Paso Robles", "country": "us"},
+        "flavor_profile": None, "description": None, "tasting_notes": None, "grapes": [],
+    }}
+    w = gm._parse_detail(payload)
+    assert w.is_fully_enriched is True
+    assert w.region_name == "Paso Robles"
+    assert w.region_country == "us"
+
+
+def test_parse_detail_truly_empty_stays_unfinished():
+    from enrichment.grapeminds import GrapeMindsClient
+    gm = GrapeMindsClient(api_key="x")
+    payload = {"data": {"id": 1, "display_name": "X", "color": "red",
+                        "region": None, "flavor_profile": None,
+                        "description": None, "tasting_notes": None, "grapes": []}}
+    w = gm._parse_detail(payload)
+    assert w.is_fully_enriched is False
+
+
+def test_result_from_wine_data_captures_region():
+    from enrichment.grapeminds import GrapeMindsWine
+    w = GrapeMindsWine(grapeminds_id="1", display_name="X",
+                       region_name="Paso Robles", region_country="us")
+    res = _result_from_wine_data("w1", w)
+    assert res.region == "Paso Robles"
+    assert res.region_country == "us"
+
+
+def test_persist_backfills_region_on_wines_when_final():
+    from enrichment.pipeline import _persist
+    captured = {}
+
+    class FakeTable:
+        def __init__(self, name):
+            self.name = name
+        def upsert(self, record, on_conflict=None):
+            captured.setdefault("upsert", {})[self.name] = record
+            return self
+        def update(self, vals):
+            captured["update"] = (self.name, vals)
+            return self
+        def eq(self, *a, **k):
+            return self
+        def is_(self, *a, **k):
+            return self
+        def execute(self):
+            return MagicMock(data=[])
+
+    client = MagicMock()
+    client.table.side_effect = lambda n: FakeTable(n)
+    res = EnrichmentResult(wine_id="w1", grapeminds_id="1",
+                           region="Paso Robles", region_country="us",
+                           structure_profile={"body": 8})
+    with patch("enrichment.pipeline.get_service_client", return_value=client):
+        _persist(res, final=True)
+    assert captured["update"][0] == "wines"
+    assert captured["update"][1]["region"] == "Paso Robles"
+    assert captured["update"][1]["country"] == "us"
+
+
 def test_is_already_enriched_handles_no_wine_details_row():
     # Wines with no wine_details row must return False, not crash (the warm-up bug).
     from enrichment.pipeline import is_already_enriched
