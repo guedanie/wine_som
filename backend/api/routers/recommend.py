@@ -34,7 +34,7 @@ async def recommend(req: RecommendRequest):
             "wines(id, name, varietal, region, country, wine_type,"
             "wine_details(tasting_notes, flavor_profile, structure_profile, grapeminds_enriched_at))"
         )
-        .in_("store_id", nearby_ids)
+        .in_("store_ref", nearby_ids)
         .eq("in_stock", True)
         .gte("price", req.budget_min)
         .lte("price", req.budget_max)

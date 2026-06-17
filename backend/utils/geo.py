@@ -14,6 +14,8 @@ def _get_nomi() -> pgeocode.Nominatim:
 
 def zip_to_centroid(zip_code: str) -> Optional[Tuple[float, float]]:
     """Return (lat, lon) centroid for a US zip code, or None if unrecognized."""
+    if not zip_code:
+        return None
     try:
         result = _get_nomi().query_postal_code(zip_code)
     except Exception:

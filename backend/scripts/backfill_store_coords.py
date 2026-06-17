@@ -23,6 +23,9 @@ def main():
         if s.get("latitude") is not None:
             print(f"  skip {s['name']} (already has coords)")
             continue
+        if not s.get("zip_code"):
+            print(f"  skip {s['name']} (no zip)")
+            continue
         coords = zip_to_centroid(s["zip_code"])
         if coords is None:
             print(f"  warn: unknown zip {s['zip_code']} for {s['name']}")
