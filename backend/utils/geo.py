@@ -18,11 +18,8 @@ def zip_to_centroid(zip_code: str) -> Optional[Tuple[float, float]]:
         result = _get_nomi().query_postal_code(zip_code)
     except Exception:
         return None
-    if result is None:
-        return None
     lat, lon = result.latitude, result.longitude
-    # pgeocode returns NaN for unknown zips
-    if lat != lat or lon != lon:
+    if math.isnan(lat) or math.isnan(lon):
         return None
     return (float(lat), float(lon))
 
