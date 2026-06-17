@@ -45,6 +45,7 @@ def _make_db_mock(data):
     qb.eq.return_value = qb
     qb.gte.return_value = qb
     qb.lte.return_value = qb
+    qb.in_.return_value = qb
     qb.insert.return_value = qb
     execute_result = MagicMock()
     execute_result.data = data
@@ -67,7 +68,8 @@ def _make_anthropic_mock(narrative="Here are my top picks.", picks=None):
 async def test_recommend_returns_200():
     with patch("recommendation.claude_client.anthropic.Anthropic", _make_anthropic_mock()), \
          patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([WINE_ROW])), \
-         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])):
+         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post("/api/recommend", json={
                 "zip_code": "78209",
@@ -85,7 +87,8 @@ async def test_recommend_returns_200():
 
 @pytest.mark.asyncio
 async def test_recommend_no_enriched_wines_returns_400():
-    with patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([])):
+    with patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post("/api/recommend", json={
                 "zip_code": "78209",
@@ -109,7 +112,8 @@ async def test_recommend_missing_zip_returns_422():
 @pytest.mark.asyncio
 async def test_recommend_claude_failure_returns_500():
     with patch("api.routers.recommend.get_recommendations", side_effect=Exception("API down")), \
-         patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([WINE_ROW])):
+         patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([WINE_ROW])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post("/api/recommend", json={
                 "zip_code": "78209",
@@ -124,7 +128,8 @@ async def test_recommend_claude_failure_returns_500():
 async def test_recommend_picks_have_required_fields():
     with patch("recommendation.claude_client.anthropic.Anthropic", _make_anthropic_mock()), \
          patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([WINE_ROW])), \
-         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])):
+         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.post("/api/recommend", json={
                 "zip_code": "78209",
@@ -134,3 +139,30 @@ async def test_recommend_picks_have_required_fields():
     assert response.status_code == 200
     for pick in response.json()["picks"]:
         assert all(k in pick for k in ["wine_id", "name", "price", "retailer", "why"])
+
+
+@pytest.mark.asyncio
+async def test_recommend_unknown_zip_returns_400():
+    with patch("api.routers.recommend.zip_to_centroid", return_value=None):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/recommend", json={
+                "zip_code": "00000",
+                "budget_min": 15.0,
+                "budget_max": 35.0,
+            })
+    assert response.status_code == 400
+    assert "don't recognize" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_recommend_no_stores_nearby_returns_400():
+    with patch("api.routers.recommend.zip_to_centroid", return_value=(29.47, -98.46)), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=[]):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/recommend", json={
+                "zip_code": "78209",
+                "budget_min": 15.0,
+                "budget_max": 35.0,
+            })
+    assert response.status_code == 400
+    assert "no stores found" in response.json()["detail"].lower()

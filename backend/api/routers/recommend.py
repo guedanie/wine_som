@@ -4,6 +4,7 @@ from api.schemas import RecommendRequest, RecommendResponse, WinePick
 from db import get_supabase_client, get_service_client
 from recommendation.scorer import score_candidates
 from recommendation.claude_client import get_recommendations
+from utils.geo import zip_to_centroid, find_nearby_store_ids
 
 router = APIRouter(prefix="/api", tags=["recommend"])
 
@@ -14,6 +15,17 @@ _MAX_CANDIDATES = 12
 async def recommend(req: RecommendRequest):
     supabase = get_supabase_client()
 
+    centroid = zip_to_centroid(req.zip_code)
+    if centroid is None:
+        raise HTTPException(status_code=400, detail="We don't recognize that zip code")
+
+    nearby_ids = find_nearby_store_ids(req.zip_code, supabase)
+    if not nearby_ids:
+        raise HTTPException(
+            status_code=400,
+            detail="No stores found near your zip code. We currently serve San Antonio, TX.",
+        )
+
     result = (
         supabase.table("retail_inventory")
         .select(
@@ -22,7 +34,7 @@ async def recommend(req: RecommendRequest):
             "wines(id, name, varietal, region, country, wine_type,"
             "wine_details(tasting_notes, flavor_profile, structure_profile, grapeminds_enriched_at))"
         )
-        .eq("stores.zip_code", req.zip_code)
+        .in_("store_id", nearby_ids)
         .eq("in_stock", True)
         .gte("price", req.budget_min)
         .lte("price", req.budget_max)
