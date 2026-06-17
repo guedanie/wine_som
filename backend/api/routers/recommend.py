@@ -19,7 +19,7 @@ async def recommend(req: RecommendRequest):
     if centroid is None:
         raise HTTPException(status_code=400, detail="We don't recognize that zip code")
 
-    nearby_ids = find_nearby_store_ids(req.zip_code, supabase)
+    nearby_ids = find_nearby_store_ids(req.zip_code, supabase, centroid=centroid)
     if not nearby_ids:
         raise HTTPException(
             status_code=400,

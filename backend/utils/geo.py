@@ -34,9 +34,15 @@ def haversine(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
-def find_nearby_store_ids(zip_code: str, db, radius_miles: float = 10.0) -> List[str]:
+def find_nearby_store_ids(
+    zip_code: str,
+    db,
+    radius_miles: float = 10.0,
+    centroid: Optional[Tuple[float, float]] = None,
+) -> List[str]:
     """Return store UUIDs within radius_miles of zip_code. Empty list if zip unknown or no stores nearby."""
-    centroid = zip_to_centroid(zip_code)
+    if centroid is None:
+        centroid = zip_to_centroid(zip_code)
     if centroid is None:
         return []
     lat, lon = centroid
