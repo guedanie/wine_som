@@ -3,22 +3,27 @@
 ## What This Is
 Full-stack wine recommendation app. Users enter zip code + budget + style preferences and get Claude-powered sommelier recommendations for wines available at local retailers near them.
 
-## Current Build Status (as of 2026-06-11)
+## Current Build Status (as of 2026-06-16)
 
 ### Done
 | Component | Location | Notes |
 |---|---|---|
-| Supabase schema | `supabase/migrations/` | 7 tables live in cloud DB |
+| Supabase schema | `supabase/migrations/` | 9 migrations live in cloud DB |
 | FastAPI app | `backend/api/` | `/health`, `/api/wines/search`, `/api/wines/:id` |
 | Enrichment endpoints | `backend/api/routers/enrichment.py` | `/api/enrich/:id`, `/api/enrich/batch/pending` |
 | GrapeMinds client | `backend/enrichment/grapeminds.py` | curl subprocess (Cloudflare bypass) |
 | Enrichment pipeline | `backend/enrichment/pipeline.py` | Two-step warm-up, cache check, batch mode |
 | Geraldine's scraper | `backend/scrapers/geraldines.py` | Shopify API, ~200 wines, no bot protection |
 | HEB scraper | `backend/scrapers/heb.py` | Pure-curl GraphQL, store 567, ~1993 wines, dual (in-store/curbside) pricing |
-| Recommend endpoint | `backend/api/routers/recommend.py` | `/api/recommend` — Claude Haiku tool-use, rule-based candidate scoring, session persistence |
-| BaseScraper | `backend/scrapers/base.py` | Upsert to Supabase + scraper_runs logging |
-| Wine type utils | `backend/utils.py` | `infer_wine_type()` used by all scrapers |
-| Test suite | `backend/tests/` | 45 tests passing |
+| Recommend endpoint | `backend/api/routers/recommend.py` | `/api/recommend` — Claude Haiku tool-use, radius-based store lookup, session persistence |
+| BaseScraper | `backend/scrapers/base.py` | Upsert to Supabase + auto-geocodes stores on seed |
+| Wine type utils | `backend/utils/__init__.py` | `infer_wine_type()` — utils.py converted to package |
+| Geo utils | `backend/utils/geo.py` | `zip_to_centroid` (pgeocode offline), `haversine`, `find_nearby_store_ids` |
+| Haiku fact extractor | `backend/enrichment/extraction/extractor.py` | Extracts region/sub_region/varietal/grapes/abv/body from name+description; 97% varietal coverage, 78% region |
+| Extraction reference | `backend/enrichment/extraction/reference.py` | Appellation→region cheat sheet, core grapes, few-shot examples |
+| Extraction runner | `backend/enrichment/extraction/run_extraction.py` | One-shot: runs extractor on all wines, writes to DB — already run on all 2213 wines |
+| Store coords backfill | `backend/scripts/backfill_store_coords.py` | One-time lat/lon backfill — already run, both SA stores geocoded |
+| Test suite | `backend/tests/` | 98 tests passing |
 
 ### In Progress / Blocked
 | Item | Status |
@@ -35,7 +40,8 @@ Full-stack wine recommendation app. Users enter zip code + budget + style prefer
 - **Database + Auth**: Supabase (cloud project: `knpldhksfsetujbcfrsj`)
 - **Backend**: Python 3.9, FastAPI, supabase-py
 - **Scraping**: urllib (Geraldine's), curl subprocess (GrapeMinds) — no Playwright needed yet
-- **AI**: Anthropic Claude API (Haiku for recommendations) — key set in `.env`
+- **AI**: Anthropic Claude API (Haiku for recommendations + fact extraction) — key set in `.env`
+- **Geo**: `pgeocode` (offline US zip centroid dataset, no API key)
 
 ## Critical Technical Notes
 
@@ -66,8 +72,16 @@ System Python is **3.9.6**. Use `Optional[str]` from `typing`, NOT `str | None` 
 - Query: `productSearch(shoppingContext: CURBSIDE_PICKUP, query: "wine", storeId: N, limit, offset)` → paginate via `offset` (store 567 has ~1993 "wine" results)
 - Price lives at `records.SKUs[].contextPrices[]`: **ONLINE = in-store/shelf price (lower, canonical)**, **CURBSIDE = pickup+delivery price (~4% higher)** — stored in `retail_inventory.curbside_price`
 - UPC at `SKUs[].twelveDigitUPC`; `productDescription` embeds Type/Blend/Tasting Notes/ABV as light HTML
-- MVP hardcodes store 567 (San Antonio); zip→store lookup is a future enhancement
+- MVP hardcodes store 567 (San Antonio)
 - `robots.txt` disallows `/graphql` (politeness only — it's open); scrape responsibly with the built-in retry/backoff
+
+### Zip→Store Radius Lookup
+- `/api/recommend` uses `find_nearby_store_ids(zip_code, db, radius_miles=10.0)` — not a hardcoded zip filter
+- `backend/utils/geo.py`: `zip_to_centroid` (pgeocode offline dataset) + `haversine` + `find_nearby_store_ids`
+- `BaseScraper._upsert_stores` auto-geocodes stores on seed — any new scraper gets it for free
+- `retail_inventory` FK to `stores` is **`store_ref`** (UUID), NOT `store_id`
+- Two distinct 400s: "don't recognize zip" vs "no stores near you (SA only)"
+- Radius is a parameter — exposing it as a user setting is a future enhancement
 
 ### Supabase
 - Anon key for public reads; service_role key bypasses RLS (backend only)
@@ -91,7 +105,7 @@ python3 -m uvicorn api.main:app --reload
 ```bash
 cd backend
 python3 -m pytest tests/ -v
-# Should show 26 tests passing
+# Should show 98 tests passing
 ```
 
 ## Seeding Data
@@ -125,28 +139,42 @@ backend/
     main.py                    — FastAPI app, router registration
     routers/wines.py           — /api/wines/search + /api/wines/:id
     routers/enrichment.py      — /api/enrich/:id + /api/enrich/batch/pending
-    routers/recommend.py       — /api/recommend (Claude Haiku tool-use)
+    routers/recommend.py       — /api/recommend (Claude Haiku tool-use, radius store lookup)
     schemas.py                 — Pydantic request/response models
   enrichment/
     grapeminds.py              — GrapeMinds API client (curl subprocess)
     pipeline.py                — Enrichment orchestrator + two-step warm-up
+    extraction/
+      extractor.py             — Haiku fact extractor (region/varietal/grapes/abv/body)
+      reference.py             — Appellation→region cheat sheet + core grapes + few-shot
+      run_extraction.py        — One-shot script: extract all wines + write to DB
+  matching/
+    eval/                      — GrapeMinds matching eval scripts + results
   recommendation/
     scorer.py                  — rule-based candidate scoring
     claude_client.py           — Claude Haiku tool-use call
   scrapers/
-    base.py                    — BaseScraper ABC + Supabase upsert logic
+    base.py                    — BaseScraper ABC + Supabase upsert + auto-geocode stores
     geraldines.py              — Shopify scraper for shopgeraldines.com
     heb.py                     — HEB GraphQL scraper (pure curl, store 567)
-  tests/                       — All unit tests (45 passing)
+  scripts/
+    backfill_store_coords.py   — One-time lat/lon backfill for existing stores
+  tests/                       — All unit tests (98 passing)
   config.py                    — Pydantic settings (reads from ../.env)
   db.py                        — Supabase anon + service role clients
-  utils.py                     — infer_wine_type() shared utility
+  utils/
+    __init__.py                — infer_wine_type() shared utility
+    geo.py                     — zip_to_centroid, haversine, find_nearby_store_ids
 
 supabase/
   migrations/
-    20260602000001_initial_schema.sql  — 7 tables + RLS + indexes
-    20260602000002_grants.sql          — Role grants for service_role/anon
-    20260611000001_heb_curbside_price.sql — adds retail_inventory.curbside_price
+    20260602000001_initial_schema.sql       — 7 tables + RLS + indexes
+    20260602000002_grants.sql               — Role grants for service_role/anon
+    20260603000001_add_orange_wine_type.sql — orange wine type
+    20260611000001_heb_curbside_price.sql   — adds retail_inventory.curbside_price
+    20260614000001_grapeminds_matches.sql   — wine_grapeminds_matches table
+    20260614000002_stores_table.sql         — stores registry + store_ref FK on retail_inventory
+    20260615000001_wine_extracted_fields.sql — wines.grapes/abv/body columns
 
 data/
   exploration/                 — API probe scripts + results (not production code)
@@ -156,10 +184,12 @@ data/
     geraldines_probe.py
 
 docs/
-  superpowers/plans/
-    2026-06-02-wine-app-supabase-foundation.md  — ACTIVE implementation plan
-    api_info.md                                  — API key status + strategy
-    2026-06-01-wine-app-data-foundation.md      — OLD plan (superseded)
+  superpowers/
+    specs/
+      2026-06-16-zip-store-mapping-design.md  — zip→store radius mapping design
+    plans/
+      2026-06-16-zip-store-mapping.md         — zip→store implementation plan
+      api_info.md                             — API key status + strategy
 ```
 
 ---
@@ -181,8 +211,7 @@ docs/
 ---
 
 ## What's Next (priority order)
-1. Apply migration `20260611000001` to cloud DB, then run the HEB scraper to seed ~1993 wines
-2. Add HEB zip→store lookup for multi-market coverage (MVP hardcodes store 567)
-3. Await Wine-Searcher key → add as second retail data source for major chains
-4. Add more Shopify local wine shops (same scraper pattern, zero new code)
-5. Frontend (last)
+1. Await Wine-Searcher key → add as second retail data source for major chains
+2. Add more Shopify local wine shops (same scraper pattern, zero new code)
+3. Add more HEB stores across San Antonio (scraper already handles any store ID)
+4. Frontend (last)
