@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from typing import Optional, List
 
 from db import get_service_client
+from utils.geo import zip_to_centroid
 
 
 @dataclass
@@ -88,6 +89,7 @@ class BaseScraper(ABC):
         for item in items:
             key = (item.retailer_name, item.store_id)
             if item.retailer_name and item.store_id and key not in seen:
+                coords = zip_to_centroid(item.zip_code) if item.zip_code else None
                 seen[key] = {k: v for k, v in {
                     "retailer_name": item.retailer_name,
                     "store_id": item.store_id,
@@ -96,6 +98,8 @@ class BaseScraper(ABC):
                     "city": item.city,
                     "state": item.state,
                     "zip_code": item.zip_code,
+                    "latitude": coords[0] if coords else None,
+                    "longitude": coords[1] if coords else None,
                 }.items() if v is not None}
         if not seen:
             return {}

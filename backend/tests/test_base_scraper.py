@@ -141,3 +141,44 @@ def test_upsert_inventory_writes_store_ref_no_denorm():
     assert rec["store_ref"] == "store-uuid-1"
     assert rec["wine_id"] == "wine-1"
     assert "retailer_name" not in rec and "zip_code" not in rec and "store_id" not in rec
+
+
+def test_upsert_stores_populates_lat_lon():
+    """Stores upserted with a valid zip should have latitude/longitude populated."""
+    upserted = {}
+
+    class FakeStoresDB:
+        def table(self, name):
+            return self
+        def upsert(self, records, on_conflict=None):
+            for r in records:
+                upserted[r["store_id"]] = r
+            return self
+        def select(self, cols):
+            return self
+        def in_(self, col, vals):
+            return self
+        def execute(self):
+            return MagicMock(data=[
+                {"id": "uuid-1", "retailer_name": "H-E-B", "store_id": "567"}
+            ])
+
+    scraper = HebScraper.__new__(HebScraper)
+    scraper.supabase = FakeStoresDB()
+
+    items = [RetailInventoryItem(
+        wine_name="Test Wine",
+        retailer_name="H-E-B",
+        store_id="567",
+        store_name="H-E-B",
+        zip_code="78208",
+        price=15.0,
+        in_stock=True,
+    )]
+    scraper._upsert_stores(items)
+
+    assert "567" in upserted
+    assert upserted["567"]["latitude"] is not None
+    assert upserted["567"]["longitude"] is not None
+    # Should be San Antonio coordinates
+    assert 29.0 < upserted["567"]["latitude"] < 30.0
