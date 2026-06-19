@@ -153,6 +153,90 @@ class SpecsScraper(BaseScraper):
                 records, on_conflict="wine_id"
             ).execute()
 
+    def _fetch_store_name(self, store_number: int) -> str:
+        """GET /api/store/number/N/ → store name string."""
+        cmd = [
+            "curl", "-s", "--max-time", "10",
+            "-H", "User-Agent: Mozilla/5.0",
+            "-H", "Accept: application/json",
+            STORE_API_URL.format(store_number),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        try:
+            data = json.loads(result.stdout)
+            return data.get("name") or f"Spec's Store {store_number}"
+        except Exception:
+            return f"Spec's Store {store_number}"
+
+    async def run_full(self) -> dict:
+        """
+        Full scrape: iterate all 12 SA stores × all pages.
+        Commits each page immediately so progress is never lost on failure.
+        """
+        import time
+
+        run_id = str(uuid.uuid4())
+        self.supabase.table("scraper_runs").insert({
+            "id": run_id,
+            "retailer_name": RETAILER_NAME,
+            "status": "running",
+        }).execute()
+
+        total_committed = 0
+
+        try:
+            for store_number in SA_STORE_NUMBERS:
+                store_name = self._fetch_store_name(store_number)
+                print(f"\n  Store {store_number} — {store_name}")
+
+                page = 1
+                total_pages = None
+
+                while total_pages is None or page <= total_pages:
+                    try:
+                        resp = _fetch_wine_page(store_number=store_number, page=page)
+                    except Exception as e:
+                        print(f"    page {page}: fetch error — {e}")
+                        break
+
+                    if total_pages is None:
+                        try:
+                            total_pages = int(resp.get("totalPages", 1))
+                        except (ValueError, TypeError):
+                            total_pages = 1
+
+                    raw_products = resp.get("products") or []
+                    products = [p for raw in raw_products if (p := _parse_product(raw))]
+
+                    if products:
+                        items = self._products_to_inventory_items(
+                            products, store_number=store_number, store_name=store_name
+                        )
+                        upc_to_id = self._upsert_wines(items)
+                        self._upsert_inventory(items, upc_to_id)
+                        self._upsert_wine_details(products, upc_to_id)
+                        total_committed += len(products)
+                        print(f"    page {page}/{total_pages}: {len(products)} wines committed (total: {total_committed})")
+
+                    page += 1
+                    time.sleep(0.5)   # polite rate limit
+
+            self.supabase.table("scraper_runs").update({
+                "status": "success",
+                "records_updated": total_committed,
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", run_id).execute()
+
+            return {"wines_committed": total_committed, "stores": len(SA_STORE_NUMBERS)}
+
+        except Exception as e:
+            self.supabase.table("scraper_runs").update({
+                "status": "failed",
+                "error_message": str(e),
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", run_id).execute()
+            raise
+
     async def search_by_zip(self, zip_code: str) -> List[RetailInventoryItem]:
         """Not used for full scraping — exists to satisfy BaseScraper ABC."""
         return []
