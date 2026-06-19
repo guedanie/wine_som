@@ -30,6 +30,16 @@ STORE_ZIP = "78208"            # Lincoln Heights, San Antonio
 STORE_ADDRESS = "1520 Austin Hwy, San Antonio, TX 78218"
 RETAILER_NAME = "H-E-B"
 
+# SA stores near 78209, verified to carry wine via productSearch probe
+SA_STORES = {
+    "567": {"name": "Lincoln Heights Market H-E-B", "address": "999 East Basse Rd",  "zip": "78209"},
+    "372": {"name": "Oak Park H-E-B",               "address": "1955 Nacogdoches",   "zip": "78209"},
+    "585": {"name": "Austin Highway H-E-B",          "address": "1520 Austin Hwy",   "zip": "78218"},
+    "385": {"name": "Olmos Park H-E-B",              "address": "300 Olmos Dr",       "zip": "78212"},
+    "568": {"name": "Perrin Beitel H-E-B",           "address": "12018 Perrin Beitel Rd", "zip": "78217"},
+    "556": {"name": "Deco District H-E-B",           "address": "2118 Fredericksburg Rd", "zip": "78201"},
+}
+
 _HEADERS = {
     "Content-Type": "application/json",
     "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) "
@@ -158,19 +168,26 @@ def fetch_wine_page(offset: int = 0, limit: int = 60, store_id: str = STORE_ID):
 
 
 class HebScraper(BaseScraper):
-    """HEB scraper — pure-curl GraphQL, hardcoded to store 567 (San Antonio) for MVP."""
+    """HEB scraper — pure-curl GraphQL, iterates all SA_STORES."""
 
-    def _products_to_inventory_items(self, products: List[HEBProduct]) -> List[RetailInventoryItem]:
+    def _products_to_inventory_items(
+        self,
+        products: List[HEBProduct],
+        store_id: str = STORE_ID,
+        store_name: str = STORE_NAME,
+        store_zip: str = STORE_ZIP,
+        store_address: str = STORE_ADDRESS,
+    ) -> List[RetailInventoryItem]:
         return [
             RetailInventoryItem(
                 wine_name=p.name,
                 retailer_name=RETAILER_NAME,
-                zip_code=STORE_ZIP,
+                zip_code=store_zip,
                 upc=p.upc,
                 price=p.price,
-                store_name=STORE_NAME,
-                store_id=STORE_ID,
-                address=STORE_ADDRESS,
+                store_name=store_name,
+                store_id=store_id,
+                address=store_address,
                 city="San Antonio",
                 state="TX",
                 in_stock=p.in_stock,
@@ -205,10 +222,17 @@ class HebScraper(BaseScraper):
                 break
         return all_products
 
-    def _upsert_inventory_with_curbside(self, products: List[HEBProduct]):
+    def _upsert_inventory_with_curbside(
+        self,
+        products: List[HEBProduct],
+        store_id: str = STORE_ID,
+        store_name: str = STORE_NAME,
+        store_zip: str = STORE_ZIP,
+        store_address: str = STORE_ADDRESS,
+    ):
         """Like base._upsert_inventory but includes curbside_price; references store_ref."""
         from datetime import datetime, timezone
-        items = self._products_to_inventory_items(products)
+        items = self._products_to_inventory_items(products, store_id, store_name, store_zip, store_address)
         upc_to_id = self._upsert_wines(items)
         store_map = self._upsert_stores(items)
         now = datetime.now(timezone.utc).isoformat()
@@ -253,8 +277,9 @@ class HebScraper(BaseScraper):
             ).execute()
 
     async def run_full(self) -> dict:
-        """Full scrape with per-page commit. Paginates the HEB wine catalog at store 567."""
+        """Full scrape across all SA_STORES with per-page commit."""
         import uuid
+        import time
         from datetime import datetime, timezone
 
         run_id = str(uuid.uuid4())
@@ -263,23 +288,33 @@ class HebScraper(BaseScraper):
         }).execute()
 
         total_committed = 0
-        offset = 0
         page_size = 60
-        server_total = None
 
         try:
-            for _ in range(60):  # safety cap
-                page_total, products = fetch_wine_page(offset=offset, limit=page_size)
-                if server_total is None:
-                    server_total = page_total
-                if products:
-                    upc_to_id = self._upsert_inventory_with_curbside(products)
-                    self._upsert_wine_details(products, upc_to_id)
-                    total_committed += len(products)
-                    print(f"   offset {offset}: {len(products)} wines committed (total: {total_committed})")
-                offset += page_size
-                if server_total is not None and offset >= server_total:
-                    break
+            for store_id, store_info in SA_STORES.items():
+                store_name = store_info["name"]
+                store_zip = store_info["zip"]
+                store_address = store_info["address"]
+                print(f"\n  Store {store_id} — {store_name}")
+
+                offset = 0
+                server_total = None
+
+                for _ in range(60):  # safety cap per store
+                    page_total, products = fetch_wine_page(offset=offset, limit=page_size, store_id=store_id)
+                    if server_total is None:
+                        server_total = page_total
+                    if products:
+                        upc_to_id = self._upsert_inventory_with_curbside(
+                            products, store_id, store_name, store_zip, store_address
+                        )
+                        self._upsert_wine_details(products, upc_to_id)
+                        total_committed += len(products)
+                        print(f"    offset {offset}: {len(products)} wines (total: {total_committed})")
+                    offset += page_size
+                    if server_total is not None and offset >= server_total:
+                        break
+                    time.sleep(0.3)
 
             self.supabase.table("scraper_runs").update({
                 "status": "success",
@@ -287,7 +322,7 @@ class HebScraper(BaseScraper):
                 "completed_at": datetime.now(timezone.utc).isoformat(),
             }).eq("id", run_id).execute()
 
-            return {"wines_committed": total_committed, "store": STORE_NAME, "store_id": STORE_ID}
+            return {"wines_committed": total_committed, "stores": len(SA_STORES)}
 
         except Exception as e:
             self.supabase.table("scraper_runs").update({
