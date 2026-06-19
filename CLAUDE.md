@@ -14,7 +14,7 @@ Full-stack wine recommendation app. Users enter zip code + budget + style prefer
 | GrapeMinds client | `backend/enrichment/grapeminds.py` | curl subprocess (Cloudflare bypass) |
 | Enrichment pipeline | `backend/enrichment/pipeline.py` | Two-step warm-up, cache check, batch mode |
 | Geraldine's scraper | `backend/scrapers/geraldines.py` | Shopify API, ~200 wines, no bot protection |
-| HEB scraper | `backend/scrapers/heb.py` | Pure-curl GraphQL, store 567, ~1993 wines, dual (in-store/curbside) pricing |
+| HEB scraper | `backend/scrapers/heb.py` | Pure-curl GraphQL, 6 SA stores, ~5,983 inventory records, dual (in-store/curbside) pricing |
 | Recommend endpoint | `backend/api/routers/recommend.py` | `/api/recommend` — Claude Haiku tool-use, radius-based store lookup, session persistence |
 | BaseScraper | `backend/scrapers/base.py` | Upsert to Supabase + auto-geocodes stores on seed |
 | Wine type utils | `backend/utils/__init__.py` | `infer_wine_type()` — utils.py converted to package |
@@ -73,7 +73,8 @@ System Python is **3.9.6**. Use `Optional[str]` from `typing`, NOT `str | None` 
 - Query: `productSearch(shoppingContext: CURBSIDE_PICKUP, query: "wine", storeId: N, limit, offset)` → paginate via `offset` (store 567 has ~1993 "wine" results)
 - Price lives at `records.SKUs[].contextPrices[]`: **ONLINE = in-store/shelf price (lower, canonical)**, **CURBSIDE = pickup+delivery price (~4% higher)** — stored in `retail_inventory.curbside_price`
 - UPC at `SKUs[].twelveDigitUPC`; `productDescription` embeds Type/Blend/Tasting Notes/ABV as light HTML
-- MVP hardcodes store 567 (San Antonio)
+- 6 SA stores hardcoded in `SA_STORES` dict: 567, 372, 585, 385, 568, 556 (all verified to carry wine)
+- Store list source: `data/heb-store-list.csv`
 - `robots.txt` disallows `/graphql` (politeness only — it's open); scrape responsibly with the built-in retry/backoff
 
 ### Spec's (REST API — pure curl, no browser)
@@ -239,6 +240,6 @@ docs/
 
 ## What's Next (priority order)
 1. Add more Shopify local wine shops (same scraper pattern as Geraldine's, zero new code)
-2. Add more HEB stores across San Antonio (scraper already handles any store ID)
+2. Add more HEB stores across San Antonio (6 live, `data/heb-store-list.csv` has full list)
 3. Target scraper — Playwright probe needed first
 4. Frontend (last)
