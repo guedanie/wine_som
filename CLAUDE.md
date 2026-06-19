@@ -30,7 +30,7 @@ Full-stack wine recommendation app. Users enter zip code + budget + style prefer
 | Item | Status |
 |---|---|
 | Total Wine scraper | Blocked — Imperva Enterprise, 403 on everything |
-| Wine-Searcher API | Key requested 2026-06-02, pending approval |
+| Wine-Searcher API | Blocked — denied, use case too similar to their product |
 
 ### Not Started
 - Frontend (intentionally last)
@@ -230,7 +230,7 @@ docs/
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ Set |
 | `GRAPEMINDS_API_KEY` | ✅ Set (~17/250 calls used) |
 | `ANTHROPIC_API_KEY` | ✅ Set |
-| `WINE_SEARCHER_API_KEY` | 🕐 Requested, pending |
+| `WINE_SEARCHER_API_KEY` | ❌ Denied — use case too similar to their offering |
 | `VINERADAR_API_KEY` | ⏳ API unreleased, on waitlist |
 | `APIFY_API_TOKEN` | ⬜ Not set up |
 | `INSTACART` | ❌ Not accepting new developers |
@@ -238,8 +238,7 @@ docs/
 ---
 
 ## What's Next (priority order)
-1. Await Wine-Searcher key → add as second retail data source for major chains
-2. Add more Shopify local wine shops (same scraper pattern as Geraldine's, zero new code)
-3. Add more HEB stores across San Antonio (scraper already handles any store ID)
-4. Target scraper — Playwright probe needed first (see brainstorming notes)
-5. Frontend (last)
+1. Add more Shopify local wine shops (same scraper pattern as Geraldine's, zero new code)
+2. Add more HEB stores across San Antonio (scraper already handles any store ID)
+3. Target scraper — Playwright probe needed first
+4. Frontend (last)
