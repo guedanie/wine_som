@@ -81,3 +81,22 @@ def _parse_product(raw: dict) -> Optional[SpecsProduct]:
         price=effective,
         in_stock=raw.get("stock", {}).get("inStock", False),
     )
+
+
+def _fetch_wine_page(store_number: int, page: int, page_size: int = PAGE_SIZE) -> dict:
+    """POST to /api/search/ for one page of wines at a given store. Returns raw API response dict."""
+    body = json.dumps({
+        "userQuery": "",
+        "orderBy": "popularity",
+        "storeNumber": store_number,
+        "page": page,
+        "pageSize": page_size,
+        "facets": {"category.keyword": "[\"Wine\"]"},
+    })
+    cmd = (
+        ["curl", "-s", "-X", "POST", "--max-time", "30"]
+        + _CURL_HEADERS
+        + ["-d", body, SEARCH_URL]
+    )
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    return json.loads(result.stdout)

@@ -1,8 +1,10 @@
+import json
 import sys
 from pathlib import Path
+from unittest.mock import patch, MagicMock
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
-from scrapers.specs import _parse_product, SpecsProduct
+from scrapers.specs import _parse_product, SpecsProduct, _fetch_wine_page
 
 
 def _raw_product(**overrides):
@@ -93,3 +95,44 @@ def test_parse_product_out_of_stock():
     raw["stock"]["inStock"] = False
     p = _parse_product(raw)
     assert p.in_stock is False
+
+
+def _make_search_response(products=None, total=1, pages=1):
+    return json.dumps({
+        "totalProducts": total,
+        "currentPage": "1",
+        "totalPages": pages,
+        "productsPerPage": 96,
+        "products": products or [],
+    })
+
+
+def test_fetch_wine_page_returns_parsed_response():
+    fake_response = _make_search_response(products=[_raw_product()], total=1, pages=1)
+    mock_result = MagicMock()
+    mock_result.stdout = fake_response
+    mock_result.returncode = 0
+
+    with patch("scrapers.specs.subprocess.run", return_value=mock_result):
+        result = _fetch_wine_page(store_number=100, page=1)
+
+    assert result["totalProducts"] == 1
+    assert len(result["products"]) == 1
+
+
+def test_fetch_wine_page_sends_correct_store_and_page():
+    captured = {}
+    fake_response = _make_search_response()
+    mock_result = MagicMock(stdout=fake_response, returncode=0)
+
+    def capture_call(cmd, **kwargs):
+        captured["cmd"] = cmd
+        return mock_result
+
+    with patch("scrapers.specs.subprocess.run", side_effect=capture_call):
+        _fetch_wine_page(store_number=113, page=3)
+
+    cmd_str = " ".join(captured["cmd"])
+    assert '"storeNumber": 113' in cmd_str or '"storeNumber":113' in cmd_str
+    assert '"page": 3' in cmd_str or '"page":3' in cmd_str
+    assert '"category.keyword"' in cmd_str
