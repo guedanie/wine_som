@@ -4,7 +4,8 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
-from scrapers.specs import _parse_product, SpecsProduct, _fetch_wine_page
+from scrapers.specs import _parse_product, SpecsProduct, _fetch_wine_page, SpecsScraper
+from scrapers.base import RetailInventoryItem
 
 
 def _raw_product(**overrides):
@@ -136,3 +137,71 @@ def test_fetch_wine_page_sends_correct_store_and_page():
     assert '"storeNumber": 113' in cmd_str or '"storeNumber":113' in cmd_str
     assert '"page": 3' in cmd_str or '"page":3' in cmd_str
     assert '"category.keyword"' in cmd_str
+
+
+def _make_scraper():
+    s = SpecsScraper.__new__(SpecsScraper)
+    s.supabase = MagicMock()
+    return s
+
+
+def test_products_to_inventory_items_maps_correctly():
+    scraper = _make_scraper()
+    product = _parse_product(_raw_product())
+    items = scraper._products_to_inventory_items(
+        [product], store_number=100, store_name="San Antonio - De Zavala"
+    )
+    assert len(items) == 1
+    item = items[0]
+    assert isinstance(item, RetailInventoryItem)
+    assert item.wine_name == "Stonegate Sauvignon Blanc"
+    assert item.upc == "081883800770"
+    assert item.price == 9.65
+    assert item.retailer_name == "Spec's"
+    assert item.store_id == "100"
+    assert item.store_name == "San Antonio - De Zavala"
+    assert item.in_stock is True
+    assert item.zip_code == "78209"
+
+
+def test_products_to_inventory_items_skips_no_price():
+    scraper = _make_scraper()
+    raw = _raw_product()
+    raw["pricing"]["unitPrice"] = None
+    raw["pricing"]["unitPricePromoDiscount"] = None
+    product = _parse_product(raw)
+    items = scraper._products_to_inventory_items(
+        [product], store_number=100, store_name="De Zavala"
+    )
+    assert len(items) == 0
+
+
+def test_upsert_wine_details_writes_non_empty_descriptions():
+    scraper = _make_scraper()
+    scraper.supabase.table.return_value.upsert.return_value.execute.return_value = MagicMock()
+
+    product_with_desc = _parse_product(_raw_product())
+    raw_no_desc = _raw_product()
+    raw_no_desc["details"]["description"] = ""
+    product_no_desc = _parse_product(raw_no_desc)
+
+    upc_to_id = {"081883800770": "wine-uuid-1"}
+    scraper._upsert_wine_details([product_with_desc, product_no_desc], upc_to_id)
+
+    scraper.supabase.table.assert_called_with("wine_details")
+    call_args = scraper.supabase.table.return_value.upsert.call_args
+    records = call_args[0][0]
+    assert len(records) == 1
+    assert records[0]["wine_id"] == "wine-uuid-1"
+    assert records[0]["description"] == "Crisp and dry with notes of green apple and citrus."
+    assert records[0]["source"] == "scraped_specs"
+
+
+def test_upsert_wine_details_skips_when_all_empty():
+    scraper = _make_scraper()
+    raw = _raw_product()
+    raw["details"]["description"] = ""
+    product = _parse_product(raw)
+    upc_to_id = {"081883800770": "wine-uuid-1"}
+    scraper._upsert_wine_details([product], upc_to_id)
+    scraper.supabase.table.assert_not_called()

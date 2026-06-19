@@ -100,3 +100,63 @@ def _fetch_wine_page(store_number: int, page: int, page_size: int = PAGE_SIZE) -
     )
     result = subprocess.run(cmd, capture_output=True, text=True)
     return json.loads(result.stdout)
+
+
+class SpecsScraper(BaseScraper):
+    """
+    Scraper for Spec's Wines, Spirits & Finer Foods (specsonline.com).
+    Queries the internal /api/search/ REST endpoint — no auth, no browser.
+    Iterates all 12 San Antonio stores.
+    """
+
+    def _products_to_inventory_items(
+        self,
+        products: List[SpecsProduct],
+        store_number: int,
+        store_name: str,
+    ) -> List[RetailInventoryItem]:
+        items = []
+        for p in products:
+            if p.price is None:
+                continue
+            items.append(RetailInventoryItem(
+                wine_name=p.name,
+                retailer_name=RETAILER_NAME,
+                store_id=str(store_number),
+                store_name=store_name,
+                upc=p.upc,
+                price=p.price,
+                in_stock=p.in_stock,
+                varietal=p.category_group,
+                brand=p.brand,
+                zip_code="78209",   # San Antonio; geocoded by BaseScraper._upsert_stores
+                city="San Antonio",
+                state="TX",
+            ))
+        return items
+
+    def _upsert_wine_details(self, products: List[SpecsProduct], upc_to_id: dict):
+        """Write Spec's product descriptions into wine_details for wines that have them (~77%)."""
+        records = []
+        for p in products:
+            wine_id = upc_to_id.get(p.upc) if p.upc else None
+            if not wine_id or not p.description:
+                continue
+            records.append({
+                "wine_id": wine_id,
+                "description": p.description,
+                "source": "scraped_specs",
+                "enriched_at": datetime.now(timezone.utc).isoformat(),
+            })
+        if records:
+            self.supabase.table("wine_details").upsert(
+                records, on_conflict="wine_id"
+            ).execute()
+
+    async def search_by_zip(self, zip_code: str) -> List[RetailInventoryItem]:
+        """Not used for full scraping — exists to satisfy BaseScraper ABC."""
+        return []
+
+    async def search_by_wine(self, wine_name: str, zip_code: str) -> List[RetailInventoryItem]:
+        """Not used for full scraping — exists to satisfy BaseScraper ABC."""
+        return []
