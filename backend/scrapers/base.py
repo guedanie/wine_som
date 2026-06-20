@@ -31,6 +31,7 @@ class RetailInventoryItem:
     in_stock: bool = True
     varietal: Optional[str] = None
     brand: Optional[str] = None
+    image_url: Optional[str] = None
 
 
 class BaseScraper(ABC):
@@ -68,6 +69,7 @@ class BaseScraper(ABC):
                 "varietal": item.varietal,
                 "wine_type": infer_wine_type(item.varietal or item.wine_name),
                 "avg_price": item.price,
+                "image_url": item.image_url,
             }.items() if v is not None}
             records.append(record)
 

@@ -182,3 +182,41 @@ def test_upsert_stores_populates_lat_lon():
     assert upserted["567"]["longitude"] is not None
     # Should be San Antonio coordinates
     assert 29.0 < upserted["567"]["latitude"] < 30.0
+
+
+class FakeCapturingWinesDB:
+    """Captures the records passed to wines.upsert for assertion."""
+    def __init__(self):
+        self.captured = None
+    def table(self, name):
+        return self
+    def upsert(self, records, on_conflict=None):
+        self.captured = records
+        return self
+    def select(self, cols):
+        return self
+    def in_(self, col, vals):
+        return self
+    def execute(self):
+        return MagicMock(data=[])
+
+
+def test_upsert_wines_includes_image_url():
+    db = FakeCapturingWinesDB()
+    scraper = HebScraper.__new__(HebScraper)
+    scraper.supabase = db
+    items = [RetailInventoryItem(
+        wine_name="Decoy Cabernet", retailer_name="Spec's", zip_code="78209",
+        upc="u1", image_url="https://cdn.example.com/decoy.jpg")]
+    scraper._upsert_wines(items)
+    assert db.captured[0]["image_url"] == "https://cdn.example.com/decoy.jpg"
+
+
+def test_upsert_wines_omits_image_url_when_absent():
+    db = FakeCapturingWinesDB()
+    scraper = HebScraper.__new__(HebScraper)
+    scraper.supabase = db
+    items = [RetailInventoryItem(
+        wine_name="No Image Wine", retailer_name="H-E-B", zip_code="78208", upc="u2")]
+    scraper._upsert_wines(items)
+    assert "image_url" not in db.captured[0]

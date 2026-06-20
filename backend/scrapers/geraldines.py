@@ -214,6 +214,7 @@ class GeraldinesScraper(BaseScraper):
                 in_stock=p.available,
                 varietal=p.product_type,
                 brand=p.vendor,
+                image_url=p.image_url,
             )
             for p in products
         ]

@@ -61,6 +61,7 @@ def test_parse_product_full():
     assert p.sale_price == 9.65
     assert p.shelf_price == 12.62
     assert p.in_stock is True
+    assert p.image_url == "https://cdn.specsonline.com/images/products/081883800770.jpg"
 
 
 def test_parse_product_no_promo_uses_shelf_price():
@@ -162,6 +163,7 @@ def test_products_to_inventory_items_maps_correctly():
     assert item.store_name == "San Antonio - De Zavala"
     assert item.in_stock is True
     assert item.zip_code == "78209"
+    assert item.image_url == "https://cdn.specsonline.com/images/products/081883800770.jpg"
 
 
 def test_products_to_inventory_items_skips_no_price():

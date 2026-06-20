@@ -2,7 +2,9 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
-from scrapers.geraldines import _parse_product, _parse_vintage, _first_paragraph, _strip_html
+from scrapers.geraldines import (
+    _parse_product, _parse_vintage, _first_paragraph, _strip_html, GeraldinesScraper,
+)
 
 
 def _raw_product(**kwargs):
@@ -83,3 +85,10 @@ def test_parse_product_image_url():
 def test_parse_product_no_image():
     product = _parse_product(_raw_product(images=[]))
     assert product.image_url is None
+
+
+def test_inventory_item_carries_image_url():
+    scraper = GeraldinesScraper.__new__(GeraldinesScraper)
+    product = _parse_product(_raw_product())
+    items = scraper._shopify_products_to_inventory_items([product])
+    assert items[0].image_url == "https://cdn.shopify.com/img.jpg"

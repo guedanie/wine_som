@@ -45,6 +45,7 @@ class SpecsProduct:
     sale_price: Optional[float]         # unitPricePromoDiscount / 100 (None if no promo)
     price: Optional[float]              # effective price: sale_price if available else shelf_price
     in_stock: bool
+    image_url: Optional[str]            # details.image CDN URL
 
 
 def _parse_product(raw: dict) -> Optional[SpecsProduct]:
@@ -69,6 +70,9 @@ def _parse_product(raw: dict) -> Optional[SpecsProduct]:
     raw_desc = details.get("description", "")
     description = raw_desc.strip() if raw_desc and raw_desc.strip() else None
 
+    raw_image = details.get("image")
+    image_url = raw_image.strip() if raw_image and raw_image.strip() else None
+
     return SpecsProduct(
         upc=upc,
         name=details.get("title", ""),
@@ -80,6 +84,7 @@ def _parse_product(raw: dict) -> Optional[SpecsProduct]:
         sale_price=sale,
         price=effective,
         in_stock=raw.get("stock", {}).get("inStock", False),
+        image_url=image_url,
     )
 
 
@@ -129,6 +134,7 @@ class SpecsScraper(BaseScraper):
                 in_stock=p.in_stock,
                 varietal=p.category_group,
                 brand=p.brand,
+                image_url=p.image_url,
                 zip_code="78209",   # San Antonio; geocoded by BaseScraper._upsert_stores
                 city="San Antonio",
                 state="TX",
