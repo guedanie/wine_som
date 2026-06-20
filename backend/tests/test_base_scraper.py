@@ -5,18 +5,19 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 from unittest.mock import MagicMock
 from scrapers.base import RetailInventoryItem
 from scrapers.heb import HebScraper
+from utils.upc import canonical_upc
 
 
 class FakeWinesDB:
     """
     Simulates Supabase/PostgREST for the wines table, including the 1000-row
-    default cap on an unfiltered select. A filtered select via .in_("upc", ...)
-    returns exactly the matching rows (no cap).
+    default cap on an unfiltered select. A filtered select via .in_(col, ...)
+    returns exactly the matching rows (no cap), matching on the named column.
     """
     def __init__(self, all_wines):
-        self.all = all_wines           # list of {"id","upc"}
+        self.all = all_wines           # list of {"id","upc","upc_canonical"}
         self._op = None
-        self._filter_upcs = None
+        self._filter = None            # (col, set(vals)) or None
 
     def table(self, name):
         return self
@@ -27,19 +28,20 @@ class FakeWinesDB:
 
     def select(self, cols):
         self._op = "select"
-        self._filter_upcs = None
+        self._filter = None
         return self
 
     def in_(self, col, vals):
-        self._filter_upcs = set(vals)
+        self._filter = (col, set(vals))
         return self
 
     def execute(self):
         if self._op == "upsert":
             return MagicMock(data=[])
         # select
-        if self._filter_upcs is not None:
-            data = [w for w in self.all if w["upc"] in self._filter_upcs]
+        if self._filter is not None:
+            col, vals = self._filter
+            data = [w for w in self.all if w.get(col) in vals]
         else:
             data = self.all[:1000]     # PostgREST default cap
         return MagicMock(data=data)
@@ -48,7 +50,10 @@ class FakeWinesDB:
 def test_upsert_wines_links_batch_upcs_beyond_1000_cap():
     # 1200 pre-existing wines; the batch's wines live BEYOND index 1000, so an
     # unfiltered select (capped at 1000) cannot see them — reproducing the orphan bug.
-    existing = [{"id": f"id-{i}", "upc": f"upc-{i}"} for i in range(1200)]
+    existing = [
+        {"id": f"id-{i}", "upc": f"upc-{i}", "upc_canonical": canonical_upc(f"upc-{i}")}
+        for i in range(1200)
+    ]
     batch_upcs = ["upc-1100", "upc-1101", "upc-1102"]
 
     scraper = HebScraper.__new__(HebScraper)  # skip __init__ (no real Supabase)
@@ -220,3 +225,75 @@ def test_upsert_wines_omits_image_url_when_absent():
         wine_name="No Image Wine", retailer_name="H-E-B", zip_code="78208", upc="u2")]
     scraper._upsert_wines(items)
     assert "image_url" not in db.captured[0]
+
+
+class FakeCanonicalDB:
+    """
+    Simulates the wines table keyed by upc_canonical. upsert collapses records
+    with the same upc_canonical into one row (first raw upc wins the stored value).
+    select by upc_canonical returns id + upc_canonical.
+    """
+    def __init__(self):
+        self.rows = {}          # upc_canonical -> {"id","upc","upc_canonical"}
+        self._next = 1
+        self._op = None
+        self._filter = None
+
+    def table(self, name):
+        self._op = None
+        self._filter = None
+        return self
+
+    def upsert(self, records, on_conflict=None):
+        assert on_conflict == "upc_canonical", f"expected canonical conflict, got {on_conflict}"
+        for r in records:
+            key = r["upc_canonical"]
+            if key not in self.rows:
+                self.rows[key] = {"id": f"wine-{self._next}", "upc": r.get("upc"), "upc_canonical": key}
+                self._next += 1
+        self._op = "upsert"
+        return self
+
+    def select(self, cols):
+        self._op = "select"
+        return self
+
+    def in_(self, col, vals):
+        self._filter = (col, set(vals))
+        return self
+
+    def execute(self):
+        if self._op == "select":
+            col, vals = self._filter
+            data = [r for r in self.rows.values() if r.get(col) in vals]
+            return MagicMock(data=data)
+        return MagicMock(data=[])
+
+
+def test_upsert_wines_collapses_cross_format_upcs():
+    """HEB and Spec's UPCs for the same wine collapse to ONE canonical row,
+    but both raw UPCs map to that wine_id."""
+    db = FakeCanonicalDB()
+    scraper = HebScraper.__new__(HebScraper)
+    scraper.supabase = db
+    items = [
+        RetailInventoryItem(wine_name="Justin Chardonnay", retailer_name="H-E-B",
+                            zip_code="78209", upc="733952123144"),
+        RetailInventoryItem(wine_name="Justin Chardonnay", retailer_name="Spec's",
+                            zip_code="78209", upc="073395212314"),
+    ]
+    upc_to_id = scraper._upsert_wines(items)
+    # one canonical row created
+    assert len(db.rows) == 1
+    # both raw UPCs resolve to the same wine_id
+    assert upc_to_id["733952123144"] == upc_to_id["073395212314"]
+
+
+def test_upsert_wines_writes_canonical_column():
+    db = FakeCanonicalDB()
+    scraper = HebScraper.__new__(HebScraper)
+    scraper.supabase = db
+    items = [RetailInventoryItem(wine_name="Decoy", retailer_name="Spec's",
+                                 zip_code="78209", upc="073395212314")]
+    scraper._upsert_wines(items)
+    assert "73395212314" in db.rows   # canonical core stored as key

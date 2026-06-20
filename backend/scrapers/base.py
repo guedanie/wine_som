@@ -50,10 +50,12 @@ class BaseScraper(ABC):
 
     def _upsert_wines(self, items: List[RetailInventoryItem]) -> dict:
         """
-        Upsert wine catalog records from scraper results.
-        Returns a upc -> wine_id mapping for use in inventory upsert.
+        Upsert wine catalog records, deduplicated by canonical UPC so the same
+        physical wine from different retailers collapses to one row.
+        Returns a {raw_upc -> wine_id} mapping for inventory linking.
         """
         from utils import infer_wine_type
+        from utils.upc import canonical_upc
 
         seen = set()
         records = []
@@ -62,8 +64,10 @@ class BaseScraper(ABC):
                 continue
             if item.upc:
                 seen.add(item.upc)
+            canon = canonical_upc(item.upc)
             record = {k: v for k, v in {
                 "upc": item.upc,
+                "upc_canonical": canon,
                 "name": item.wine_name,
                 "brand": item.brand,
                 "varietal": item.varietal,
@@ -74,16 +78,23 @@ class BaseScraper(ABC):
             records.append(record)
 
         if records:
-            self.supabase.table("wines").upsert(records, on_conflict="upc").execute()
+            self.supabase.table("wines").upsert(records, on_conflict="upc_canonical").execute()
 
-        # Return upc -> id map for inventory linking. Filter to THIS batch's UPCs:
-        # an unfiltered select is capped at 1000 rows by PostgREST, which silently
-        # truncates the map and orphans inventory once the wines table exceeds 1000.
-        upcs = [r["upc"] for r in records if r.get("upc")]
-        if not upcs:
+        # Build {raw_upc -> wine_id}. retail_inventory stores the RAW upc, so we map
+        # each item's raw upc through its canonical to the resulting wine_id.
+        canons = [r["upc_canonical"] for r in records if r.get("upc_canonical")]
+        if not canons:
             return {}
-        result = self.supabase.table("wines").select("id,upc").in_("upc", upcs).execute()
-        return {w["upc"]: w["id"] for w in result.data if w["upc"]}
+        result = self.supabase.table("wines").select("id,upc_canonical").in_("upc_canonical", canons).execute()
+        canon_to_id = {w["upc_canonical"]: w["id"] for w in result.data if w.get("upc_canonical")}
+        mapping = {}
+        for item in items:
+            if not item.upc:
+                continue
+            wid = canon_to_id.get(canonical_upc(item.upc))
+            if wid:
+                mapping[item.upc] = wid
+        return mapping
 
     def _upsert_stores(self, items: List[RetailInventoryItem]) -> dict:
         """Upsert the distinct stores in this batch; return {(retailer_name, store_id): store_uuid}."""
