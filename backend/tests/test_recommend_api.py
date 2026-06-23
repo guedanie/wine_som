@@ -38,6 +38,25 @@ PICKS = [{
 }]
 
 
+def _wine_row(name="Test Malbec", wine_id="abc-123", enriched=True, varietal="Malbec",
+              region="Mendoza", grapes=None, body="full", price=22.0):
+    return {
+        "price": price, "curbside_price": None, "wine_id": wine_id,
+        "stores": {"retailer_name": "Spec's", "store_name": "Spec's", "zip_code": "78209"},
+        "wines": {
+            "id": wine_id, "name": name, "varietal": varietal, "region": region,
+            "country": "Argentina", "wine_type": "red", "grapes": grapes or ["Malbec"],
+            "body": body,
+            "wine_details": [{
+                "tasting_notes": "dark fruit, plum",
+                "flavor_profile": ["dark fruit"],
+                "structure_profile": {},
+                "grapeminds_enriched_at": "2026-06-03T00:00:00Z" if enriched else None,
+            }],
+        },
+    }
+
+
 def _make_db_mock(data):
     qb = MagicMock()
     qb.table.return_value = qb
@@ -166,3 +185,51 @@ async def test_recommend_no_stores_nearby_returns_400():
             })
     assert response.status_code == 400
     assert "no stores found" in response.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_recommend_includes_extractor_only_tier2_wine():
+    """A wine with no GrapeMinds enrichment but with varietal/region is still a candidate."""
+    row = _wine_row(enriched=False)   # tier 2
+    with patch("recommendation.claude_client.anthropic.Anthropic", _make_anthropic_mock()), \
+         patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([row])), \
+         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/recommend", json={
+                "zip_code": "78209", "budget_min": 15.0, "budget_max": 35.0})
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_recommend_parses_nl_message_and_merges():
+    captured = {}
+    def fake_parse(msg):
+        captured["msg"] = msg
+        return {"wine_type": "white", "body": "light", "flavors": ["earthy"],
+                "grapes": [], "region": None, "max_price": None, "avoid": []}
+    with patch("recommendation.claude_client.anthropic.Anthropic", _make_anthropic_mock()), \
+         patch("api.routers.recommend.parse_message", side_effect=fake_parse), \
+         patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([_wine_row()])), \
+         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/recommend", json={
+                "zip_code": "78209", "budget_min": 15.0, "budget_max": 35.0,
+                "wine_type": "red", "message": "something earthy"})
+    assert response.status_code == 200
+    assert captured["msg"] == "something earthy"
+
+
+@pytest.mark.asyncio
+async def test_recommend_fail_soft_when_parse_errors():
+    with patch("recommendation.claude_client.anthropic.Anthropic", _make_anthropic_mock()), \
+         patch("api.routers.recommend.parse_message", return_value=None), \
+         patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([_wine_row()])), \
+         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/recommend", json={
+                "zip_code": "78209", "budget_min": 15.0, "budget_max": 35.0,
+                "message": "anything"})
+    assert response.status_code == 200

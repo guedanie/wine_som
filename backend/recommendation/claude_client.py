@@ -56,18 +56,16 @@ def _format_wine(wine: Dict[str, Any]) -> str:
 
 def get_recommendations(
     candidates: List[Dict[str, Any]],
-    budget_min: float,
-    budget_max: float,
-    style_preferences: List[str],
-    avoid: List[str],
-    wine_type: Optional[str],
+    intent: Dict[str, Any],
 ) -> Tuple[str, List[Dict[str, Any]]]:
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     listings = "\n\n".join(f"{i + 1}. {_format_wine(w)}" for i, w in enumerate(candidates))
     count_instruction = "3–5" if len(candidates) >= 3 else "as many as you can"
-    style_str = ", ".join(style_preferences) if style_preferences else "no specific style"
-    avoid_str = ", ".join(avoid) if avoid else "nothing"
-    type_str = f" {wine_type}" if wine_type else ""
+    style_str = ", ".join(intent.get("flavors") or []) or "no specific style"
+    avoid_str = ", ".join(intent.get("avoid") or []) or "nothing"
+    type_str = f" {intent['wine_type']}" if intent.get("wine_type") else ""
+    budget_min = intent.get("budget_min", 10.0)
+    budget_max = intent.get("budget_max", 50.0)
 
     user_msg = (
         f"Budget: ${budget_min:.0f}–${budget_max:.0f}. "

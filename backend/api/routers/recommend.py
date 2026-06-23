@@ -4,6 +4,7 @@ from api.schemas import RecommendRequest, RecommendResponse, WinePick
 from db import get_supabase_client, get_service_client
 from recommendation.scorer import score_candidates
 from recommendation.claude_client import get_recommendations
+from recommendation.intent import parse_message, merge_intent, intent_from_request
 from utils.geo import zip_to_centroid, find_nearby_store_ids
 
 router = APIRouter(prefix="/api", tags=["recommend"])
@@ -31,7 +32,7 @@ async def recommend(req: RecommendRequest):
         .select(
             "price, curbside_price, wine_id,"
             "stores!inner(retailer_name, store_name, zip_code),"
-            "wines(id, name, varietal, region, country, wine_type,"
+            "wines(id, name, varietal, region, country, wine_type, grapes, abv, body,"
             "wine_details(tasting_notes, flavor_profile, structure_profile, grapeminds_enriched_at))"
         )
         .in_("store_ref", nearby_ids)
@@ -48,8 +49,10 @@ async def recommend(req: RecommendRequest):
             continue
         details_list = wine.get("wine_details") or []
         details = details_list[0] if isinstance(details_list, list) and details_list else {}
-        if not details.get("grapeminds_enriched_at"):
-            continue
+        enriched = bool(details.get("grapeminds_enriched_at"))
+        has_extract = bool(wine.get("varietal") or wine.get("region"))
+        if not enriched and not has_extract:
+            continue  # no basis to match
         candidates.append({
             "wine_id": wine.get("id"),
             "name": wine.get("name"),
@@ -57,11 +60,14 @@ async def recommend(req: RecommendRequest):
             "region": wine.get("region"),
             "country": wine.get("country"),
             "wine_type": wine.get("wine_type"),
+            "grapes": wine.get("grapes") or [],
+            "body": wine.get("body"),
             "tasting_notes": details.get("tasting_notes"),
             "flavor_profile": details.get("flavor_profile") or [],
             "structure_profile": details.get("structure_profile") or {},
             "price": row.get("price"),
             "retailer": (row.get("stores") or {}).get("retailer_name"),
+            "tier": 1 if enriched else 2,
         })
 
     if not candidates:
@@ -70,24 +76,21 @@ async def recommend(req: RecommendRequest):
             detail="No enriched wines found matching your criteria. Try widening your budget or style preferences.",
         )
 
-    top = score_candidates(
-        candidates=candidates,
+    explicit = intent_from_request(
         wine_type=req.wine_type,
         style_preferences=req.style_preferences,
         avoid=req.avoid,
         budget_min=req.budget_min,
         budget_max=req.budget_max,
-    )[:_MAX_CANDIDATES]
+    )
+    parsed = parse_message(req.message) if req.message and req.message != \
+        "Recommend wines based on my preferences" else None
+    resolved = merge_intent(parsed, explicit)
+
+    top = score_candidates(resolved, candidates)[:_MAX_CANDIDATES]
 
     try:
-        narrative, picks_data = get_recommendations(
-            candidates=top,
-            budget_min=req.budget_min,
-            budget_max=req.budget_max,
-            style_preferences=req.style_preferences,
-            avoid=req.avoid,
-            wine_type=req.wine_type,
-        )
+        narrative, picks_data = get_recommendations(candidates=top, intent=resolved)
     except Exception:
         raise HTTPException(status_code=500, detail="Recommendation service unavailable")
 
