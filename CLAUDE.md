@@ -84,10 +84,18 @@ System Python is **3.9.6**. Use `Optional[str]` from `typing`, NOT `str | None` 
 - Wine filter: `facets.category.keyword = "[\"Wine\"]"` — excludes beer/spirits/sake at API level
 - Pricing in **cents**: `unitPrice / 100` = shelf price; `unitPricePromoDiscount / 100` = sale price (use if non-null)
 - `stock.inStock` boolean per store — must query each store separately
-- UPCs are real barcodes → cross-retailer deduplication with HEB works automatically
+- UPCs are real barcodes → cross-retailer dedup with HEB works via `upc_canonical` (see below)
 - SA stores hardcoded: `SA_STORE_NUMBERS = [69, 72, 98, 100, 110, 113, 114, 117, 169, 171, 194, 197]`
 - ~77% of wines have descriptions; 23% fall back to Haiku extraction from name + categoryGroup
 - See `data/exploration/specs_findings.md` for full API reference
+
+### Cross-Retailer UPC Dedup (canonical UPC)
+- The same wine is encoded differently per retailer: **HEB** stores full 12-digit UPC-A (11-digit core + check digit); **Spec's** stores the 11-digit core with a leading zero. Both normalize to the same 11-digit core.
+- `backend/utils/upc.py` `canonical_upc(raw)` does the normalization (UPC-A check-digit validation decides HEB-style `[:11]` vs Spec's-style `[1:]`). Synthetic `shopify-…` IDs pass through unchanged (Geraldine's natural wines have no barcode — never dedup).
+- `wines.upc_canonical` column + **partial UNIQUE index** (`WHERE upc_canonical IS NOT NULL`) is the dedup identity. `BaseScraper._upsert_wines` upserts `on_conflict="upc_canonical"`; it still returns a `{raw_upc → wine_id}` map because `retail_inventory.upc` stores the **raw** barcode.
+- Prices are NOT deduplicated — they live in `retail_inventory` per (wine × store). Merging wines re-points all inventory rows, preserving every retailer's price.
+- One-time merge already run (2026-06-21): `backend/scripts/merge_duplicate_wines.py` collapsed 910 duplicate wine rows (9321 → 8411), 0 inventory loss. Script is idempotent + has `--dry-run`. Re-run it after adding a new barcode retailer if needed.
+- Geraldine's (and other natural-wine shops) can't UPC-dedup — that's a future fuzzy name/producer/vintage matching problem (GrapeMinds matching subsystem).
 
 ### Zip→Store Radius Lookup
 - `/api/recommend` uses `find_nearby_store_ids(zip_code, db, radius_miles=10.0)` — not a hardcoded zip filter
@@ -183,12 +191,14 @@ backend/
     specs.py                   — Spec's REST scraper (pure curl, 12 SA stores, wine-only)
   scripts/
     backfill_store_coords.py   — One-time lat/lon backfill for existing stores
+    merge_duplicate_wines.py   — One-time canonical-UPC dedup merge (idempotent, --dry-run)
   tests/                       — All unit tests (110 passing)
   config.py                    — Pydantic settings (reads from ../.env)
   db.py                        — Supabase anon + service role clients
   utils/
     __init__.py                — infer_wine_type() shared utility
     geo.py                     — zip_to_centroid, haversine, find_nearby_store_ids
+    upc.py                     — canonical_upc() cross-retailer UPC normalization
 
 supabase/
   migrations/
