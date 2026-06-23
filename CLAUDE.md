@@ -110,6 +110,22 @@ System Python is **3.9.6**. Use `Optional[str]` from `typing`, NOT `str | None` 
 - Run from `backend/` directory so `.env` path resolves correctly
 - Tables need explicit GRANTs — see migration `20260602000002_grants.sql`
 
+### Recommendation engine v2
+- **Tiered candidate pool** — no GrapeMinds hard-gate. Tier 1 = GrapeMinds-enriched
+  (`grapeminds_enriched_at` set); Tier 2 = extractor-only (has `varietal` or `region`
+  from the Haiku fact extractor). A wine with neither is dropped. Each candidate carries
+  a `tier` flag (1 or 2).
+- **Knowledge-based deterministic scorer** (`recommendation/scorer.py`, signature
+  `score_candidates(intent: dict, candidates: list)`) — maps grape/region → flavor tags
+  via `recommendation/flavor_profiles.py` so it can score even Tier-2 wines without
+  GrapeMinds structure data. No LLM call in the scorer.
+- **Optional NL `message`** — `recommendation/intent.py.parse_message()` (Haiku tool-use)
+  turns free text into structured intent, then `merge_intent()` merges it with the
+  explicit request fields. Explicit fields win on scalar conflicts; lists (flavors/avoid)
+  union; budget is always explicit. Fail-soft: parse errors return `None` and the request
+  proceeds on explicit fields only. The router skips parsing the default placeholder
+  message (`"Recommend wines based on my preferences"`).
+
 ---
 
 ## Running the Backend
@@ -170,7 +186,7 @@ backend/
     main.py                    — FastAPI app, router registration
     routers/wines.py           — /api/wines/search + /api/wines/:id
     routers/enrichment.py      — /api/enrich/:id + /api/enrich/batch/pending
-    routers/recommend.py       — /api/recommend (Claude Haiku tool-use, radius store lookup)
+    routers/recommend.py       — /api/recommend (tiered candidate pool + NL intent merge, Claude Haiku tool-use, radius store lookup)
     schemas.py                 — Pydantic request/response models
   enrichment/
     grapeminds.py              — GrapeMinds API client (curl subprocess)
