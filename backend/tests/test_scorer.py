@@ -98,3 +98,11 @@ def test_grape_match_scores():
     other = _wine("Pinot", varietal="Pinot Noir", grapes=["Pinot Noir"], region="Burgundy")
     result = score_candidates(_intent(grapes=["Malbec"]), [other, match])
     assert result[0]["name"] == "Malbec Match"
+
+
+def test_region_match_is_accent_insensitive():
+    accented = _wine("Rhone Wine", varietal="Syrah", grapes=["Syrah"], region="Rhône")
+    other = _wine("Other", varietal="Malbec", grapes=["Malbec"], region="Mendoza")
+    # intent region without accent must still match the accented wine region
+    result = score_candidates(_intent(region="Rhone"), [other, accented])
+    assert result[0]["name"] == "Rhone Wine"

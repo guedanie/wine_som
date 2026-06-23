@@ -1,3 +1,5 @@
+import re
+import unicodedata
 from typing import List, Dict, Any
 from recommendation.flavor_profiles import flavor_tags_for, infer_body
 
@@ -13,7 +15,9 @@ _W_TIER = 0.5
 
 
 def _norm(s: str) -> str:
-    return (s or "").strip().lower()
+    s = unicodedata.normalize("NFKD", s or "")
+    s = "".join(ch for ch in s if not unicodedata.combining(ch))  # strip accents
+    return re.sub(r"\s+", " ", s).strip().lower()
 
 
 def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
