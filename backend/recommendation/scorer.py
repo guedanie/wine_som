@@ -1,45 +1,74 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
+from recommendation.flavor_profiles import flavor_tags_for, infer_body
+
+# Axis weights
+_W_TYPE = 3.0
+_W_BODY = 2.0
+_W_GRAPE = 2.0
+_W_REGION = 1.5
+_W_FLAVOR_TAG = 1.0      # per matched flavor tag, capped
+_FLAVOR_CAP = 3.0
+_W_BUDGET = 1.0
+_W_TIER = 0.5
 
 
-def score_candidates(
-    candidates: List[Dict[str, Any]],
-    wine_type: Optional[str],
-    style_preferences: List[str],
-    avoid: List[str],
-    budget_min: float,
-    budget_max: float,
-) -> List[Dict[str, Any]]:
+def _norm(s: str) -> str:
+    return (s or "").strip().lower()
+
+
+def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Knowledge-based deterministic scoring. `intent` is the resolved-intent dict."""
+    budget_min = float(intent.get("budget_min", 10.0))
+    budget_max = float(intent.get("budget_max", 50.0))
     budget_mid = (budget_min + budget_max) / 2.0
-    avoid_lower = [a.lower() for a in avoid]
-    pref_lower = [p.lower() for p in style_preferences]
+    want_type = intent.get("wine_type")
+    want_body = intent.get("body")
+    want_region = _norm(intent.get("region")) if intent.get("region") else None
+    want_grapes = {_norm(g) for g in (intent.get("grapes") or [])}
+    want_flavors = {_norm(f) for f in (intent.get("flavors") or [])}
+    avoid = [_norm(a) for a in (intent.get("avoid") or [])]
+
     scored = []
-
     for wine in candidates:
-        searchable = " ".join(filter(None, [
-            wine.get("varietal") or "",
-            wine.get("wine_type") or "",
-            wine.get("region") or "",
-            wine.get("country") or "",
-            wine.get("tasting_notes") or "",
-            " ".join(wine.get("flavor_profile") or []),
-        ])).lower()
+        tags = flavor_tags_for(wine.get("varietal"), wine.get("grapes"), wine.get("region"))
+        notes = _norm(wine.get("tasting_notes")) + " " + " ".join(
+            _norm(x) for x in (wine.get("flavor_profile") or []))
+        grapes = {_norm(g) for g in (wine.get("grapes") or [])}
+        region = _norm(wine.get("region"))
 
-        if any(a in searchable for a in avoid_lower):
+        # avoid exclusion: search grapes, region, flavor tags, and notes
+        haystack = " ".join([notes, region, " ".join(grapes), " ".join(tags)])
+        if any(a and a in haystack for a in avoid):
             continue
 
         score = 0.0
 
-        if wine_type and wine.get("wine_type") == wine_type:
-            score += 3.0
+        if want_type and wine.get("wine_type") == want_type:
+            score += _W_TYPE
 
-        for pref in pref_lower:
-            if pref in searchable:
-                score += 1.0
+        if want_body:
+            body = wine.get("body") or infer_body(tags)
+            if body == want_body:
+                score += _W_BODY
+
+        if want_grapes and (want_grapes & grapes):
+            score += _W_GRAPE
+
+        if want_region and want_region == region:
+            score += _W_REGION
+
+        if want_flavors:
+            tag_hits = len(want_flavors & tags)
+            kw_hits = sum(1 for f in want_flavors if f in notes)
+            score += min(_FLAVOR_CAP, _W_FLAVOR_TAG * (tag_hits + kw_hits))
 
         price = float(wine.get("price") or 0.0)
         if budget_max > budget_min:
             distance = abs(price - budget_mid) / (budget_max - budget_min)
-            score += max(0.0, 1.0 - distance)
+            score += _W_BUDGET * max(0.0, 1.0 - distance)
+
+        if wine.get("tier") == 1:
+            score += _W_TIER
 
         scored.append({**wine, "_score": score})
 
