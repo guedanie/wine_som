@@ -106,3 +106,13 @@ def test_region_match_is_accent_insensitive():
     # intent region without accent must still match the accented wine region
     result = score_candidates(_intent(region="Rhone"), [other, accented])
     assert result[0]["name"] == "Rhone Wine"
+
+
+def test_region_match_uses_containment():
+    # intent "Rhône" should match a wine whose stored region is "Côtes du Rhône"
+    match = _wine("Cotes du Rhone Wine", varietal="Grenache", grapes=["Grenache"],
+                  region="Côtes du Rhône")
+    other = _wine("Napa Cab", varietal="Cabernet Sauvignon",
+                  grapes=["Cabernet Sauvignon"], region="Napa Valley")
+    result = score_candidates(_intent(region="Rhône"), [match, other])
+    assert result[0]["name"] == "Cotes du Rhone Wine"

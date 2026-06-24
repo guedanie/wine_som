@@ -58,7 +58,7 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
         if want_grapes and (want_grapes & grapes):
             score += _W_GRAPE
 
-        if want_region and want_region == region:
+        if want_region and region and (want_region in region or region in want_region):
             score += _W_REGION
 
         if want_flavors:
