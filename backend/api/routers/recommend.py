@@ -11,6 +11,17 @@ router = APIRouter(prefix="/api", tags=["recommend"])
 
 _MAX_CANDIDATES = 12
 
+# PostgREST projection for the candidate query. Defined as a constant so the
+# integration test (tests/test_integration_schema.py) can run the EXACT same
+# projection against the real schema — every column named here must exist, or
+# PostgREST raises 42703. Mocked unit tests can't catch a bad column name.
+INVENTORY_SELECT = (
+    "price, curbside_price, wine_id,"
+    "stores!inner(retailer_name, zip_code),"
+    "wines(id, name, varietal, region, country, wine_type, grapes, abv, body,"
+    "wine_details(tasting_notes, flavor_profile, structure_profile, grapeminds_enriched_at))"
+)
+
 
 @router.post("/recommend", response_model=RecommendResponse)
 async def recommend(req: RecommendRequest):
@@ -29,12 +40,7 @@ async def recommend(req: RecommendRequest):
 
     result = (
         supabase.table("retail_inventory")
-        .select(
-            "price, curbside_price, wine_id,"
-            "stores!inner(retailer_name, zip_code),"
-            "wines(id, name, varietal, region, country, wine_type, grapes, abv, body,"
-            "wine_details(tasting_notes, flavor_profile, structure_profile, grapeminds_enriched_at))"
-        )
+        .select(INVENTORY_SELECT)
         .in_("store_ref", nearby_ids)
         .eq("in_stock", True)
         .gte("price", req.budget_min)
