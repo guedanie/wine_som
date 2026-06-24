@@ -59,7 +59,9 @@ def get_recommendations(
     intent: Dict[str, Any],
 ) -> Tuple[str, List[Dict[str, Any]]]:
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-    listings = "\n\n".join(f"{i + 1}. {_format_wine(w)}" for i, w in enumerate(candidates))
+    listings = "\n\n".join(
+        f"{i + 1}. [wine_id: {w.get('wine_id')}] {_format_wine(w)}"
+        for i, w in enumerate(candidates))
     count_instruction = "3–5" if len(candidates) >= 3 else "as many as you can"
     style_str = ", ".join(intent.get("flavors") or []) or "no specific style"
     avoid_str = ", ".join(intent.get("avoid") or []) or "nothing"
@@ -73,6 +75,7 @@ def get_recommendations(
         f"Avoiding: {avoid_str}.\n\n"
         f"Here are the wines currently available:\n\n{listings}\n\n"
         f"Recommend {count_instruction} wines that best match my preferences. "
+        f"For each pick, set wine_id to the exact id shown in [wine_id: ...] for that wine. "
         f"When explaining each pick, reference the wine's region and what makes "
         f"it characteristic of that area."
     )

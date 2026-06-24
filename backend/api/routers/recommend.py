@@ -31,7 +31,7 @@ async def recommend(req: RecommendRequest):
         supabase.table("retail_inventory")
         .select(
             "price, curbside_price, wine_id,"
-            "stores!inner(retailer_name, store_name, zip_code),"
+            "stores!inner(retailer_name, zip_code),"
             "wines(id, name, varietal, region, country, wine_type, grapes, abv, body,"
             "wine_details(tasting_notes, flavor_profile, structure_profile, grapeminds_enriched_at))"
         )
@@ -94,8 +94,22 @@ async def recommend(req: RecommendRequest):
     except Exception:
         raise HTTPException(status_code=500, detail="Recommendation service unavailable")
 
-    valid_ids = {c["wine_id"] for c in top}
-    picks_data = [p for p in picks_data if p.get("wine_id") in valid_ids]
+    # Re-attach authoritative name/price/retailer from the candidate by wine_id —
+    # never trust the model to transcribe structured fields it was shown only as text.
+    by_id = {c["wine_id"]: c for c in top}
+    enriched_picks = []
+    for p in picks_data:
+        cand = by_id.get(p.get("wine_id"))
+        if not cand:
+            continue
+        enriched_picks.append({
+            "wine_id": cand["wine_id"],
+            "name": cand.get("name") or p.get("name"),
+            "price": cand.get("price") if cand.get("price") is not None else p.get("price"),
+            "retailer": cand.get("retailer") or p.get("retailer"),
+            "why": p.get("why", ""),
+        })
+    picks_data = enriched_picks
     if not picks_data:
         raise HTTPException(status_code=500, detail="Recommendation service unavailable")
 

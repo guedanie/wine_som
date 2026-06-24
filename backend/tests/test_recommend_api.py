@@ -233,3 +233,26 @@ async def test_recommend_fail_soft_when_parse_errors():
                 "zip_code": "78209", "budget_min": 15.0, "budget_max": 35.0,
                 "message": "anything"})
     assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_recommend_reattaches_retailer_from_candidate_not_model():
+    """The model only sees wines as text; the response must use the candidate's
+    authoritative retailer/name/price keyed by wine_id, not whatever the model echoes."""
+    # Model returns a pick with the correct wine_id but a WRONG retailer/name.
+    bad_pick = [{"wine_id": "abc-123", "name": "Model Hallucinated Name",
+                 "price": 999.0, "retailer": "WRONG-RETAILER", "why": "because"}]
+    with patch("recommendation.claude_client.anthropic.Anthropic",
+               _make_anthropic_mock(picks=bad_pick)), \
+         patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([_wine_row()])), \
+         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/recommend", json={
+                "zip_code": "78209", "budget_min": 15.0, "budget_max": 35.0})
+    assert response.status_code == 200
+    pick = response.json()["picks"][0]
+    assert pick["retailer"] == "Spec's"          # from candidate (_wine_row), not "WRONG-RETAILER"
+    assert pick["name"] == "Test Malbec"          # authoritative name
+    assert pick["price"] == 22.0                  # authoritative price
+    assert pick["why"] == "because"               # model's narrative kept
