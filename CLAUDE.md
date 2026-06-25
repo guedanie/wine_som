@@ -3,19 +3,19 @@
 ## What This Is
 Full-stack wine recommendation app. Users enter zip code + budget + style preferences and get Claude-powered sommelier recommendations for wines available at local retailers near them.
 
-## Current Build Status (as of 2026-06-19)
+## Current Build Status (as of 2026-06-25)
 
 ### Done
 | Component | Location | Notes |
 |---|---|---|
-| Supabase schema | `supabase/migrations/` | 9 migrations live in cloud DB |
+| Supabase schema | `supabase/migrations/` | 10 migrations live in cloud DB |
 | FastAPI app | `backend/api/` | `/health`, `/api/wines/search`, `/api/wines/:id` |
 | Enrichment endpoints | `backend/api/routers/enrichment.py` | `/api/enrich/:id`, `/api/enrich/batch/pending` |
 | GrapeMinds client | `backend/enrichment/grapeminds.py` | curl subprocess (Cloudflare bypass) |
 | Enrichment pipeline | `backend/enrichment/pipeline.py` | Two-step warm-up, cache check, batch mode |
 | Geraldine's scraper | `backend/scrapers/geraldines.py` | Shopify API, ~200 wines, no bot protection |
 | HEB scraper | `backend/scrapers/heb.py` | Pure-curl GraphQL, 6 SA stores, ~5,983 inventory records, dual (in-store/curbside) pricing |
-| Recommend endpoint | `backend/api/routers/recommend.py` | `/api/recommend` — Claude Haiku tool-use, radius-based store lookup, session persistence |
+| Recommend endpoint v2 | `backend/api/routers/recommend.py` | `/api/recommend` — tiered candidate pool, knowledge-based scorer, optional NL intent parse, Claude Haiku pick+narrative, radius store lookup, session persistence |
 | BaseScraper | `backend/scrapers/base.py` | Upsert to Supabase + auto-geocodes stores on seed |
 | Wine type utils | `backend/utils/__init__.py` | `infer_wine_type()` — utils.py converted to package |
 | Geo utils | `backend/utils/geo.py` | `zip_to_centroid` (pgeocode offline), `haversine`, `find_nearby_store_ids` |
@@ -24,7 +24,10 @@ Full-stack wine recommendation app. Users enter zip code + budget + style prefer
 | Extraction runner | `backend/enrichment/extraction/run_extraction.py` | One-shot: runs extractor on all wines, writes to DB — already run on all 2213 wines |
 | Store coords backfill | `backend/scripts/backfill_store_coords.py` | One-time lat/lon backfill — already run, all stores geocoded |
 | Spec's scraper | `backend/scrapers/specs.py` | Pure-curl REST API, 12 SA stores, wine-only filter, ~33k inventory records seeded |
-| Test suite | `backend/tests/` | 110 tests passing |
+| Wine images | `wines.image_url` (scrapers capture) | Spec's + Geraldine's CDN URLs hotlinked; HEB has none (no image in GraphQL, Imperva blocks page) |
+| Cross-retailer dedup | `backend/utils/upc.py`, `scripts/merge_duplicate_wines.py` | canonical-UPC normalization; 910 dup wine rows merged (9321→8411), 0 inventory loss |
+| Recommendation engine v2 | `backend/recommendation/` | Tiered pool (GrapeMinds + extractor), knowledge-based scorer (`flavor_profiles.py`), optional NL intent (`intent.py`) |
+| Test suite | `backend/tests/` | 155 passing (152 unit + 3 integration-schema vs live DB) |
 
 ### In Progress / Blocked
 | Item | Status |
@@ -143,7 +146,8 @@ python3 -m uvicorn api.main:app --reload
 ```bash
 cd backend
 python3 -m pytest tests/ -v
-# Should show 98 tests passing
+# 155 passing (152 unit + 3 integration vs live schema).
+# Fast/secret-less run: pytest tests/ -m "not integration"  (152 passing, 3 deselected)
 ```
 
 ## Seeding Data
@@ -157,8 +161,7 @@ from scrapers.geraldines import GeraldinesScraper
 asyncio.run(GeraldinesScraper().run_full())
 "
 
-# Run HEB scraper (live GraphQL, store 567, ~1993 wines, dual pricing)
-# NOTE: apply migration 20260611000001 first (adds retail_inventory.curbside_price)
+# Run HEB scraper (live GraphQL, 6 SA stores in SA_STORES, dual pricing)
 cd backend
 python3 -c "
 import asyncio
@@ -198,8 +201,10 @@ backend/
   matching/
     eval/                      — GrapeMinds matching eval scripts + results
   recommendation/
-    scorer.py                  — rule-based candidate scoring
-    claude_client.py           — Claude Haiku tool-use call
+    scorer.py                  — knowledge-based deterministic scoring (grape/region → flavor)
+    flavor_profiles.py         — curated grape/region → flavor-tag lookup
+    intent.py                  — NL message → structured intent + merge with explicit fields
+    claude_client.py           — Claude Haiku tool-use call (final pick + narrative)
   scrapers/
     base.py                    — BaseScraper ABC + Supabase upsert + auto-geocode stores
     geraldines.py              — Shopify scraper for shopgeraldines.com
@@ -208,7 +213,8 @@ backend/
   scripts/
     backfill_store_coords.py   — One-time lat/lon backfill for existing stores
     merge_duplicate_wines.py   — One-time canonical-UPC dedup merge (idempotent, --dry-run)
-  tests/                       — All unit tests (110 passing)
+  tests/                       — 155 tests (152 unit + 3 integration vs live schema)
+  conftest.py                  — registers the `integration` pytest marker
   config.py                    — Pydantic settings (reads from ../.env)
   db.py                        — Supabase anon + service role clients
   utils/
@@ -225,6 +231,9 @@ supabase/
     20260614000001_grapeminds_matches.sql   — wine_grapeminds_matches table
     20260614000002_stores_table.sql         — stores registry + store_ref FK on retail_inventory
     20260615000001_wine_extracted_fields.sql — wines.grapes/abv/body columns
+    20260620000001_wine_image_url.sql       — wines.image_url
+    20260620000002_wine_upc_canonical.sql   — wines.upc_canonical column
+    20260620000003_wines_upc_canonical_index.sql — partial UNIQUE index on upc_canonical
 
 data/
   exploration/                 — API probe scripts + results (not production code)
@@ -240,9 +249,13 @@ docs/
     specs/
       2026-06-16-zip-store-mapping-design.md  — zip→store radius mapping design
       2026-06-18-specs-scraper-design.md     — Spec's scraper design
+      2026-06-20-upc-canonical-dedup-design.md — cross-retailer UPC dedup design
+      2026-06-22-recommendation-engine-v2-design.md — rec engine v2 design
     plans/
       2026-06-16-zip-store-mapping.md         — zip→store implementation plan
       2026-06-18-specs-scraper.md            — Spec's scraper implementation plan
+      2026-06-20-upc-canonical-dedup.md       — UPC dedup implementation plan
+      2026-06-22-recommendation-engine-v2.md  — rec engine v2 implementation plan
       api_info.md                             — API key status + strategy
 ```
 
@@ -265,7 +278,8 @@ docs/
 ---
 
 ## What's Next (priority order)
-1. Add more Shopify local wine shops (same scraper pattern as Geraldine's, zero new code)
-2. Add more HEB stores across San Antonio (6 live, `data/heb-store-list.csv` has full list)
-3. Target scraper — Playwright probe needed first
-4. Frontend (last)
+1. Frontend — the last major piece; data + recommendation engine v2 are now in place
+2. Local MCP server for Claude Desktop (parked) — read-only tools over the catalog, anon key, narrow tools; see memory `mcp-desktop-parked`
+3. Add more Shopify local wine shops (same scraper pattern as Geraldine's, zero new code)
+4. Add more HEB stores across San Antonio (6 live, `data/heb-store-list.csv` has full list)
+5. Target scraper — Playwright probe needed first
