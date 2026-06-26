@@ -73,6 +73,10 @@ describe('deriveWineCardMeta', () => {
     const meta = deriveWineCardMeta({ wine_id: '1', name: 'X', price: 20, retailer: "Spec's", why: 'good', varietal: 'Malbec' });
     expect(meta.tagline).toBe('MALBEC');
   });
+  it('falls back tagline to AVAILABLE NEAR YOU when no region or varietal', () => {
+    const meta = deriveWineCardMeta({ wine_id: '1', name: 'X', price: 20, retailer: "Spec's", why: 'good' });
+    expect(meta.tagline).toBe('AVAILABLE NEAR YOU');
+  });
 });
 
 describe('buildApiReq', () => {

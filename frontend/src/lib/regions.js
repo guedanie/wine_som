@@ -69,7 +69,7 @@ export function deriveWineCardMeta(pick) {
     ...pick,
     tagline: pick.region?.toUpperCase() ?? pick.varietal?.toUpperCase() ?? 'AVAILABLE NEAR YOU',
     coord:   regionData?.coord ?? null,
-    flavors: pick.flavor_profile ?? [],
+    flavors: pick.flavor_profile ?? regionData?.flavors ?? [],
   };
 }
 
