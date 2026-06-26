@@ -1,0 +1,48 @@
+import { render, screen, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import PreferenceCapture from '../PreferenceCapture.jsx';
+
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return { ...actual, useNavigate: () => mockNavigate };
+});
+
+beforeEach(() => mockNavigate.mockClear());
+
+function renderScreen() {
+  return render(<MemoryRouter><PreferenceCapture /></MemoryRouter>);
+}
+
+it('pre-fills zip with 78209', () => {
+  renderScreen();
+  expect(screen.getByDisplayValue('78209')).toBeInTheDocument();
+});
+
+it('disables Find wines when zip is empty', () => {
+  renderScreen();
+  fireEvent.change(screen.getByDisplayValue('78209'), { target: { value: '' } });
+  expect(screen.getByRole('button', { name: /find wines/i })).toBeDisabled();
+});
+
+it('disables Find wines when no style is selected', () => {
+  renderScreen();
+  fireEvent.click(screen.getByText('Bold & Tannic')); // deselect default
+  expect(screen.getByRole('button', { name: /find wines/i })).toBeDisabled();
+});
+
+it('enables Find wines when zip is 5 digits and a style is selected', () => {
+  renderScreen(); // defaults: zip=78209, style=Bold & Tannic
+  expect(screen.getByRole('button', { name: /find wines/i })).toBeEnabled();
+});
+
+it('navigates to /recommend with prefs and apiReq on submit', () => {
+  renderScreen();
+  fireEvent.click(screen.getByRole('button', { name: /find wines/i }));
+  expect(mockNavigate).toHaveBeenCalledWith('/recommend', expect.objectContaining({
+    state: expect.objectContaining({
+      prefs:  expect.objectContaining({ zip: '78209' }),
+      apiReq: expect.objectContaining({ zip_code: '78209' }),
+    }),
+  }));
+});
