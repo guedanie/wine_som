@@ -10,7 +10,7 @@ function tRing(cx, cy, R, wob, seed, sx, pts = 80) {
   return d + 'Z';
 }
 
-export default function Contours({ w = 600, h = 120, color = '#B08D57', cfg }) {
+export default function Contours({ w = 600, h = 120, color = 'var(--brass)', cfg }) {
   const c = cfg ?? { cx: w / 2, cy: h / 2, r0: 10, step: 9, count: 9, wob: 7, seed: 1.4, sx: 1.6 };
   const paths = [];
   for (let i = 0; i < c.count; i++) {

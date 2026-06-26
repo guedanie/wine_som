@@ -22,7 +22,7 @@ export default function WineCard({ wine, onClick }) {
         <div style={{ fontFamily: 'var(--font-serif)', fontSize: 24, color: 'var(--bordeaux)', flex: 'none' }}>${wine.price}</div>
       </div>
       <div style={{ padding: '13px 14px 14px' }}>
-        <div style={{ fontFamily: 'var(--font-serif)', fontSize: 21, lineHeight: 1.05, color: 'var(--ink)' }}>{wine.name}</div>
+        <div style={{ fontFamily: 'var(--font-serif)', fontSize: 23, lineHeight: 1.05, color: 'var(--ink)' }}>{wine.name}</div>
         <div style={{ fontSize: 11.5, color: 'var(--ink-2)', marginTop: 3 }}>{wine.retailer}</div>
         {wine.flavors?.length > 0 && (
           <div style={{ display: 'flex', gap: 6, marginTop: 11, flexWrap: 'wrap' }}>
