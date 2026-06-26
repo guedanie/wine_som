@@ -1,0 +1,97 @@
+// frontend/src/components/__tests__/components.test.jsx
+import { render, screen, fireEvent } from '@testing-library/react';
+import WineCard from '../WineCard.jsx';
+import StructureBars from '../StructureBars.jsx';
+import Poster from '../Poster.jsx';
+import Tag from '../Tag.jsx';
+import Btn from '../Btn.jsx';
+import Eyebrow from '../Eyebrow.jsx';
+
+const wine = {
+  wine_id: 'uuid-1',
+  name: 'Esprit de Tablas',
+  price: 55,
+  retailer: "Spec's",
+  why: 'Great structure.',
+  tagline: 'PASO ROBLES',
+  coord: '35.6°N · 120.7°W',
+  flavors: ['dark cherry', 'garrigue'],
+};
+
+describe('WineCard', () => {
+  it('renders wine name', () => {
+    render(<WineCard wine={wine} />);
+    expect(screen.getByText('Esprit de Tablas')).toBeInTheDocument();
+  });
+  it('renders formatted price', () => {
+    render(<WineCard wine={wine} />);
+    expect(screen.getByText('$55')).toBeInTheDocument();
+  });
+  it('renders flavor tags', () => {
+    render(<WineCard wine={wine} />);
+    expect(screen.getByText('dark cherry')).toBeInTheDocument();
+  });
+  it('calls onClick when clicked', () => {
+    const onClick = vi.fn();
+    render(<WineCard wine={wine} onClick={onClick} />);
+    fireEvent.click(screen.getByText('Esprit de Tablas'));
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+  it('renders without flavors (empty array)', () => {
+    render(<WineCard wine={{ ...wine, flavors: [] }} />);
+    expect(screen.getByText('Esprit de Tablas')).toBeInTheDocument();
+  });
+});
+
+describe('StructureBars', () => {
+  const items = [['Body', 'Full', 0.8], ['Tannin', 'High', 0.7]];
+  it('renders all bar labels', () => {
+    render(<StructureBars items={items} />);
+    expect(screen.getByText('Body')).toBeInTheDocument();
+    expect(screen.getByText('Tannin')).toBeInTheDocument();
+  });
+});
+
+describe('Poster', () => {
+  it('shows img element for a known Tier 1 region', () => {
+    render(<Poster region="Tuscany" />);
+    expect(screen.getByRole('img', { name: /tuscany/i })).toBeInTheDocument();
+  });
+  it('shows region name text in placeholder for unknown region', () => {
+    render(<Poster region="Unknown Region" />);
+    expect(screen.getByText('Unknown Region')).toBeInTheDocument();
+  });
+});
+
+describe('Tag', () => {
+  it('renders children', () => {
+    render(<Tag>dark cherry</Tag>);
+    expect(screen.getByText('dark cherry')).toBeInTheDocument();
+  });
+});
+
+describe('Btn', () => {
+  it('calls onClick when clicked', () => {
+    const onClick = vi.fn();
+    render(<Btn onClick={onClick}>Find wines</Btn>);
+    fireEvent.click(screen.getByText('Find wines'));
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+  it('does not call onClick when disabled', () => {
+    const onClick = vi.fn();
+    render(<Btn onClick={onClick} disabled>Find wines</Btn>);
+    fireEvent.click(screen.getByText('Find wines'));
+    expect(onClick).not.toHaveBeenCalled();
+  });
+  it('renders ghost variant without error', () => {
+    render(<Btn variant="ghost">Ghost</Btn>);
+    expect(screen.getByText('Ghost')).toBeInTheDocument();
+  });
+});
+
+describe('Eyebrow', () => {
+  it('renders children', () => {
+    render(<Eyebrow>The sommelier</Eyebrow>);
+    expect(screen.getByText('The sommelier')).toBeInTheDocument();
+  });
+});
