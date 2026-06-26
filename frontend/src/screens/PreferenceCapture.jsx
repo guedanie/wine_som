@@ -46,13 +46,13 @@ export default function PreferenceCapture() {
             onChange={e => setZip(e.target.value.replace(/\D/g, '').slice(0, 5))}
             maxLength={5}
             placeholder="78209"
-            style={{ marginTop: 8, fontFamily: 'var(--font-sans)', fontSize: 15, color: 'var(--ink)', background: 'var(--cream-raised)', border: '1.5px solid var(--ink)', padding: '11px 13px', width: '100%', boxSizing: 'border-box', outline: 'none' }}
+            style={{ marginTop: 8, fontFamily: 'var(--font-sans)', fontSize: 15, color: 'var(--ink)', background: 'var(--cream-raised)', border: '1.5px solid var(--ink)', padding: '11px 13px', width: '100%', boxSizing: 'border-box', borderRadius: 0, outline: 'none' }}
           />
         </div>
         <div style={{ flex: 1.3 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <Eyebrow>Budget ceiling</Eyebrow>
-            <span style={{ fontFamily: 'var(--font-serif)', fontSize: 20, color: 'var(--bordeaux)' }}>${budget}</span>
+            <span style={{ fontFamily: 'var(--font-serif)', fontSize: 23, color: 'var(--bordeaux)' }}>${budget}</span>
           </div>
           <input type="range" min={15} max={150} value={budget}
             onChange={e => setBudget(+e.target.value)}
@@ -70,7 +70,7 @@ export default function PreferenceCapture() {
               <button key={s} onClick={() => toggle(s)}
                 style={{ textAlign: 'left', cursor: 'pointer', padding: '14px 16px', borderRadius: 0, background: on ? 'var(--bordeaux)' : 'var(--cream-raised)', border: on ? '1.5px solid var(--bordeaux)' : '1.5px solid var(--border)', transition: 'all .15s var(--ease)' }}>
                 <div style={{ fontFamily: 'var(--font-serif)', fontSize: 20, color: on ? 'var(--cream)' : 'var(--ink)' }}>{s}</div>
-                <div style={{ fontSize: 11.5, letterSpacing: '0.02em', color: on ? 'rgba(245,239,230,0.75)' : 'var(--faded)', marginTop: 3 }}>{sub}</div>
+                <div style={{ fontSize: 11.5, letterSpacing: '0.02em', color: on ? 'var(--cream)' : 'var(--faded)', marginTop: 3 }}>{sub}</div>
               </button>
             );
           })}
