@@ -1,0 +1,17 @@
+/* frontend/src/index.css */
+@import '../design-system/colors_and_type.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--cream);
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+
+input[type="range"] { accent-color: var(--bordeaux); }
