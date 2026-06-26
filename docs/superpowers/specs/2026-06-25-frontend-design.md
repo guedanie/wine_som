@@ -227,8 +227,9 @@ Error messages surface directly in the UI (the API returns human-readable `detai
 - Back button → `navigate(-1)`
 
 ### Discovery (`/discover`)
-- Grid of ~10 major wine regions as `Poster` cards with region name + coordinate overlay
-- All show the striped placeholder until real posters are dropped into `public/assets/`
+- Grid of 18 wine regions (10 Tier 1 + 8 Tier 2) as `Poster` cards with region name + coordinate overlay
+- Tier 1 shown first; Tier 2 below with a subtle section separator
+- All show the striped placeholder until real posters are dropped into `public/assets/`; Tuscany and Paso Robles have real posters at launch
 - Clicking a region → `navigate('/recommend', { state: { prefs: regionPrefs(region), apiReq: regionApiReq(region) } })`
 - `regionApiReq` sets `style_preferences` to the region's known flavor tags and `message` to "Recommend wines from [region]."
 
@@ -252,23 +253,42 @@ export const STYLE_WINE_TYPE = {
   "Bright & Fruity": null,
 };
 
+// Posters drop into public/assets/ as poster-{slug}.png.
+// Only Tuscany and Paso Robles have real posters currently.
 export const REGION_POSTERS = {
   "Tuscany":      "/assets/poster-tuscany.png",
   "Paso Robles":  "/assets/poster-paso-robles.png",
-  // add as Daniel designs them
+  // Tier 1 — add as Daniel designs them:
+  // "Napa Valley", "Sonoma", "Mendoza", "Willamette Valley",
+  // "Bordeaux", "Rioja", "Marlborough", "Barossa Valley"
+  // Tier 2 — after tier 1 is complete:
+  // "Burgundy", "Rhône Valley", "Champagne", "Piedmont",
+  // "Douro Valley", "Columbia Valley", "Maipo Valley", "Mosel"
 };
 
+// Tier 1 — high priority (common at SA retailers), shown first in Discovery grid.
+// Tier 2 — worth having, shown below tier 1.
 export const DISCOVERY_REGIONS = [
-  { name: "Tuscany",         coord: "43.8°N · 11.2°E",  flavors: ["dark cherry", "leather", "tobacco"] },
-  { name: "Paso Robles",     coord: "35.6°N · 120.7°W", flavors: ["dark fruit", "garrigue", "structure"] },
-  { name: "Napa Valley",     coord: "38.5°N · 122.4°W", flavors: ["blackcurrant", "cedar", "full body"] },
-  { name: "Burgundy",        coord: "47.0°N · 4.8°E",   flavors: ["red fruit", "earthy", "silky"] },
-  { name: "Rioja",           coord: "42.3°N · 2.5°W",   flavors: ["cherry", "vanilla", "leather"] },
-  { name: "Mendoza",         coord: "32.9°S · 68.8°W",  flavors: ["dark plum", "chocolate", "spice"] },
-  { name: "Willamette Valley", coord: "45.5°N · 123.0°W", flavors: ["cherry", "earthy", "bright acidity"] },
-  { name: "Rhône Valley",    coord: "45.0°N · 4.8°E",   flavors: ["dark fruit", "garrigue", "pepper"] },
-  { name: "Champagne",       coord: "49.1°N · 4.0°E",   flavors: ["brioche", "citrus", "mineral"] },
-  { name: "Barossa Valley",  coord: "34.5°S · 138.9°E", flavors: ["dark fruit", "chocolate", "spice"] },
+  // — Tier 1 —
+  { name: "Tuscany",           coord: "43.8°N · 11.2°E",   flavors: ["dark cherry", "leather", "tobacco"],       tier: 1 },
+  { name: "Paso Robles",       coord: "35.6°N · 120.7°W",  flavors: ["dark fruit", "garrigue", "structure"],     tier: 1 },
+  { name: "Napa Valley",       coord: "38.5°N · 122.4°W",  flavors: ["blackcurrant", "cedar", "full body"],      tier: 1 },
+  { name: "Sonoma",            coord: "38.3°N · 122.5°W",  flavors: ["red fruit", "bright acidity", "coastal"],  tier: 1 },
+  { name: "Mendoza",           coord: "32.9°S · 68.8°W",   flavors: ["dark plum", "chocolate", "spice"],         tier: 1 },
+  { name: "Willamette Valley", coord: "45.5°N · 123.0°W",  flavors: ["cherry", "earthy", "bright acidity"],      tier: 1 },
+  { name: "Bordeaux",          coord: "44.8°N · 0.6°W",    flavors: ["blackcurrant", "cedar", "graphite"],       tier: 1 },
+  { name: "Rioja",             coord: "42.3°N · 2.5°W",    flavors: ["cherry", "vanilla", "leather"],            tier: 1 },
+  { name: "Marlborough",       coord: "41.5°S · 173.9°E",  flavors: ["citrus", "passionfruit", "bright acidity"],tier: 1 },
+  { name: "Barossa Valley",    coord: "34.5°S · 138.9°E",  flavors: ["dark fruit", "chocolate", "spice"],        tier: 1 },
+  // — Tier 2 —
+  { name: "Burgundy",          coord: "47.0°N · 4.8°E",    flavors: ["red fruit", "earthy", "silky"],            tier: 2 },
+  { name: "Rhône Valley",      coord: "45.0°N · 4.8°E",    flavors: ["dark fruit", "garrigue", "pepper"],        tier: 2 },
+  { name: "Champagne",         coord: "49.1°N · 4.0°E",    flavors: ["brioche", "citrus", "mineral"],            tier: 2 },
+  { name: "Piedmont",          coord: "44.7°N · 8.0°E",    flavors: ["dark cherry", "tar", "roses"],             tier: 2 },
+  { name: "Douro Valley",      coord: "41.1°N · 7.6°W",    flavors: ["dark fruit", "spice", "structure"],        tier: 2 },
+  { name: "Columbia Valley",   coord: "46.2°N · 119.9°W",  flavors: ["dark cherry", "spice", "balance"],         tier: 2 },
+  { name: "Maipo Valley",      coord: "33.5°S · 70.6°W",   flavors: ["blackcurrant", "tobacco", "structure"],    tier: 2 },
+  { name: "Mosel",             coord: "49.9°N · 7.0°E",    flavors: ["citrus", "slate", "off-dry"],              tier: 2 },
 ];
 ```
 
