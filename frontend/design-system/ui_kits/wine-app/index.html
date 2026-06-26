@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Terroir — Wine App UI Kit</title>
+<link rel="stylesheet" href="../../colors_and_type.css" />
+<style>
+  html, body { margin: 0; background: var(--cream); }
+  * { box-sizing: border-box; }
+  #app { min-height: 100vh; display: flex; flex-direction: column; }
+  .nav { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between;
+         padding: 14px 28px; background: var(--cream); border-bottom: 1.5px solid var(--ink); }
+  .brand { display: flex; align-items: center; gap: 11px; cursor: pointer; }
+  .brand .wm { font-family: var(--font-serif); font-size: 26px; color: var(--ink); line-height: 1; }
+  .brand .sub { font-family: var(--font-sans); font-size: 9.5px; letter-spacing: 0.26em; text-transform: uppercase; color: var(--faded); }
+  .navlinks { display: flex; align-items: center; gap: 6px; }
+  .navlink { font-family: var(--font-sans); font-size: 13px; font-weight: 500; color: var(--faded); background: none; border: none; cursor: pointer; padding: 8px 14px; }
+  .navlink.on { color: var(--ink); box-shadow: inset 0 -2px 0 var(--bordeaux); }
+  .zip { font-family: var(--font-sans); font-size: 11px; letter-spacing: 0.06em; color: var(--faded); border: 1px solid var(--border); padding: 6px 12px; margin-left: 10px; }
+  .screen { flex: 1; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel" src="data.jsx"></script>
+<script type="text/babel" src="PreferenceCapture.jsx"></script>
+<script type="text/babel" src="ChatRecommend.jsx"></script>
+<script type="text/babel" src="RegionDossier.jsx"></script>
+<script type="text/babel" src="Discovery.jsx"></script>
+
+<script type="text/babel">
+const { useState } = React;
+
+function regionOf(wine) { return REGIONS.find((r) => r.id === wine.region); }
+
+function App() {
+  const [screen, setScreen] = useState("prefs"); // prefs | chat | detail | discover
+  const [prefs, setPrefs] = useState({ zip: "78209", budget: 60, styles: ["Bold & Tannic"], occasion: "Tonight" });
+  const [wine, setWine] = useState(WINES[0]);
+  const [backTo, setBackTo] = useState("chat");
+
+  const openWine = (w, from) => { setWine(w); if (from) setBackTo(from); setScreen("detail"); window.scrollTo(0, 0); };
+  const openRegion = (r) => { const w = WINES.find((x) => x.region === r.id) || WINES[0]; openWine(w, "discover"); };
+
+  return (
+    <div id="app">
+      <nav className="nav">
+        <div className="brand" onClick={() => setScreen("prefs")}>
+          <Stamp size={30} />
+          <div>
+            <div className="wm">Terroir</div>
+            <div className="sub">Wine Atlas</div>
+          </div>
+        </div>
+        <div className="navlinks">
+          <button className={"navlink" + (screen === "prefs" || screen === "chat" ? " on" : "")} onClick={() => setScreen(prefs ? "chat" : "prefs")}>Recommend</button>
+          <button className={"navlink" + (screen === "discover" ? " on" : "")} onClick={() => setScreen("discover")}>Discover</button>
+          <span className="zip">◎ {prefs.zip}</span>
+        </div>
+      </nav>
+
+      <div className="screen">
+        {screen === "prefs" && <PreferenceCapture onSubmit={(p) => { setPrefs(p); setScreen("chat"); }} />}
+        {screen === "chat" && <ChatRecommend prefs={prefs} wines={WINES.slice(0, 3)} onOpenWine={(w) => openWine(w, "chat")} />}
+        {screen === "detail" && <RegionDossier wine={wine} region={regionOf(wine)} wines={WINES} onBack={() => setScreen(backTo)} onOpenWine={(w) => openWine(w, backTo)} />}
+        {screen === "discover" && <Discovery regions={REGIONS} onOpenRegion={openRegion} />}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

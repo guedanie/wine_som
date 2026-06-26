@@ -1,0 +1,172 @@
+/* ============================================================
+   TERROIR — Design Tokens
+   "Every bottle is a place."
+   Editorial wine atlas: bordeaux + brass on cream paper,
+   serif display, drawn contour maps, framed travel posters.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Archivo:wght@400;500;600;700&family=Archivo+Narrow:wght@400;500;600;700&display=swap');
+
+:root {
+  /* ---- Brand palette (raw) ---- */
+  --ink:           #1A1A1A;  /* primary text, frames */
+  --ink-2:         #33312C;  /* body text */
+  --faded:         #6B6453;  /* muted labels, captions */
+  --faded-2:       #9A8F78;  /* placeholder text */
+
+  --bordeaux:      #6E1023;  /* PRIMARY — wine red */
+  --bordeaux-deep: #560B1B;  /* pressed / dark fields behind contours */
+  --bordeaux-tint: #F4E6E2;  /* primary wash (chips, hovers) */
+
+  --brass:         #B08D57;  /* accent / gold — rules, keylines */
+  --brass-deep:    #5C4A2E;  /* text on brass tints */
+  --sage:          #7C8A5A;  /* secondary accent — coordinates, success */
+
+  --paper:         #EFE6D4;  /* surface — cards, tiles */
+  --cream:         #F5EFE6;  /* base background */
+  --cream-raised:  #FBF8F2;  /* raised / panel surface */
+  --white:         #FFFFFF;
+
+  /* ---- Semantic ---- */
+  --bg:              var(--cream);
+  --surface:         var(--cream-raised);
+  --surface-sunken:  var(--paper);
+  --field:           var(--bordeaux-deep); /* dark poster/map fields */
+
+  --text:            var(--ink);
+  --text-body:       var(--ink-2);
+  --text-muted:      var(--faded);
+
+  --primary:           var(--bordeaux);
+  --primary-pressed:   var(--bordeaux-deep);
+  --primary-contrast:  var(--cream);
+  --accent:            var(--brass);
+
+  --border:        rgba(26,26,26,0.12);   /* hairline rules */
+  --border-strong: var(--ink);            /* 1.5px editorial frame */
+  --keyline:       var(--brass);          /* 0.75px inner keyline */
+
+  --focus-ring:    rgba(110,16,35,0.35);
+
+  /* ---- Typography ---- */
+  --font-serif: 'DM Serif Display', Georgia, 'Times New Roman', serif;
+  --font-sans:  'Archivo', system-ui, -apple-system, sans-serif;
+  --font-condensed: 'Archivo Narrow', 'Archivo', sans-serif;
+  --font-mono:  ui-monospace, 'SF Mono', Menlo, monospace; /* coordinates, codes */
+
+  /* Type scale (desktop web app) */
+  --t-display: 76px;   /* hero region name */
+  --t-h1:      48px;
+  --t-h2:      32px;
+  --t-h3:      23px;   /* wine names */
+  --t-body:    15px;
+  --t-small:   13px;
+  --t-label:   11px;   /* uppercase tracked eyebrow */
+
+  --lh-tight: 0.95;
+  --lh-snug:  1.15;
+  --lh-body:  1.6;
+
+  --track-label: 0.22em;  /* eyebrow letter-spacing */
+  --track-coord: 0.16em;  /* coordinate readouts */
+
+  /* ---- Spacing (4px base) ---- */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px; --s-9: 96px;
+
+  /* ---- Radii — editorial = mostly sharp ---- */
+  --r-0:    0px;     /* frames, posters, cards, buttons */
+  --r-sm:   2px;     /* subtle softening */
+  --r-md:   8px;     /* soft cards (conversational surfaces) */
+  --r-pill: 999px;   /* chips in soft contexts only */
+
+  /* ---- Borders & frames ---- */
+  --frame:    1.5px solid var(--border-strong);
+  --frame-in: 0.75px solid var(--keyline);
+  --hair:     1px solid var(--border);
+
+  /* ---- Elevation ---- */
+  --shadow-print: 0 18px 40px -22px rgba(0,0,0,0.50);  /* matted poster */
+  --shadow-card:  0 1px 0 rgba(0,0,0,0.04), 0 8px 24px -18px rgba(26,26,26,0.35);
+  --shadow-pop:   0 12px 40px rgba(0,0,0,0.22);        /* menus, modals */
+
+  /* ---- Motion ---- */
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --dur:  0.18s;
+}
+
+/* ============================================================
+   Semantic element styles — apply with classes
+   ============================================================ */
+
+.t-eyebrow {
+  font-family: var(--font-sans);
+  font-size: var(--t-label);
+  font-weight: 600;
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.t-coord {
+  font-family: var(--font-sans);
+  font-size: var(--t-label);
+  letter-spacing: var(--track-coord);
+  color: var(--sage);
+}
+
+.t-display { font-family: var(--font-serif); font-size: var(--t-display); line-height: var(--lh-tight); color: var(--text); }
+.t-h1 { font-family: var(--font-serif); font-size: var(--t-h1); line-height: var(--lh-snug); color: var(--text); }
+.t-h2 { font-family: var(--font-serif); font-size: var(--t-h2); line-height: var(--lh-snug); color: var(--text); }
+.t-h3 { font-family: var(--font-serif); font-size: var(--t-h3); line-height: var(--lh-snug); color: var(--text); }
+.t-lede { font-family: var(--font-serif); font-style: italic; font-size: var(--t-h3); color: var(--primary); }
+.t-body { font-family: var(--font-sans); font-size: var(--t-body); line-height: var(--lh-body); color: var(--text-body); }
+.t-small { font-family: var(--font-sans); font-size: var(--t-small); color: var(--text-muted); }
+.t-price { font-family: var(--font-serif); color: var(--primary); }
+
+/* Buttons */
+.t-btn {
+  font-family: var(--font-sans);
+  font-size: var(--t-small);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--primary-contrast);
+  background: var(--primary);
+  border: none;
+  border-radius: var(--r-0);
+  padding: 13px 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.t-btn:hover  { background: var(--primary-pressed); }
+.t-btn:active { transform: translateY(1px); }
+
+.t-btn--ghost {
+  background: transparent;
+  color: var(--primary);
+  box-shadow: inset 0 0 0 1.5px var(--primary);
+}
+.t-btn--ghost:hover { background: var(--bordeaux-tint); }
+
+/* Tag — editorial keyline chip */
+.t-tag {
+  font-family: var(--font-sans);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--brass-deep);
+  border: 1px solid var(--brass);
+  border-radius: var(--r-0);
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+
+/* Framed surface (poster / wine card) */
+.t-frame {
+  border: var(--frame);
+  background: var(--cream);
+}

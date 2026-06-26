@@ -1,0 +1,45 @@
+// Sample data for the Terroir wine-app UI kit.
+const REGIONS = [
+  { id: "tuscany", region: "Tuscany", place: "Italy", count: 24, poster: "../../assets/poster-tuscany.png",
+    coord: "43.4° N · 11.2° E", lede: "Sangiovese country — sun, stone & cypress.",
+    blurb: "Rolling clay-and-limestone hills between Florence and Siena, where Sangiovese ripens into bright cherry, dried herb and fine, dusty tannin. The heart of Chianti Classico, Brunello and the Super Tuscans." },
+  { id: "paso", region: "Paso Robles", place: "California, USA", count: 31, poster: "../../assets/poster-paso-robles.png",
+    coord: "35.6° N · 120.7° W", lede: "Rhône grapes under a big California sun.",
+    blurb: "Warm days and cool nights on limestone soils give wines that are dark, savory and generous — Syrah, Grenache and Mourvèdre that drink rich without losing their spine." },
+  { id: "mendoza", region: "Mendoza", place: "Argentina", count: 19, poster: null,
+    coord: "32.9° S · 68.8° W", lede: "High-altitude Malbec in the Andes' shadow.",
+    blurb: "Vineyards climb past 3,000 feet, where intense sun and cold nights build deep color, plush black fruit and velvety tannin." },
+  { id: "willamette", region: "Willamette", place: "Oregon, USA", count: 14, poster: null,
+    coord: "45.2° N · 123.1° W", lede: "Cool-climate Pinot Noir, all silk and red fruit.",
+    blurb: "A green, rainy valley where Pinot Noir turns out bright, perfumed and ethereal — cranberry, rose and forest floor." },
+];
+
+const WINES = [
+  { id: "esprit", name: "Esprit de Tablas", producer: "Tablas Creek", vintage: 2021, price: 55,
+    region: "paso", tagline: "RHÔNE, BY WAY OF CALIFORNIA", coord: "PASO ROBLES · 35.6°N", store: "Spec's",
+    distance: "4.2 mi", tags: ["dark cherry", "garrigue", "leather"], seed: 2.0,
+    structure: [["Body", "Full", 0.82], ["Tannin", "High", 0.7], ["Acidity", "Med", 0.5], ["Finish", "Long", 0.76]],
+    note: "A GSM blend with real gravity — dark cherry and dried herb over a savory, almost meaty core. Serious tannin, but it's drinking beautifully right now." },
+  { id: "brunello", name: "Brunello di Montalcino", producer: "Altesino", vintage: 2018, price: 72,
+    region: "tuscany", tagline: "PURE SANGIOVESE", coord: "MONTALCINO · 43.0°N", store: "Total Wine",
+    distance: "6.0 mi", tags: ["sour cherry", "leather", "tobacco"], seed: 4.1,
+    structure: [["Body", "Med-Full", 0.7], ["Tannin", "High", 0.75], ["Acidity", "High", 0.8], ["Finish", "Long", 0.82]],
+    note: "Classic, structured Sangiovese — high-toned cherry and tobacco with bright acidity that keeps it lifted. Give it air, or cellar it another few years." },
+  { id: "chianti", name: "Chianti Classico Riserva", producer: "Fèlsina", vintage: 2020, price: 38,
+    region: "tuscany", tagline: "BERARDENGA, SIENA", coord: "CHIANTI · 43.3°N", store: "Spec's",
+    distance: "4.2 mi", tags: ["red plum", "iron", "thyme"], seed: 1.2,
+    structure: [["Body", "Med", 0.58], ["Tannin", "Med-High", 0.66], ["Acidity", "High", 0.78], ["Finish", "Med", 0.6]],
+    note: "The everyday hero — red plum and iron with a savory, herbal edge. Bright enough for a Tuesday, serious enough to think about." },
+  { id: "catena", name: "Malbec Alta", producer: "Catena", vintage: 2021, price: 25,
+    region: "mendoza", tagline: "HIGH ANDES, ARGENTINA", coord: "MENDOZA · 32.9°S", store: "Total Wine",
+    distance: "6.0 mi", tags: ["black plum", "violet", "cocoa"], seed: 5.0,
+    structure: [["Body", "Full", 0.78], ["Tannin", "Med-High", 0.64], ["Acidity", "Med", 0.52], ["Finish", "Med-Long", 0.7]],
+    note: "Plush, high-altitude Malbec — black plum and violet with a dusting of cocoa. Velvety and generous, and a genuine steal at the price." },
+  { id: "argyle", name: "Reserve Pinot Noir", producer: "Cristom", vintage: 2021, price: 42,
+    region: "willamette", tagline: "EOLA-AMITY HILLS, OREGON", coord: "WILLAMETTE · 45.2°N", store: "Spec's",
+    distance: "4.2 mi", tags: ["cranberry", "rose", "forest floor"], seed: 3.0,
+    structure: [["Body", "Light-Med", 0.42], ["Tannin", "Low-Med", 0.4], ["Acidity", "High", 0.82], ["Finish", "Long", 0.72]],
+    note: "Silk and red fruit — cranberry and rose lifted by bright acidity, with that savory Willamette forest-floor note. Ethereal, but it lingers." },
+];
+
+Object.assign(window, { REGIONS, WINES });
