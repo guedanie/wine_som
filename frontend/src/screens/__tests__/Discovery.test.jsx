@@ -1,0 +1,41 @@
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
+import Discovery from '../Discovery.jsx';
+
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return { ...actual, useNavigate: () => mockNavigate };
+});
+
+beforeEach(() => { mockNavigate.mockClear(); });
+
+function renderScreen() {
+  return render(<MemoryRouter><Discovery /></MemoryRouter>);
+}
+
+it('renders all 18 region names', () => {
+  renderScreen();
+  expect(screen.getByText('Tuscany')).toBeInTheDocument();              // tier 1 — has poster, unique
+  expect(screen.getByText('Paso Robles')).toBeInTheDocument();         // tier 1 — has poster, unique
+  expect(screen.getAllByText('Champagne')[0]).toBeInTheDocument();      // tier 2 — Poster fallback also renders name
+  expect(screen.getAllByText('Mosel')[0]).toBeInTheDocument();          // tier 2 — same
+});
+
+it('renders a "More regions" section divider between tiers', () => {
+  renderScreen();
+  expect(screen.getByText(/more regions/i)).toBeInTheDocument();
+});
+
+it('navigates to /recommend with region message when a region card is clicked', async () => {
+  renderScreen();
+  await userEvent.click(screen.getAllByText('Tuscany')[0]);
+  expect(mockNavigate).toHaveBeenCalledWith('/recommend', expect.objectContaining({
+    state: expect.objectContaining({
+      apiReq: expect.objectContaining({
+        message: expect.stringContaining('Tuscany'),
+      }),
+    }),
+  }));
+});
