@@ -70,6 +70,12 @@ export default function RegionDossier() {
             <p className="t-body" style={{ marginTop: 16, maxWidth: 540 }}>{details.tasting_notes}</p>
           )}
 
+          {details.description && (
+            <p className="t-body" style={{ marginTop: 14, maxWidth: 540, color: 'var(--ink-2)' }}>
+              {details.description}
+            </p>
+          )}
+
           {flavors.length > 0 && (
             <div style={{ display: 'flex', gap: 7, marginTop: 14, flexWrap: 'wrap' }}>
               {flavors.map(t => <Tag key={t}>{t}</Tag>)}
@@ -102,6 +108,11 @@ export default function RegionDossier() {
                     <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>
                       {pick.retailer}
                     </div>
+                    {pick.store_address && (
+                      <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--faded)', marginTop: 2 }}>
+                        {pick.store_address}
+                      </div>
+                    )}
                   </div>
                   <div style={{ fontFamily: 'var(--font-serif)', fontSize: 19, color: 'var(--bordeaux)' }}>${pick.price}</div>
                 </div>

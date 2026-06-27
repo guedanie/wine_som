@@ -32,6 +32,7 @@ class WinePick(BaseModel):
     price: float
     retailer: str
     why: str
+    store_address: Optional[str] = None
 
 
 class RecommendResponse(BaseModel):

@@ -47,7 +47,7 @@ def _detect_retailer(message: str) -> Optional[str]:
 # PostgREST raises 42703. Mocked unit tests can't catch a bad column name.
 INVENTORY_SELECT = (
     "price, curbside_price, wine_id,"
-    "stores!inner(retailer_name, zip_code),"
+    "stores!inner(retailer_name, zip_code, address),"
     "wines(id, name, varietal, region, country, wine_type, grapes, abv, body,"
     "wine_details(tasting_notes, flavor_profile, structure_profile, grapeminds_enriched_at))"
 )
@@ -125,6 +125,7 @@ async def recommend(req: RecommendRequest):
         if not enriched and not has_extract:
             continue  # no basis to match
         retailer = (row.get("stores") or {}).get("retailer_name") or "unknown"
+        store_address = (row.get("stores") or {}).get("address") or None
         by_retailer.setdefault(retailer, []).append({
             "wine_id": wine.get("id"),
             "name": wine.get("name"),
@@ -139,6 +140,7 @@ async def recommend(req: RecommendRequest):
             "structure_profile": details.get("structure_profile") or {},
             "price": row.get("price"),
             "retailer": retailer,
+            "store_address": store_address,
             "tier": 1 if enriched else 2,
         })
 
@@ -221,6 +223,7 @@ async def recommend(req: RecommendRequest):
             "name": cand.get("name") or p.get("name"),
             "price": cand.get("price") if cand.get("price") is not None else p.get("price"),
             "retailer": cand.get("retailer") or p.get("retailer"),
+            "store_address": cand.get("store_address"),
             "why": p.get("why", ""),
         })
     picks_data = enriched_picks

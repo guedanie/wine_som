@@ -12,7 +12,7 @@ WINE_ROW = {
     "price": 22.0,
     "curbside_price": None,
     "wine_id": "abc-123",
-    "stores": {"retailer_name": "Geraldine's", "store_name": "Geraldine's", "zip_code": "78209"},
+    "stores": {"retailer_name": "Geraldine's", "store_name": "Geraldine's", "zip_code": "78209", "address": "7700 Broadway St, San Antonio, TX 78209"},
     "wines": {
         "id": "abc-123",
         "name": "Test Malbec",
@@ -42,7 +42,7 @@ def _wine_row(name="Test Malbec", wine_id="abc-123", enriched=True, varietal="Ma
               region="Mendoza", grapes=None, body="full", price=22.0):
     return {
         "price": price, "curbside_price": None, "wine_id": wine_id,
-        "stores": {"retailer_name": "Spec's", "store_name": "Spec's", "zip_code": "78209"},
+        "stores": {"retailer_name": "Spec's", "store_name": "Spec's", "zip_code": "78209", "address": "1000 Austin Hwy, San Antonio, TX 78209"},
         "wines": {
             "id": wine_id, "name": name, "varietal": varietal, "region": region,
             "country": "Argentina", "wine_type": "red", "grapes": grapes or ["Malbec"],
@@ -281,3 +281,42 @@ def test_recommend_request_grapes_defaults_empty():
     from api.schemas import RecommendRequest
     req = RecommendRequest(zip_code="78209")
     assert req.grapes == []
+
+
+_WINE_ROW_WITH_ADDRESS = {
+    "price": 22.0,
+    "curbside_price": None,
+    "wine_id": "abc-123",
+    "stores": {
+        "retailer_name": "Spec's",
+        "zip_code": "78209",
+        "address": "1000 Austin Hwy, San Antonio, TX 78209",
+    },
+    "wines": {
+        "id": "abc-123", "name": "Test Malbec", "varietal": "Malbec",
+        "region": "Mendoza", "country": "Argentina", "wine_type": "red",
+        "grapes": ["Malbec"], "body": "full",
+        "wine_details": {
+            "tasting_notes": "dark fruit",
+            "flavor_profile": ["dark fruit"],
+            "structure_profile": {},
+            "grapeminds_enriched_at": "2026-06-03T00:00:00Z",
+        },
+    },
+}
+
+
+@pytest.mark.asyncio
+async def test_recommend_picks_include_store_address():
+    """store_address should flow through from the stores join to the pick."""
+    with patch("recommendation.claude_client.anthropic.Anthropic", _make_anthropic_mock()), \
+         patch("api.routers.recommend.get_supabase_client",
+               return_value=_make_db_mock([_WINE_ROW_WITH_ADDRESS])), \
+         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/recommend", json={
+                "zip_code": "78209", "budget_min": 15.0, "budget_max": 35.0})
+    assert response.status_code == 200
+    pick = response.json()["picks"][0]
+    assert pick["store_address"] == "1000 Austin Hwy, San Antonio, TX 78209"
