@@ -92,6 +92,6 @@ export function buildApiReq(prefs) {
     style_preferences: tags,
     wine_types:        wineTypes,
     grapes:            prefs.grapes ?? [],
-    message:           occasionMessage(prefs.occasion),
+    message:           prefs.freeText?.trim() || occasionMessage(prefs.occasion),
   };
 }

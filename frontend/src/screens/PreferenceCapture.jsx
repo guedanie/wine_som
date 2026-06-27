@@ -27,11 +27,13 @@ export default function PreferenceCapture() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const toggleGrape = g => setGrapes(p => p.includes(g) ? p.filter(x => x !== g) : [...p, g]);
 
+  const [freeText, setFreeText] = useState('');
+
   const toggle = s => setStyles(p => p.includes(s) ? p.filter(x => x !== s) : [...p, s]);
   const valid  = zip.length === 5 && styles.length > 0;
 
   const handleSubmit = () => {
-    const prefs  = { zip, budget, styles, occasion, wineTypes, grapes };
+    const prefs  = { zip, budget, styles, occasion, wineTypes, grapes, freeText };
     const apiReq = buildApiReq(prefs);
     navigate('/recommend', { state: { prefs, apiReq } });
   };
@@ -100,6 +102,19 @@ export default function PreferenceCapture() {
               </button>
             );
           })}
+        </div>
+      </div>
+
+      <div style={{ marginTop: 28 }}>
+        <label style={{ display: 'block' }}><Eyebrow>What are you feeling tonight?</Eyebrow></label>
+        <input
+          value={freeText}
+          onChange={e => setFreeText(e.target.value)}
+          placeholder="e.g. I'm at HEB Lincoln Heights · looking for a Bordeaux blend from California"
+          style={{ marginTop: 8, fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--ink)', background: 'var(--cream-raised)', border: '1.5px solid var(--ink)', padding: '11px 13px', width: '100%', boxSizing: 'border-box', borderRadius: 0, outline: 'none' }}
+        />
+        <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11.5, color: 'var(--faded)', marginTop: 5 }}>
+          Optional — name a store, region, grape, or occasion
         </div>
       </div>
 
