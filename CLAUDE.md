@@ -3,7 +3,7 @@
 ## What This Is
 Full-stack wine recommendation app. Users enter zip code + budget + style preferences and get Claude-powered sommelier recommendations for wines available at local retailers near them.
 
-## Current Build Status (as of 2026-06-25)
+## Current Build Status (as of 2026-06-26)
 
 ### Done
 | Component | Location | Notes |
@@ -28,6 +28,7 @@ Full-stack wine recommendation app. Users enter zip code + budget + style prefer
 | Cross-retailer dedup | `backend/utils/upc.py`, `scripts/merge_duplicate_wines.py` | canonical-UPC normalization; 910 dup wine rows merged (9321→8411), 0 inventory loss |
 | Recommendation engine v2 | `backend/recommendation/` | Tiered pool (GrapeMinds + extractor), knowledge-based scorer (`flavor_profiles.py`), optional NL intent (`intent.py`) |
 | Test suite | `backend/tests/` | 155 passing (152 unit + 3 integration-schema vs live DB) |
+| Frontend | `frontend/` | Vite + React 19 + Tailwind v3 — 4 screens, 59 tests passing; `npm run dev` at localhost:5173 |
 
 ### In Progress / Blocked
 | Item | Status |
@@ -141,6 +142,14 @@ python3 -m uvicorn api.main:app --reload
 # Docs at http://localhost:8000/docs
 ```
 
+## Running the Frontend
+
+```bash
+cd frontend
+npm run dev
+# App at http://localhost:5173
+```
+
 ## Running Tests
 
 ```bash
@@ -235,6 +244,25 @@ supabase/
     20260620000002_wine_upc_canonical.sql   — wines.upc_canonical column
     20260620000003_wines_upc_canonical_index.sql — partial UNIQUE index on upc_canonical
 
+frontend/
+  src/
+    lib/
+      api.js                   — getWine, callRecommend fetch wrappers
+      regions.js               — DISCOVERY_REGIONS, REGION_POSTERS, buildApiReq, deriveWineCardMeta
+    components/
+      Btn.jsx Eyebrow.jsx Tag.jsx StructureBars.jsx  — shared design-system atoms
+      Contours.jsx             — procedural SVG contour map (connective motif)
+      Poster.jsx               — matted region poster (3:4, ink/brass frame, striped fallback)
+      WineCard.jsx             — editorial wine card (ink frame, brass keyline, flavor tags)
+    screens/
+      PreferenceCapture.jsx    — zip + budget + style cards + occasion toggle → /recommend
+      ChatRecommend.jsx        — sommelier chat left, WineCards right; navigates to /wine/:id
+      RegionDossier.jsx        — wine dossier: poster, tasting notes, structure bars, store row
+      Discovery.jsx            — 18-region grid (10 Tier 1 + 8 Tier 2), click → /recommend
+    App.jsx                    — NavBar + react-router-dom v7 routes
+  design-system/               — design tokens, UI kit reference components, poster assets
+  vite.config.js               — Vitest + React plugin config
+
 data/
   exploration/                 — API probe scripts + results (not production code)
     grapeminds_findings.md     — GrapeMinds API findings doc
@@ -278,7 +306,7 @@ docs/
 ---
 
 ## What's Next (priority order)
-1. Frontend — the last major piece; data + recommendation engine v2 are now in place
+1. Sommelier agent routing — integrate `/Users/danielguerrero/Downloads/sommelier_agent_routing.md` into `backend/recommendation/claude_client.py` system prompt (3-mode: Recommend / Education / Pairing)
 2. Local MCP server for Claude Desktop (parked) — read-only tools over the catalog, anon key, narrow tools; see memory `mcp-desktop-parked`
 3. Add more Shopify local wine shops (same scraper pattern as Geraldine's, zero new code)
 4. Add more HEB stores across San Antonio (6 live, `data/heb-store-list.csv` has full list)
