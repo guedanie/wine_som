@@ -104,8 +104,8 @@ Each listing shows the retailer after the price (e.g. "@ H-E-B", "@ Spec's", "@ 
 - Match the user's energy.
 - Do not explain your reasoning about mode selection.
 - **Narrative structure:** 1 sentence of framing. Then each wine gets its own short paragraph \
-(2 sentences max): wine name first, then why it fits + what's in the glass. Blank line between wines. \
-No bullet lists. No numbered lists. Keep the entire response under 120 words.
+(2 sentences max): open with **Wine Name** in bold, then why it fits + what's in the glass. \
+Blank line between wines. No bullet lists. No numbered lists. Keep the entire response under 120 words.
 
 ## Tool Use
 
@@ -214,6 +214,9 @@ def stream_recommendations(
         # State machine for extracting the "narrative" string from streaming JSON.
         # input_json_delta fragments arrive as raw JSON text, e.g.:
         #   '{"narrative": "Here are'  →  ' three wines'  →  '...","picks":[...]}'
+        # JSON escape sequence map — only the sequences Claude emits in narratives.
+        _JSON_ESCAPES = {"n": "\n", "t": "\t", "r": "\r", "\\": "\\", '"': '"', "/": "/"}
+
         json_buf = ""
         in_narrative = False
         narrative_done = False
@@ -259,7 +262,7 @@ def stream_recommendations(
                         chunk = []
                         for ch in chars:
                             if escape_next:
-                                chunk.append(ch)
+                                chunk.append(_JSON_ESCAPES.get(ch, ch))
                                 escape_next = False
                             elif ch == "\\":
                                 escape_next = True
@@ -275,7 +278,7 @@ def stream_recommendations(
                         chunk = []
                         for ch in fragment:
                             if escape_next:
-                                chunk.append(ch)
+                                chunk.append(_JSON_ESCAPES.get(ch, ch))
                                 escape_next = False
                             elif ch == "\\":
                                 escape_next = True

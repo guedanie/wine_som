@@ -111,7 +111,13 @@ export default function ChatRecommend() {
               ? <UserBubble key={i}>{m.text}</UserBubble>
               : <SommelierBubble key={i}>
                   {m.text.split('\n\n').map((para, j) => (
-                    <p key={j} style={{ margin: j > 0 ? '10px 0 0' : 0 }}>{para}</p>
+                    <p key={j} style={{ margin: j > 0 ? '10px 0 0' : 0 }}>
+                      {para.split(/\*\*([^*]+)\*\*/g).map((part, k) =>
+                        k % 2 === 1
+                          ? <strong key={k} style={{ fontFamily: 'var(--font-serif)', fontWeight: 600 }}>{part}</strong>
+                          : part
+                      )}
+                    </p>
                   ))}
                 </SommelierBubble>
           )}
