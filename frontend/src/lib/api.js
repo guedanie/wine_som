@@ -1,7 +1,7 @@
 // frontend/src/lib/api.js
 const BASE = import.meta.env?.VITE_API_URL ?? 'http://localhost:8000';
 
-export async function recommend(req) {
+export async function* streamRecommend(req) {
   const res = await fetch(`${BASE}/api/recommend`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -11,7 +11,22 @@ export async function recommend(req) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.detail ?? `HTTP ${res.status}`);
   }
-  return res.json();
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop();
+    for (const part of parts) {
+      if (!part.startsWith('data: ')) continue;
+      const text = part.slice(6).trim();
+      if (text === '[DONE]') return;
+      yield JSON.parse(text);
+    }
+  }
 }
 
 export async function getWine(id) {

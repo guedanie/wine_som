@@ -1,18 +1,18 @@
 import logging
-import anthropic
 from typing import List, Dict, Any, Optional, Tuple
+import anthropic
 from config import settings
 
 logger = logging.getLogger(__name__)
 
 
+# Picks-only tool — narrative goes in the text response, not the tool.
 _TOOL = {
     "name": "recommend_wines",
-    "description": "Return wine recommendations with narrative and structured picks.",
+    "description": "Submit structured wine picks after your text response. Do not put the narrative here.",
     "input_schema": {
         "type": "object",
         "properties": {
-            "narrative": {"type": "string"},
             "picks": {
                 "type": "array",
                 "minItems": 1,
@@ -29,7 +29,7 @@ _TOOL = {
                 },
             },
         },
-        "required": ["narrative", "picks"],
+        "required": ["picks"],
     },
 }
 
@@ -57,80 +57,61 @@ message contains multiple intents, lead with the strongest signal and weave in t
 **Trigger:** User wants a specific wine to buy or drink.
 
 - Prioritize wines available in the local inventory provided — only recommend wines from the list.
-- Give 2–3 concrete recommendations, not a ranked list of ten. Quality over quantity.
-- For each pick, cover: producer and wine name, region and grape, what to expect in the glass \
-(fruit profile, structure, tannin level, finish), price point, and why it fits what the user asked for.
+- Give 2–3 concrete recommendations. Quality over quantity.
+- For each pick: producer and wine name, what to expect in the glass (fruit, structure, finish), \
+price point, and why it fits. One sentence of context, one sentence of description. Be specific.
 - Be opinionated. If one recommendation is clearly the best fit, say so.
-- Avoid vague descriptors without context ("great balance" — balance of what? be specific).
-- Do not lead with food pairing suggestions unless Pairing Mode was just active.
+- Avoid vague descriptors ("great balance" — balance of what?).
 
 ## Education Mode
 
 **Trigger:** User wants to understand a wine, region, grape, producer, or concept.
 
-- Open with what makes the subject distinctive — don't lead with geography basics unless \
-context requires it.
-- Cover: regional character (climate, soil, what it produces in the glass), the grape varieties \
-that define the region, standout vintages with specific detail ("a dry August followed by a \
-cool September" beats "ideal growing conditions"), the style range from entry-level to collector-tier.
-- Be opinionated. If a vintage is overrated, say so. If a producer punches above its price, say so.
-- Use short paragraphs, not bullet lists. Write like a knowledgeable friend, not a textbook.
-- After a substantive education response, offer a natural bridge: "Want me to find something \
-available near you that fits this profile?"
-- Still pick the 2–3 most relevant wines from the inventory list that best illustrate the topic.
+- Open with what makes the subject distinctive.
+- Cover: regional character, defining grapes, standout vintages. Be opinionated.
+- Use short paragraphs, not bullet lists.
+- After a substantive education response, offer: "Want me to find something available near you?"
+- Still pick 2–3 illustrative wines from the inventory list.
 
 ## Pairing Mode
 
 **Trigger:** User mentions food, a meal, or an occasion that implies food.
 
-- Lead with wine style logic, not a simple match. Explain *why* the pairing works structurally \
-(e.g., "the acidity cuts through the fat," "the tannin grips the protein").
-- Give 2–3 pairing options at different price points where possible, drawn from the inventory list.
-- Do not volunteer food pairings when the user asked for a recommendation without food context.
-- Avoid generic pairings ("goes great with red meat") — add a layer of structural reasoning.
+- Lead with wine style logic, not a simple match. Explain *why* the pairing works structurally.
+- Give 2–3 pairing options at different price points from the inventory list.
 
 ## Cross-Mode Behavior
 
-- Mode transitions should feel invisible. If a user asks for a recommendation and then asks \
-"why does Napa Cab taste so different from Bordeaux?" — pivot cleanly into Education Mode \
-without announcing it.
-- Carry context across turns. If the user revealed their budget, style preference, or \
-location earlier, don't ask again.
-- When intent is genuinely ambiguous, lean toward Recommend Mode.
+- Mode transitions should feel invisible.
+- Carry context across turns. Don't ask for budget or location a second time.
+- When intent is ambiguous, lean toward Recommend Mode.
 
 ## Inventory Data Handling
 
 The wines provided are the only wines you can recommend — they are what's locally available.
 Each listing shows the retailer after the price (e.g. "@ H-E-B", "@ Spec's", "@ Geraldine's Natural Wines"):
 
-- Filter recommendations to wines present in the list before surfacing options.
-- If the user specifies a retailer (e.g. "something from HEB", "at Spec's"), only pick wines \
-from that retailer. If no wines from that retailer match the style, say so directly and offer \
-the closest alternative from another shop.
-- If a perfect style match doesn't exist, say so directly: "I don't see an exact match \
-locally, but [X] is the closest available option and here's why it fits."
+- Only recommend wines present in the list.
+- If the user specifies a retailer, only pick wines from that retailer.
+- If no perfect match exists, say so and offer the closest alternative.
 - Never recommend a wine as "locally available" unless it appears in the provided list.
-- The price shown is the shelf price. Surface it when explaining each pick.
 - Set wine_id to the exact id shown in [wine_id: ...] for each pick — never guess or invent one.
 
 ## Tone and Format Rules
 
 - Be opinionated. Hedging on everything makes recommendations useless.
 - Never use filler phrases: "Great question," "Absolutely," "Certainly," "Of course."
-- Match the user's energy — if they're casual, be casual. If they're precise, be precise.
-- Do not explain your reasoning about mode selection. Just respond.
-- **Narrative structure:** Open with 1–2 sentences of context or framing. Then give each \
-wine its own paragraph — wine name first (in plain text, not a header), followed by your \
-reasoning for that pick in 2–4 sentences. Separate each wine paragraph with a blank line. \
-No bullet lists. No numbered lists.
+- Match the user's energy.
+- Do not explain your reasoning about mode selection.
+- **Narrative structure:** 1 sentence of framing. Then each wine gets its own short paragraph \
+(2 sentences max): wine name first, then why it fits + what's in the glass. Blank line between wines. \
+No bullet lists. No numbered lists. Keep the entire response under 120 words.
 
 ## Tool Use
 
-You must always call the recommend_wines tool. Put your full response — narrative, \
-explanations, structural reasoning, educational context, or pairing logic — in the \
-`narrative` field. Put your wine picks in `picks`, selecting the wines from the inventory \
-that best serve the user's intent. When in Education or Pairing mode, the `narrative` \
-carries the substance; picks are illustrative examples drawn from what's locally available.\
+Write your complete response as text first. Then call the recommend_wines tool with your \
+structured picks. Do not put the narrative in the tool.
+Set wine_id to the exact id shown in [wine_id: ...] for each pick — never guess or invent one.\
 """
 
 
@@ -158,12 +139,11 @@ def _format_wine(wine: Dict[str, Any]) -> str:
     return line
 
 
-def get_recommendations(
+def _build_user_message(
     candidates: List[Dict[str, Any]],
     intent: Dict[str, Any],
     conversation_history: Optional[List[Dict[str, Any]]] = None,
-) -> Tuple[str, List[Dict[str, Any]]]:
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+) -> str:
     listings = "\n\n".join(
         f"{i + 1}. [wine_id: {w.get('wine_id')}] {_format_wine(w)}"
         for i, w in enumerate(candidates))
@@ -191,7 +171,7 @@ def get_recommendations(
 
     message_line = f"My request: {user_message}\n\n" if not is_default else ""
 
-    user_msg = (
+    return (
         f"{history_preamble}"
         f"{message_line}"
         f"Budget: ${budget_min:.0f}–${budget_max:.0f}. "
@@ -202,23 +182,77 @@ def get_recommendations(
         f"Set wine_id to the exact id shown in [wine_id: ...] for each pick."
     )
 
+
+def stream_recommendations(
+    candidates: List[Dict[str, Any]],
+    intent: Dict[str, Any],
+    conversation_history: Optional[List[Dict[str, Any]]] = None,
+):
+    """
+    Returns a generator that yields (type, data) tuples:
+      ("token", str)          — narrative text chunk
+      ("picks", list)         — raw model picks (unenriched)
+
+    Raises if the Anthropic client cannot be initialized so the router can
+    return a 500 before the StreamingResponse starts.
+    """
+    client_inst = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    user_msg = _build_user_message(candidates, intent, conversation_history)
+    user_message = intent.get("message") or ""
+
     logger.info(
-        "CLAUDE | message=%r history_turns=%d candidates=%d",
+        "CLAUDE | streaming | message=%r history_turns=%d candidates=%d",
         user_message[:60], len(conversation_history or []), len(candidates),
     )
 
-    response = client.messages.create(
+    def _gen():
+        try:
+            with client_inst.messages.stream(
+                model="claude-sonnet-4-6",
+                max_tokens=800,
+                system=_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": user_msg}],
+                tools=[_TOOL],
+                tool_choice={"type": "any"},
+            ) as stream:
+                for text in stream.text_stream:
+                    yield ("token", text)
+                final = stream.get_final_message()
+
+            tool_block = next((b for b in final.content if b.type == "tool_use"), None)
+            if tool_block is None:
+                raise ValueError("Claude did not return tool picks")
+            yield ("picks", tool_block.input.get("picks", []))
+        except Exception as e:
+            logger.exception("CLAUDE | streaming error: %s", e)
+            yield ("error", str(e))
+
+    return _gen()
+
+
+def get_recommendations(
+    candidates: List[Dict[str, Any]],
+    intent: Dict[str, Any],
+    conversation_history: Optional[List[Dict[str, Any]]] = None,
+) -> Tuple[str, List[Dict[str, Any]]]:
+    """Non-streaming variant kept for tests that mock anthropic.Anthropic directly."""
+    client_inst = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    user_msg = _build_user_message(candidates, intent, conversation_history)
+
+    response = client_inst.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=1536,
+        max_tokens=800,
         system=_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_msg}],
         tools=[_TOOL],
-        tool_choice={"type": "tool", "name": "recommend_wines"},
+        tool_choice={"type": "any"},
     )
 
     tool_block = next((b for b in response.content if b.type == "tool_use"), None)
     if tool_block is None:
         raise ValueError("Claude did not return a tool use block")
 
-    result = tool_block.input
-    return result["narrative"], result["picks"]
+    # narrative may come from a text block or be absent (picks-only response)
+    text_block = next((b for b in response.content if b.type == "text"), None)
+    narrative = (text_block.text if text_block else "") or ""
+    return narrative, tool_block.input.get("picks", [])

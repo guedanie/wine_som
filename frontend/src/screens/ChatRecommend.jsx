@@ -5,7 +5,7 @@ import Eyebrow from '../components/Eyebrow.jsx';
 import Btn from '../components/Btn.jsx';
 import Stamp from '../components/Stamp.jsx';
 import WineCard from '../components/WineCard.jsx';
-import { recommend } from '../lib/api.js';
+import { streamRecommend } from '../lib/api.js';
 import { deriveWineCardMeta } from '../lib/regions.js';
 
 const FOLLOWUPS = ["Anything from Burgundy?", "What about under $30?", "Something to cellar"];
@@ -38,11 +38,12 @@ export default function ChatRecommend() {
   const navigate   = useNavigate();
   const { prefs, apiReq, _restored } = state ?? {};
 
-  const [messages, setMessages] = useState(() => _restored?.messages ?? []);
-  const [picks,    setPicks]    = useState(() => _restored?.picks    ?? []);
-  const [loading,  setLoading]  = useState(() => !_restored);
-  const [error,    setError]    = useState(null);
-  const [input,    setInput]    = useState('');
+  const [messages,   setMessages]  = useState(() => _restored?.messages ?? []);
+  const [picks,      setPicks]     = useState(() => _restored?.picks    ?? []);
+  const [loading,    setLoading]   = useState(() => !_restored);
+  const [streaming,  setStreaming] = useState(false);
+  const [error,      setError]     = useState(null);
+  const [input,      setInput]     = useState('');
 
   // All hooks must be called before any early return
   useEffect(() => {
@@ -56,20 +57,40 @@ export default function ChatRecommend() {
 
   async function callRecommend(req) {
     setLoading(true);
+    setStreaming(false);
     setError(null);
+    let firstToken = true;
     try {
-      const data = await recommend(req);
-      setMessages(prev => [...prev, { role: 'sommelier', text: data.narrative }]);
-      setPicks(data.picks.map(deriveWineCardMeta));
+      for await (const event of streamRecommend(req)) {
+        if (event.type === 'token') {
+          if (firstToken) {
+            firstToken = false;
+            setLoading(false);
+            setStreaming(true);
+            setMessages(prev => [...prev, { role: 'sommelier', text: event.text }]);
+          } else {
+            setMessages(prev => {
+              const msgs = [...prev];
+              msgs[msgs.length - 1] = { role: 'sommelier', text: msgs[msgs.length - 1].text + event.text };
+              return msgs;
+            });
+          }
+        } else if (event.type === 'picks') {
+          setPicks(event.picks.map(deriveWineCardMeta));
+        } else if (event.type === 'error') {
+          setError(event.message);
+        }
+      }
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
+      setStreaming(false);
     }
   }
 
   const handleFollowup = (text) => {
-    if (loading || !text.trim()) return;
+    if (loading || streaming || !text.trim()) return;
     const history = messages.map(m => ({ role: m.role, content: m.text }));
     setMessages(prev => [...prev, { role: 'user', text }]);
     callRecommend({ ...apiReq, message: text, conversation_history: history });
@@ -109,8 +130,8 @@ export default function ChatRecommend() {
         <div style={{ borderTop: '1px solid var(--border)', padding: '14px 24px 18px' }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
             {FOLLOWUPS.map(f => (
-              <button key={f} onClick={() => handleFollowup(f)} disabled={loading}
-                style={{ cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.4 : 1, fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--bordeaux)', background: 'var(--bordeaux-tint)', border: 'none', borderRadius: 999, padding: '6px 12px' }}>
+              <button key={f} onClick={() => handleFollowup(f)} disabled={loading || streaming}
+                style={{ cursor: (loading || streaming) ? 'default' : 'pointer', opacity: (loading || streaming) ? 0.4 : 1, fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--bordeaux)', background: 'var(--bordeaux-tint)', border: 'none', borderRadius: 999, padding: '6px 12px' }}>
                 {f}
               </button>
             ))}
@@ -125,8 +146,8 @@ export default function ChatRecommend() {
             />
             <button
               onClick={() => { if (input.trim()) { handleFollowup(input.trim()); setInput(''); } }}
-              disabled={loading}
-              style={{ border: 'none', background: 'var(--bordeaux)', color: 'var(--cream)', padding: '0 16px', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.4 : 1, fontSize: 16, borderRadius: 0 }}>
+              disabled={loading || streaming}
+              style={{ border: 'none', background: 'var(--bordeaux)', color: 'var(--cream)', padding: '0 16px', cursor: (loading || streaming) ? 'default' : 'pointer', opacity: (loading || streaming) ? 0.4 : 1, fontSize: 16, borderRadius: 0 }}>
               →
             </button>
           </div>

@@ -1,13 +1,15 @@
 import hashlib
+import json
 import uuid
 import logging
 import random
-from typing import Optional
+from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException
-from api.schemas import RecommendRequest, RecommendResponse, WinePick
+from fastapi.responses import StreamingResponse
+from api.schemas import RecommendRequest
 from db import get_supabase_client, get_service_client
 from recommendation.scorer import score_candidates
-from recommendation.claude_client import get_recommendations
+from recommendation.claude_client import stream_recommendations
 from recommendation.intent import parse_message, merge_intent, intent_from_request
 from utils.geo import zip_to_centroid, find_nearby_store_ids
 
@@ -16,10 +18,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["recommend"])
 
 _MAX_CANDIDATES = 12
-_POOL_PER_RETAILER = 80   # wines kept per retailer after per-retailer fetch
-_FETCH_PER_RETAILER = 500  # rows fetched per retailer (Supabase hard-caps at 1000/query)
+_POOL_PER_RETAILER = 80
+_FETCH_PER_RETAILER = 500
 
-# Maps common user phrasings to the retailer_name values stored in the DB.
 _RETAILER_ALIASES = {
     "heb": "H-E-B",
     "h-e-b": "H-E-B",
@@ -33,7 +34,6 @@ _RETAILER_ALIASES = {
 
 
 def _detect_retailer(message: str) -> Optional[str]:
-    """Return a DB retailer_name substring if the message names a specific shop, else None."""
     if not message:
         return None
     lower = message.lower()
@@ -42,10 +42,7 @@ def _detect_retailer(message: str) -> Optional[str]:
             return name
     return None
 
-# PostgREST projection for the candidate query. Defined as a constant so the
-# integration test (tests/test_integration_schema.py) can run the EXACT same
-# projection against the real schema — every column named here must exist, or
-# PostgREST raises 42703. Mocked unit tests can't catch a bad column name.
+
 INVENTORY_SELECT = (
     "price, curbside_price, wine_id,"
     "stores!inner(retailer_name, zip_code, address),"
@@ -54,7 +51,25 @@ INVENTORY_SELECT = (
 )
 
 
-@router.post("/recommend", response_model=RecommendResponse)
+def _enrich_picks(raw_picks: List[Dict[str, Any]], by_id: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Re-attach authoritative name/price/retailer/address from candidates by wine_id."""
+    enriched = []
+    for p in raw_picks:
+        cand = by_id.get(p.get("wine_id"))
+        if not cand:
+            continue
+        enriched.append({
+            "wine_id": cand["wine_id"],
+            "name": cand.get("name") or p.get("name"),
+            "price": cand.get("price") if cand.get("price") is not None else p.get("price"),
+            "retailer": cand.get("retailer") or p.get("retailer"),
+            "store_address": cand.get("store_address"),
+            "why": p.get("why", ""),
+        })
+    return enriched
+
+
+@router.post("/recommend")
 async def recommend(req: RecommendRequest):
     supabase = get_supabase_client()
 
@@ -69,10 +84,6 @@ async def recommend(req: RecommendRequest):
             detail="No stores found near your zip code. We currently serve San Antonio, TX.",
         )
 
-    # Supabase hard-caps responses at 1000 rows regardless of .limit(). With Spec's
-    # holding 33k records across 12 stores, a single query always returns only Spec's.
-    # Fix: look up which stores belong to which retailer, then query each retailer
-    # separately so every shop is guaranteed representation in the candidate pool.
     stores_meta = (
         supabase.table("stores")
         .select("id, retailer_name")
@@ -86,7 +97,6 @@ async def recommend(req: RecommendRequest):
             retailer_to_stores.setdefault(rname, []).append(sid)
 
     if retailer_to_stores:
-        # Per-retailer fetch: each retailer gets its own 500-row window
         raw_rows: list = []
         for store_ids in retailer_to_stores.values():
             res = (
@@ -101,7 +111,6 @@ async def recommend(req: RecommendRequest):
             )
             raw_rows.extend(res.data or [])
     else:
-        # Fallback for tests/mocks where stores metadata returns mock data without id/retailer_name
         res = (
             supabase.table("retail_inventory")
             .select(INVENTORY_SELECT)
@@ -124,7 +133,7 @@ async def recommend(req: RecommendRequest):
         enriched = bool(details.get("grapeminds_enriched_at"))
         has_extract = bool(wine.get("varietal") or wine.get("region"))
         if not enriched and not has_extract:
-            continue  # no basis to match
+            continue
         retailer = (row.get("stores") or {}).get("retailer_name") or "unknown"
         store_address = (row.get("stores") or {}).get("address") or None
         by_retailer.setdefault(retailer, []).append({
@@ -145,9 +154,6 @@ async def recommend(req: RecommendRequest):
             "tier": 1 if enriched else 2,
         })
 
-    # Deterministic shuffle: same zip+budget always yields the same candidate slice
-    # so the initial result is reproducible. Follow-up turns (conversation_history
-    # non-empty) offset the seed so each turn reveals a fresh window of wines.
     turn = len(req.conversation_history or [])
     seed_str = f"{req.zip_code}:{req.budget_min:.0f}:{req.budget_max:.0f}:{turn}"
     seed = int(hashlib.md5(seed_str.encode()).hexdigest(), 16) % (2 ** 32)
@@ -184,8 +190,6 @@ async def recommend(req: RecommendRequest):
     resolved = merge_intent(parsed, explicit)
     resolved["message"] = req.message
 
-    # If the user named a specific retailer, restrict the candidate pool to that shop.
-    # Do this before scoring so Geraldine's GrapeMinds advantage doesn't crowd out HEB/Spec's.
     preferred_retailer = _detect_retailer(req.message)
     if preferred_retailer:
         retailer_pool = [c for c in candidates if preferred_retailer in (c.get("retailer") or "")]
@@ -193,7 +197,6 @@ async def recommend(req: RecommendRequest):
             candidates = retailer_pool
             logger.info("RETAILER FILTER | %r → %d candidates", preferred_retailer, len(candidates))
 
-    # Wine type filter (multi-select). wine_types takes precedence; fall back to legacy wine_type.
     effective_types = req.wine_types or ([req.wine_type] if req.wine_type else [])
     if effective_types:
         type_pool = [c for c in candidates if c.get("wine_type") in effective_types]
@@ -209,52 +212,50 @@ async def recommend(req: RecommendRequest):
         req.message[:80], len(top), len(req.conversation_history or []),
     )
 
+    # Raises immediately (before StreamingResponse starts) if the client can't init.
     try:
-        narrative, picks_data = get_recommendations(
-            candidates=top,
-            intent=resolved,
-            conversation_history=req.conversation_history,
-        )
+        gen = stream_recommendations(top, resolved, req.conversation_history)
     except Exception:
         raise HTTPException(status_code=500, detail="Recommendation service unavailable")
 
-    # Re-attach authoritative name/price/retailer from the candidate by wine_id —
-    # never trust the model to transcribe structured fields it was shown only as text.
     by_id = {c["wine_id"]: c for c in top}
-    enriched_picks = []
-    for p in picks_data:
-        cand = by_id.get(p.get("wine_id"))
-        if not cand:
-            continue
-        enriched_picks.append({
-            "wine_id": cand["wine_id"],
-            "name": cand.get("name") or p.get("name"),
-            "price": cand.get("price") if cand.get("price") is not None else p.get("price"),
-            "retailer": cand.get("retailer") or p.get("retailer"),
-            "store_address": cand.get("store_address"),
-            "why": p.get("why", ""),
-        })
-    picks_data = enriched_picks
-    if not picks_data:
-        raise HTTPException(status_code=500, detail="Recommendation service unavailable")
-
     session_id = str(uuid.uuid4())
-    try:
-        service = get_service_client()
-        service.table("recommendation_sessions").insert({
-            "id": session_id,
-            "conversation_history": [
-                {"role": "user", "content": req.message},
-                {"role": "assistant", "content": {"narrative": narrative, "picks": picks_data}},
-            ],
-            "recommendations": picks_data,
-            "preference_snapshot": req.model_dump(),
-        }).execute()
-    except Exception:
-        pass
+    _result: dict = {"narrative": [], "picks": []}
 
-    return RecommendResponse(
-        narrative=narrative,
-        picks=[WinePick(**p) for p in picks_data],
-        session_id=session_id,
+    def event_gen():
+        for event_type, data in gen:
+            if event_type == "token":
+                _result["narrative"].append(data)
+                yield "data: " + json.dumps({"type": "token", "text": data}) + "\n\n"
+            elif event_type == "picks":
+                enriched_picks = _enrich_picks(data, by_id)
+                if not enriched_picks:
+                    yield "data: " + json.dumps({"type": "error", "message": "Recommendation service unavailable"}) + "\n\n"
+                else:
+                    _result["picks"] = enriched_picks
+                    yield "data: " + json.dumps({"type": "picks", "picks": enriched_picks, "session_id": session_id}) + "\n\n"
+            elif event_type == "error":
+                yield "data: " + json.dumps({"type": "error", "message": data}) + "\n\n"
+        yield "data: [DONE]\n\n"
+
+        # Session persistence after stream completes
+        try:
+            narrative = "".join(_result["narrative"])
+            service = get_service_client()
+            service.table("recommendation_sessions").insert({
+                "id": session_id,
+                "conversation_history": [
+                    {"role": "user", "content": req.message},
+                    {"role": "assistant", "content": {"narrative": narrative, "picks": _result["picks"]}},
+                ],
+                "recommendations": _result["picks"],
+                "preference_snapshot": req.model_dump(),
+            }).execute()
+        except Exception:
+            pass
+
+    return StreamingResponse(
+        event_gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

@@ -10,8 +10,8 @@ vi.mock('react-router-dom', async () => {
   return { ...actual, useNavigate: () => mockNavigate };
 });
 
-vi.mock('../../lib/api.js', () => ({ recommend: vi.fn() }));
-import { recommend } from '../../lib/api.js';
+vi.mock('../../lib/api.js', () => ({ streamRecommend: vi.fn() }));
+import { streamRecommend } from '../../lib/api.js';
 
 const prefs  = { zip: '78209', budget: 60, styles: ['Bold & Tannic'], occasion: 'Tonight' };
 const apiReq = { zip_code: '78209', budget_min: 10, budget_max: 60, style_preferences: ['dark fruit'], wine_type: 'red', message: 'I want something to open tonight.' };
@@ -27,7 +27,7 @@ function renderScreen(state = { prefs, apiReq }) {
   );
 }
 
-beforeEach(() => { mockNavigate.mockClear(); recommend.mockClear(); });
+beforeEach(() => { mockNavigate.mockClear(); streamRecommend.mockClear(); });
 
 it('redirects to / when there is no prefs state', () => {
   render(
@@ -41,23 +41,30 @@ it('redirects to / when there is no prefs state', () => {
   expect(screen.getByText('Home')).toBeInTheDocument();
 });
 
-it('shows loading bubble while recommend is pending', () => {
-  recommend.mockReturnValue(new Promise(() => {}));
+it('shows loading bubble while streamRecommend is pending', () => {
+  streamRecommend.mockImplementation(async function* () {
+    await new Promise(() => {}); // never resolves
+  });
   renderScreen();
   expect(screen.getByText(/finding/i)).toBeInTheDocument();
 });
 
-it('shows error message when recommend fails', async () => {
-  recommend.mockRejectedValue(new Error('No stores found near your zip code.'));
+it('shows error message when streamRecommend throws', async () => {
+  streamRecommend.mockImplementation(async function* () {
+    throw new Error('No stores found near your zip code.');
+  });
   renderScreen();
   await waitFor(() => expect(screen.getByText(/no stores found/i)).toBeInTheDocument());
 });
 
-it('shows narrative and wine cards when recommend succeeds', async () => {
-  recommend.mockResolvedValue({
-    narrative: 'Here are three wines for you.',
-    picks: [{ wine_id: 'uuid-1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's", why: 'Great.' }],
-    session_id: 'sess-1',
+it('shows narrative and wine cards when streamRecommend succeeds', async () => {
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'Here are three wines for you.' };
+    yield {
+      type: 'picks',
+      picks: [{ wine_id: 'uuid-1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's", why: 'Great.' }],
+      session_id: 'sess-1',
+    };
   });
   renderScreen();
   await waitFor(() => expect(screen.getByText('Here are three wines for you.')).toBeInTheDocument());
@@ -65,10 +72,13 @@ it('shows narrative and wine cards when recommend succeeds', async () => {
 });
 
 it('navigates to /wine/:id with pick state when a WineCard is clicked', async () => {
-  recommend.mockResolvedValue({
-    narrative: 'Here are three wines for you.',
-    picks: [{ wine_id: 'uuid-1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's", why: 'Great.' }],
-    session_id: 'sess-1',
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'Here are three wines for you.' };
+    yield {
+      type: 'picks',
+      picks: [{ wine_id: 'uuid-1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's", why: 'Great.' }],
+      session_id: 'sess-1',
+    };
   });
   renderScreen();
   await waitFor(() => screen.getByText('Esprit de Tablas'));
@@ -78,7 +88,7 @@ it('navigates to /wine/:id with pick state when a WineCard is clicked', async ()
   }));
 });
 
-it('does not call recommend when _restored state is provided', async () => {
+it('does not call streamRecommend when _restored state is provided', async () => {
   const restoredMessages = [
     { role: 'user', text: 'bold · under $60 · tonight' },
     { role: 'sommelier', text: 'Here are my top picks.' },
@@ -92,9 +102,8 @@ it('does not call recommend when _restored state is provided', async () => {
     apiReq,
     _restored: { messages: restoredMessages, picks: restoredPicks },
   });
-  // API should never be called — state is restored
   await new Promise(r => setTimeout(r, 50));
-  expect(recommend).not.toHaveBeenCalled();
+  expect(streamRecommend).not.toHaveBeenCalled();
   expect(screen.getByText('Here are my top picks.')).toBeInTheDocument();
   expect(screen.getByText('Esprit de Tablas')).toBeInTheDocument();
 });

@@ -1,26 +1,41 @@
-import { recommend, getWine } from '../api.js';
+import { streamRecommend, getWine } from '../api.js';
 
 beforeEach(() => { vi.stubGlobal('fetch', vi.fn()); });
 afterEach(() => { vi.unstubAllGlobals(); });
 
-describe('recommend', () => {
+function makeSseResponse(events) {
+  const lines = events.map(e => `data: ${JSON.stringify(e)}`).join('\n\n') + '\n\ndata: [DONE]\n\n';
+  const bytes = new TextEncoder().encode(lines);
+  const reader = {
+    read: vi.fn()
+      .mockResolvedValueOnce({ done: false, value: bytes })
+      .mockResolvedValueOnce({ done: true, value: undefined }),
+  };
+  return { ok: true, body: { getReader: () => reader } };
+}
+
+describe('streamRecommend', () => {
   it('POSTs to /api/recommend with the request body', async () => {
-    fetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ narrative: 'Good picks.', picks: [], session_id: 'abc' }),
-    });
-    const req = { zip_code: '78209', budget_min: 10, budget_max: 60, style_preferences: ['dark fruit'], wine_type: 'red', message: 'Tonight.' };
-    await recommend(req);
+    const req = { zip_code: '78209', budget_min: 10, budget_max: 60 };
+    fetch.mockResolvedValueOnce(makeSseResponse([{ type: 'token', text: 'Hi.' }]));
+    const gen = streamRecommend(req);
+    await gen.next();
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining('/api/recommend'),
       expect.objectContaining({ method: 'POST', body: JSON.stringify(req) })
     );
   });
 
-  it('returns parsed JSON on success', async () => {
-    const payload = { narrative: 'Good picks.', picks: [], session_id: 'abc' };
-    fetch.mockResolvedValueOnce({ ok: true, json: async () => payload });
-    await expect(recommend({})).resolves.toEqual(payload);
+  it('yields token and picks events from SSE', async () => {
+    const tokenEvent = { type: 'token', text: 'Good picks.' };
+    const picksEvent = { type: 'picks', picks: [], session_id: 'abc' };
+    fetch.mockResolvedValueOnce(makeSseResponse([tokenEvent, picksEvent]));
+    const events = [];
+    for await (const e of streamRecommend({})) {
+      events.push(e);
+    }
+    expect(events[0]).toEqual(tokenEvent);
+    expect(events[1]).toEqual(picksEvent);
   });
 
   it('throws with API detail message on non-ok response', async () => {
@@ -28,7 +43,9 @@ describe('recommend', () => {
       ok: false,
       json: async () => ({ detail: 'No stores found near your zip code.' }),
     });
-    await expect(recommend({})).rejects.toThrow('No stores found near your zip code.');
+    await expect(async () => {
+      for await (const _ of streamRecommend({})) { /* drain */ }
+    }).rejects.toThrow('No stores found near your zip code.');
   });
 });
 

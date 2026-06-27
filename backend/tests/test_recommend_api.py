@@ -1,3 +1,4 @@
+import json
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[1]))
@@ -29,13 +30,14 @@ WINE_ROW = {
     },
 }
 
-PICKS = [{
+_ENRICHED_PICK = {
     "wine_id": "abc-123",
     "name": "Test Malbec",
     "price": 22.0,
     "retailer": "Geraldine's",
+    "store_address": "7700 Broadway St, San Antonio, TX 78209",
     "why": "A classic Mendoza Malbec from Argentina with bold dark fruit.",
-}]
+}
 
 
 def _wine_row(name="Test Malbec", wine_id="abc-123", enriched=True, varietal="Malbec",
@@ -73,20 +75,43 @@ def _make_db_mock(data):
     return qb
 
 
-def _make_anthropic_mock(narrative="Here are my top picks.", picks=None):
-    mock_block = MagicMock()
-    mock_block.type = "tool_use"
-    mock_block.input = {"narrative": narrative, "picks": picks or PICKS}
-    mock_response = MagicMock()
-    mock_response.content = [mock_block]
-    mock_cls = MagicMock()
-    mock_cls.return_value.messages.create.return_value = mock_response
-    return mock_cls
+def _make_stream_mock(narrative="Here are my top picks.", picks=None):
+    """Returns a generator function suitable for use as stream_recommendations side_effect."""
+    _picks = picks or [{
+        "wine_id": "abc-123", "name": "Test Malbec", "price": 22.0,
+        "retailer": "Geraldine's", "why": "A classic Mendoza Malbec.",
+    }]
+    def gen(*args, **kwargs):
+        yield ("token", narrative)
+        yield ("picks", _picks)
+    return gen
+
+
+def _sse_events(text):
+    """Parse SSE response text into a list of event dicts (skips [DONE])."""
+    events = []
+    for part in text.split("\n\n"):
+        part = part.strip()
+        if not part.startswith("data: "):
+            continue
+        data = part[6:].strip()
+        if data == "[DONE]":
+            continue
+        events.append(json.loads(data))
+    return events
+
+
+def _sse_picks(text):
+    return next((e["picks"] for e in _sse_events(text) if e.get("type") == "picks"), [])
+
+
+def _sse_narrative(text):
+    return "".join(e["text"] for e in _sse_events(text) if e.get("type") == "token")
 
 
 @pytest.mark.asyncio
 async def test_recommend_returns_200():
-    with patch("recommendation.claude_client.anthropic.Anthropic", _make_anthropic_mock()), \
+    with patch("api.routers.recommend.stream_recommendations", side_effect=_make_stream_mock()), \
          patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([WINE_ROW])), \
          patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
          patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
@@ -99,10 +124,10 @@ async def test_recommend_returns_200():
                 "avoid": [],
             })
     assert response.status_code == 200
-    body = response.json()
-    assert "narrative" in body
-    assert "picks" in body
-    assert "session_id" in body
+    events = _sse_events(response.text)
+    types = {e["type"] for e in events}
+    assert "token" in types
+    assert "picks" in types
 
 
 @pytest.mark.asyncio
@@ -131,7 +156,7 @@ async def test_recommend_missing_zip_returns_422():
 
 @pytest.mark.asyncio
 async def test_recommend_claude_failure_returns_500():
-    with patch("api.routers.recommend.get_recommendations", side_effect=Exception("API down")), \
+    with patch("api.routers.recommend.stream_recommendations", side_effect=Exception("API down")), \
          patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([WINE_ROW])), \
          patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -146,7 +171,7 @@ async def test_recommend_claude_failure_returns_500():
 
 @pytest.mark.asyncio
 async def test_recommend_picks_have_required_fields():
-    with patch("recommendation.claude_client.anthropic.Anthropic", _make_anthropic_mock()), \
+    with patch("api.routers.recommend.stream_recommendations", side_effect=_make_stream_mock()), \
          patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([WINE_ROW])), \
          patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
          patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
@@ -157,7 +182,7 @@ async def test_recommend_picks_have_required_fields():
                 "budget_max": 35.0,
             })
     assert response.status_code == 200
-    for pick in response.json()["picks"]:
+    for pick in _sse_picks(response.text):
         assert all(k in pick for k in ["wine_id", "name", "price", "retailer", "why"])
 
 
@@ -191,8 +216,8 @@ async def test_recommend_no_stores_nearby_returns_400():
 @pytest.mark.asyncio
 async def test_recommend_includes_extractor_only_tier2_wine():
     """A wine with no GrapeMinds enrichment but with varietal/region is still a candidate."""
-    row = _wine_row(enriched=False)   # tier 2
-    with patch("recommendation.claude_client.anthropic.Anthropic", _make_anthropic_mock()), \
+    row = _wine_row(enriched=False)
+    with patch("api.routers.recommend.stream_recommendations", side_effect=_make_stream_mock()), \
          patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([row])), \
          patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
          patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
@@ -209,7 +234,7 @@ async def test_recommend_parses_nl_message_and_merges():
         captured["msg"] = msg
         return {"wine_type": "white", "body": "light", "flavors": ["earthy"],
                 "grapes": [], "region": None, "max_price": None, "avoid": []}
-    with patch("recommendation.claude_client.anthropic.Anthropic", _make_anthropic_mock()), \
+    with patch("api.routers.recommend.stream_recommendations", side_effect=_make_stream_mock()), \
          patch("api.routers.recommend.parse_message", side_effect=fake_parse), \
          patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([_wine_row()])), \
          patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
@@ -224,7 +249,7 @@ async def test_recommend_parses_nl_message_and_merges():
 
 @pytest.mark.asyncio
 async def test_recommend_fail_soft_when_parse_errors():
-    with patch("recommendation.claude_client.anthropic.Anthropic", _make_anthropic_mock()), \
+    with patch("api.routers.recommend.stream_recommendations", side_effect=_make_stream_mock()), \
          patch("api.routers.recommend.parse_message", return_value=None), \
          patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([_wine_row()])), \
          patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
@@ -238,13 +263,10 @@ async def test_recommend_fail_soft_when_parse_errors():
 
 @pytest.mark.asyncio
 async def test_recommend_reattaches_retailer_from_candidate_not_model():
-    """The model only sees wines as text; the response must use the candidate's
-    authoritative retailer/name/price keyed by wine_id, not whatever the model echoes."""
-    # Model returns a pick with the correct wine_id but a WRONG retailer/name.
-    bad_pick = [{"wine_id": "abc-123", "name": "Model Hallucinated Name",
-                 "price": 999.0, "retailer": "WRONG-RETAILER", "why": "because"}]
-    with patch("recommendation.claude_client.anthropic.Anthropic",
-               _make_anthropic_mock(picks=bad_pick)), \
+    """The router must re-attach authoritative name/price/retailer from candidates."""
+    bad_picks = [{"wine_id": "abc-123", "name": "Hallucinated Name",
+                  "price": 999.0, "retailer": "WRONG-RETAILER", "why": "because"}]
+    with patch("api.routers.recommend.stream_recommendations", side_effect=_make_stream_mock(picks=bad_picks)), \
          patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([_wine_row()])), \
          patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
          patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
@@ -252,11 +274,11 @@ async def test_recommend_reattaches_retailer_from_candidate_not_model():
             response = await client.post("/api/recommend", json={
                 "zip_code": "78209", "budget_min": 15.0, "budget_max": 35.0})
     assert response.status_code == 200
-    pick = response.json()["picks"][0]
-    assert pick["retailer"] == "Spec's"          # from candidate (_wine_row), not "WRONG-RETAILER"
-    assert pick["name"] == "Test Malbec"          # authoritative name
-    assert pick["price"] == 22.0                  # authoritative price
-    assert pick["why"] == "because"               # model's narrative kept
+    pick = _sse_picks(response.text)[0]
+    assert pick["retailer"] == "Spec's"
+    assert pick["name"] == "Test Malbec"
+    assert pick["price"] == 22.0
+    assert pick["why"] == "because"
 
 
 def test_recommend_request_accepts_wine_types():
@@ -309,7 +331,7 @@ _WINE_ROW_WITH_ADDRESS = {
 @pytest.mark.asyncio
 async def test_recommend_picks_include_store_address():
     """store_address should flow through from the stores join to the pick."""
-    with patch("recommendation.claude_client.anthropic.Anthropic", _make_anthropic_mock()), \
+    with patch("api.routers.recommend.stream_recommendations", side_effect=_make_stream_mock()), \
          patch("api.routers.recommend.get_supabase_client",
                return_value=_make_db_mock([_WINE_ROW_WITH_ADDRESS])), \
          patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
@@ -318,5 +340,5 @@ async def test_recommend_picks_include_store_address():
             response = await client.post("/api/recommend", json={
                 "zip_code": "78209", "budget_min": 15.0, "budget_max": 35.0})
     assert response.status_code == 200
-    pick = response.json()["picks"][0]
+    pick = _sse_picks(response.text)[0]
     assert pick["store_address"] == "1000 Austin Hwy, San Antonio, TX 78209"
