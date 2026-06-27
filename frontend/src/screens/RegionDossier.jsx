@@ -33,7 +33,8 @@ export default function RegionDossier() {
   useEffect(() => { fetchDetail(); }, [id]);
 
   const wine    = detail ?? {};
-  const details = Array.isArray(wine.wine_details) ? (wine.wine_details[0] ?? {}) : {};
+  const rawDetails = wine.wine_details;
+  const details = Array.isArray(rawDetails) ? (rawDetails[0] ?? {}) : (rawDetails ?? {});
   const flavors = details.flavor_profile ?? [];
   const bars    = structureToBars(details.structure_profile);
   const region  = wine.region ?? pick.region;

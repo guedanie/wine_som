@@ -118,8 +118,8 @@ async def recommend(req: RecommendRequest):
         wine = row.get("wines") or {}
         if not wine:
             continue
-        details_list = wine.get("wine_details") or []
-        details = details_list[0] if isinstance(details_list, list) and details_list else {}
+        details_raw = wine.get("wine_details") or {}
+        details = details_raw[0] if isinstance(details_raw, list) else (details_raw if isinstance(details_raw, dict) else {})
         enriched = bool(details.get("grapeminds_enriched_at"))
         has_extract = bool(wine.get("varietal") or wine.get("region"))
         if not enriched and not has_extract:

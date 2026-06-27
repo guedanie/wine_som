@@ -1,3 +1,6 @@
+import logging
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s: %(message)s")
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routers import wines, enrichment, recommend
