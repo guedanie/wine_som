@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["recommend"])
 
 _MAX_CANDIDATES = 12
-_POOL_PER_RETAILER = 80   # cap per retailer before scoring to prevent Spec's dominance
-_FETCH_LIMIT = 4000       # PostgREST fetch cap; well above what one retailer holds per budget slice
+_POOL_PER_RETAILER = 80   # wines kept per retailer after per-retailer fetch
+_FETCH_PER_RETAILER = 500  # rows fetched per retailer (Supabase hard-caps at 1000/query)
 
 # PostgREST projection for the candidate query. Defined as a constant so the
 # integration test (tests/test_integration_schema.py) can run the EXACT same
@@ -44,21 +44,53 @@ async def recommend(req: RecommendRequest):
             detail="No stores found near your zip code. We currently serve San Antonio, TX.",
         )
 
-    result = (
-        supabase.table("retail_inventory")
-        .select(INVENTORY_SELECT)
-        .in_("store_ref", nearby_ids)
-        .eq("in_stock", True)
-        .gte("price", req.budget_min)
-        .lte("price", req.budget_max)
-        .limit(_FETCH_LIMIT)
+    # Supabase hard-caps responses at 1000 rows regardless of .limit(). With Spec's
+    # holding 33k records across 12 stores, a single query always returns only Spec's.
+    # Fix: look up which stores belong to which retailer, then query each retailer
+    # separately so every shop is guaranteed representation in the candidate pool.
+    stores_meta = (
+        supabase.table("stores")
+        .select("id, retailer_name")
+        .in_("id", nearby_ids)
         .execute()
     )
+    retailer_to_stores: dict = {}
+    for s in (stores_meta.data or []):
+        sid, rname = s.get("id"), s.get("retailer_name")
+        if sid and rname:
+            retailer_to_stores.setdefault(rname, []).append(sid)
 
-    # Build candidate dicts, grouping by retailer so we can balance the pool.
-    # Without this, Spec's (33k records, 12 stores) drowns out HEB and Geraldine's.
+    if retailer_to_stores:
+        # Per-retailer fetch: each retailer gets its own 500-row window
+        raw_rows: list = []
+        for store_ids in retailer_to_stores.values():
+            res = (
+                supabase.table("retail_inventory")
+                .select(INVENTORY_SELECT)
+                .in_("store_ref", store_ids)
+                .eq("in_stock", True)
+                .gte("price", req.budget_min)
+                .lte("price", req.budget_max)
+                .limit(_FETCH_PER_RETAILER)
+                .execute()
+            )
+            raw_rows.extend(res.data or [])
+    else:
+        # Fallback for tests/mocks where stores metadata returns mock data without id/retailer_name
+        res = (
+            supabase.table("retail_inventory")
+            .select(INVENTORY_SELECT)
+            .in_("store_ref", nearby_ids)
+            .eq("in_stock", True)
+            .gte("price", req.budget_min)
+            .lte("price", req.budget_max)
+            .limit(1000)
+            .execute()
+        )
+        raw_rows = res.data or []
+
     by_retailer: dict = {}
-    for row in (result.data or []):
+    for row in raw_rows:
         wine = row.get("wines") or {}
         if not wine:
             continue
