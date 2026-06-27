@@ -1,6 +1,7 @@
 import uuid
 import logging
 import random
+from typing import Optional
 from fastapi import APIRouter, HTTPException
 from api.schemas import RecommendRequest, RecommendResponse, WinePick
 from db import get_supabase_client, get_service_client
@@ -16,6 +17,29 @@ router = APIRouter(prefix="/api", tags=["recommend"])
 _MAX_CANDIDATES = 12
 _POOL_PER_RETAILER = 80   # wines kept per retailer after per-retailer fetch
 _FETCH_PER_RETAILER = 500  # rows fetched per retailer (Supabase hard-caps at 1000/query)
+
+# Maps common user phrasings to the retailer_name values stored in the DB.
+_RETAILER_ALIASES = {
+    "heb": "H-E-B",
+    "h-e-b": "H-E-B",
+    "h.e.b": "H-E-B",
+    "specs": "Spec's",
+    "spec's": "Spec's",
+    "geraldines": "Geraldine's",
+    "geraldine's": "Geraldine's",
+    "geraldine": "Geraldine's",
+}
+
+
+def _detect_retailer(message: str) -> Optional[str]:
+    """Return a DB retailer_name substring if the message names a specific shop, else None."""
+    if not message:
+        return None
+    lower = message.lower()
+    for alias, name in _RETAILER_ALIASES.items():
+        if alias in lower:
+            return name
+    return None
 
 # PostgREST projection for the candidate query. Defined as a constant so the
 # integration test (tests/test_integration_schema.py) can run the EXACT same
@@ -147,8 +171,17 @@ async def recommend(req: RecommendRequest):
     parsed = parse_message(req.message) if req.message and req.message != \
         "Recommend wines based on my preferences" else None
     resolved = merge_intent(parsed, explicit)
-
     resolved["message"] = req.message
+
+    # If the user named a specific retailer, restrict the candidate pool to that shop.
+    # Do this before scoring so Geraldine's GrapeMinds advantage doesn't crowd out HEB/Spec's.
+    preferred_retailer = _detect_retailer(req.message)
+    if preferred_retailer:
+        retailer_pool = [c for c in candidates if preferred_retailer in (c.get("retailer") or "")]
+        if retailer_pool:
+            candidates = retailer_pool
+            logger.info("RETAILER FILTER | %r → %d candidates", preferred_retailer, len(candidates))
+
     top = score_candidates(resolved, candidates)[:_MAX_CANDIDATES]
 
     logger.info(

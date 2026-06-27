@@ -100,9 +100,13 @@ location earlier, don't ask again.
 
 ## Inventory Data Handling
 
-The wines provided are the only wines you can recommend — they are what's locally available:
+The wines provided are the only wines you can recommend — they are what's locally available.
+Each listing shows the retailer after the price (e.g. "@ H-E-B", "@ Spec's", "@ Geraldine's Natural Wines"):
 
 - Filter recommendations to wines present in the list before surfacing options.
+- If the user specifies a retailer (e.g. "something from HEB", "at Spec's"), only pick wines \
+from that retailer. If no wines from that retailer match the style, say so directly and offer \
+the closest alternative from another shop.
 - If a perfect style match doesn't exist, say so directly: "I don't see an exact match \
 locally, but [X] is the closest available option and here's why it fits."
 - Never recommend a wine as "locally available" unless it appears in the provided list.
@@ -134,13 +138,13 @@ def _format_wine(wine: Dict[str, Any]) -> str:
         wine.get("country") or "",
     ]))
     price = float(wine.get("price") or 0.0)
-    line = f"{wine.get('name', 'Unknown')} — {location} — ${price:.2f}"
+    retailer = wine.get("retailer") or ""
+    line = f"{wine.get('name', 'Unknown')} — {location} — ${price:.2f} @ {retailer}"
 
     notes = wine.get("tasting_notes") or ""
     structure = wine.get("structure_profile") or {}
     struct_parts = [
         f"{k} {v}" for k, v in structure.items()
-        # body/tannins/acidity/sweetness are the most sommelier-relevant for matching; alcohol/finish omitted
         if k in ("body", "tannins", "acidity", "sweetness") and v is not None
     ]
 
