@@ -1,3 +1,4 @@
+import hashlib
 import uuid
 import logging
 import random
@@ -144,10 +145,17 @@ async def recommend(req: RecommendRequest):
             "tier": 1 if enriched else 2,
         })
 
-    # Sample up to _POOL_PER_RETAILER from each retailer so every shop is represented.
+    # Deterministic shuffle: same zip+budget always yields the same candidate slice
+    # so the initial result is reproducible. Follow-up turns (conversation_history
+    # non-empty) offset the seed so each turn reveals a fresh window of wines.
+    turn = len(req.conversation_history or [])
+    seed_str = f"{req.zip_code}:{req.budget_min:.0f}:{req.budget_max:.0f}:{turn}"
+    seed = int(hashlib.md5(seed_str.encode()).hexdigest(), 16) % (2 ** 32)
+    rng = random.Random(seed)
+
     candidates = []
     for retailer, pool in by_retailer.items():
-        random.shuffle(pool)
+        rng.shuffle(pool)
         candidates.extend(pool[:_POOL_PER_RETAILER])
 
     logger.info(
