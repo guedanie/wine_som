@@ -1,6 +1,9 @@
+import logging
 import anthropic
 from typing import List, Dict, Any, Optional, Tuple
 from config import settings
+
+logger = logging.getLogger(__name__)
 
 
 _TOOL = {
@@ -151,6 +154,7 @@ def _format_wine(wine: Dict[str, Any]) -> str:
 def get_recommendations(
     candidates: List[Dict[str, Any]],
     intent: Dict[str, Any],
+    conversation_history: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[str, List[Dict[str, Any]]]:
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     listings = "\n\n".join(
@@ -165,13 +169,23 @@ def get_recommendations(
 
     user_message = intent.get("message") or ""
     default_placeholder = "Recommend wines based on my preferences"
-    message_line = (
-        f"My request: {user_message}\n\n"
-        if user_message and user_message.strip() != default_placeholder
-        else ""
-    )
+    is_default = not user_message or user_message.strip() == default_placeholder
+
+    history_preamble = ""
+    if conversation_history:
+        lines = []
+        for turn in conversation_history:
+            role = "User" if turn.get("role") == "user" else "Sommelier"
+            content = str(turn.get("content") or "").strip()
+            if content:
+                lines.append(f"{role}: {content}")
+        if lines:
+            history_preamble = "[Previous conversation]\n" + "\n\n".join(lines) + "\n\n"
+
+    message_line = f"My request: {user_message}\n\n" if not is_default else ""
 
     user_msg = (
+        f"{history_preamble}"
         f"{message_line}"
         f"Budget: ${budget_min:.0f}–${budget_max:.0f}. "
         f"Looking for:{type_str} {style_str}. "
@@ -179,6 +193,11 @@ def get_recommendations(
         f"Here are the wines currently available:\n\n{listings}\n\n"
         f"Select {count_instruction} wines from the list above that best serve my intent. "
         f"Set wine_id to the exact id shown in [wine_id: ...] for each pick."
+    )
+
+    logger.info(
+        "CLAUDE | message=%r history_turns=%d candidates=%d",
+        user_message[:60], len(conversation_history or []), len(candidates),
     )
 
     response = client.messages.create(

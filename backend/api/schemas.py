@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel
 
 
@@ -21,6 +21,7 @@ class RecommendRequest(BaseModel):
     avoid: List[str] = []
     wine_type: Optional[str] = None
     message: str = "Recommend wines based on my preferences"
+    conversation_history: Optional[List[Dict[str, Any]]] = None
 
 
 class WinePick(BaseModel):

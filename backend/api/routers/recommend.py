@@ -1,4 +1,6 @@
 import uuid
+import logging
+import random
 from fastapi import APIRouter, HTTPException
 from api.schemas import RecommendRequest, RecommendResponse, WinePick
 from db import get_supabase_client, get_service_client
@@ -7,9 +9,13 @@ from recommendation.claude_client import get_recommendations
 from recommendation.intent import parse_message, merge_intent, intent_from_request
 from utils.geo import zip_to_centroid, find_nearby_store_ids
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api", tags=["recommend"])
 
 _MAX_CANDIDATES = 12
+_POOL_PER_RETAILER = 80   # cap per retailer before scoring to prevent Spec's dominance
+_FETCH_LIMIT = 4000       # PostgREST fetch cap; well above what one retailer holds per budget slice
 
 # PostgREST projection for the candidate query. Defined as a constant so the
 # integration test (tests/test_integration_schema.py) can run the EXACT same
@@ -45,10 +51,13 @@ async def recommend(req: RecommendRequest):
         .eq("in_stock", True)
         .gte("price", req.budget_min)
         .lte("price", req.budget_max)
+        .limit(_FETCH_LIMIT)
         .execute()
     )
 
-    candidates = []
+    # Build candidate dicts, grouping by retailer so we can balance the pool.
+    # Without this, Spec's (33k records, 12 stores) drowns out HEB and Geraldine's.
+    by_retailer: dict = {}
     for row in (result.data or []):
         wine = row.get("wines") or {}
         if not wine:
@@ -59,7 +68,8 @@ async def recommend(req: RecommendRequest):
         has_extract = bool(wine.get("varietal") or wine.get("region"))
         if not enriched and not has_extract:
             continue  # no basis to match
-        candidates.append({
+        retailer = (row.get("stores") or {}).get("retailer_name") or "unknown"
+        by_retailer.setdefault(retailer, []).append({
             "wine_id": wine.get("id"),
             "name": wine.get("name"),
             "varietal": wine.get("varietal"),
@@ -72,9 +82,22 @@ async def recommend(req: RecommendRequest):
             "flavor_profile": details.get("flavor_profile") or [],
             "structure_profile": details.get("structure_profile") or {},
             "price": row.get("price"),
-            "retailer": (row.get("stores") or {}).get("retailer_name"),
+            "retailer": retailer,
             "tier": 1 if enriched else 2,
         })
+
+    # Sample up to _POOL_PER_RETAILER from each retailer so every shop is represented.
+    candidates = []
+    for retailer, pool in by_retailer.items():
+        random.shuffle(pool)
+        candidates.extend(pool[:_POOL_PER_RETAILER])
+
+    logger.info(
+        "INVENTORY | fetched=%d retailers=%s pool=%d",
+        sum(len(v) for v in by_retailer.values()),
+        {r: len(v) for r, v in by_retailer.items()},
+        len(candidates),
+    )
 
     if not candidates:
         raise HTTPException(
@@ -93,10 +116,21 @@ async def recommend(req: RecommendRequest):
         "Recommend wines based on my preferences" else None
     resolved = merge_intent(parsed, explicit)
 
+    resolved["message"] = req.message
     top = score_candidates(resolved, candidates)[:_MAX_CANDIDATES]
 
+    logger.info(
+        "RECOMMEND | zip=%s budget=%.0f-%.0f message=%r candidates=%d history=%d",
+        req.zip_code, req.budget_min, req.budget_max,
+        req.message[:80], len(top), len(req.conversation_history or []),
+    )
+
     try:
-        narrative, picks_data = get_recommendations(candidates=top, intent=resolved)
+        narrative, picks_data = get_recommendations(
+            candidates=top,
+            intent=resolved,
+            conversation_history=req.conversation_history,
+        )
     except Exception:
         raise HTTPException(status_code=500, detail="Recommendation service unavailable")
 

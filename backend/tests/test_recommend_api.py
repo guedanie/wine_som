@@ -65,6 +65,7 @@ def _make_db_mock(data):
     qb.gte.return_value = qb
     qb.lte.return_value = qb
     qb.in_.return_value = qb
+    qb.limit.return_value = qb
     qb.insert.return_value = qb
     execute_result = MagicMock()
     execute_result.data = data

@@ -69,8 +69,9 @@ export default function ChatRecommend() {
   }
 
   const handleFollowup = (text) => {
+    const history = messages.map(m => ({ role: m.role, content: m.text }));
     setMessages(prev => [...prev, { role: 'user', text }]);
-    callRecommend({ ...apiReq, message: text });
+    callRecommend({ ...apiReq, message: text, conversation_history: history });
   };
 
   return (
