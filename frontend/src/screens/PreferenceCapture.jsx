@@ -11,6 +11,7 @@ const STYLE_OPTS = [
   ['Bright & Fruity', 'juicy · fresh · easy'],
 ];
 const OCCASIONS = ['Tonight', 'This weekend', 'Cellar it'];
+const WINE_TYPES = ['Red', 'White', 'Rosé', 'Sparkling'];
 
 export default function PreferenceCapture() {
   const navigate = useNavigate();
@@ -19,11 +20,14 @@ export default function PreferenceCapture() {
   const [styles,   setStyles]   = useState(['Bold & Tannic']);
   const [occasion, setOccasion] = useState('Tonight');
 
+  const [wineTypes, setWineTypes] = useState([]);
+  const toggleType = t => setWineTypes(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t]);
+
   const toggle = s => setStyles(p => p.includes(s) ? p.filter(x => x !== s) : [...p, s]);
   const valid  = zip.length === 5 && styles.length > 0;
 
   const handleSubmit = () => {
-    const prefs  = { zip, budget, styles, occasion };
+    const prefs  = { zip, budget, styles, occasion, wineTypes };
     const apiReq = buildApiReq(prefs);
     navigate('/recommend', { state: { prefs, apiReq } });
   };
@@ -58,6 +62,24 @@ export default function PreferenceCapture() {
             onChange={e => setBudget(+e.target.value)}
             style={{ width: '100%', marginTop: 14 }}
           />
+        </div>
+      </div>
+
+      <div style={{ marginTop: 28 }}>
+        <Eyebrow>Wine type</Eyebrow>
+        <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+          {WINE_TYPES.map(t => {
+            const on = wineTypes.includes(t.toLowerCase());
+            return (
+              <button key={t} onClick={() => toggleType(t.toLowerCase())}
+                style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, padding: '8px 18px', borderRadius: 0, border: on ? '1.5px solid var(--bordeaux)' : '1.5px solid var(--border)', background: on ? 'var(--bordeaux)' : 'var(--cream-raised)', color: on ? 'var(--cream)' : 'var(--ink)', transition: 'all .15s var(--ease)' }}>
+                {t}
+              </button>
+            );
+          })}
+          <span style={{ alignSelf: 'center', fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--faded)' }}>
+            {wineTypes.length === 0 ? 'Any type' : ''}
+          </span>
         </div>
       </div>
 

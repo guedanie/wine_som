@@ -94,12 +94,16 @@ describe('buildApiReq', () => {
     expect(req.budget_max).toBe(75);
     expect(req.budget_min).toBe(10);
   });
-  it('sets wine_type from first style that has one', () => {
-    const req = buildApiReq({ zip: '78209', budget: 50, styles: ['Bold & Tannic'], occasion: 'Tonight' });
-    expect(req.wine_type).toBe('red');
+  it('falls back wine_types to style-derived type when no chips selected', () => {
+    const req = buildApiReq({ zip: '78209', budget: 50, styles: ['Bold & Tannic'], occasion: 'Tonight', wineTypes: [] });
+    expect(req.wine_types).toEqual(['red']);
   });
-  it('sets wine_type to null when all styles are ambiguous', () => {
-    const req = buildApiReq({ zip: '78209', budget: 50, styles: ['Earthy & Savory'], occasion: 'Tonight' });
-    expect(req.wine_type).toBeNull();
+  it('wine_types is empty array when all styles are ambiguous and no chips selected', () => {
+    const req = buildApiReq({ zip: '78209', budget: 50, styles: ['Earthy & Savory'], occasion: 'Tonight', wineTypes: [] });
+    expect(req.wine_types).toEqual([]);
+  });
+  it('uses explicit wineTypes chips when provided', () => {
+    const req = buildApiReq({ zip: '78209', budget: 50, styles: ['Bold & Tannic'], occasion: 'Tonight', wineTypes: ['white', 'sparkling'] });
+    expect(req.wine_types).toEqual(['white', 'sparkling']);
   });
 });

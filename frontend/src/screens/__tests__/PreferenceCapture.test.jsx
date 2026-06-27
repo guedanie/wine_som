@@ -46,3 +46,22 @@ it('navigates to /recommend with prefs and apiReq on submit', () => {
     }),
   }));
 });
+
+it('renders wine type chips for Red, White, Rosé, Sparkling', () => {
+  renderScreen();
+  expect(screen.getByRole('button', { name: /^red$/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /^white$/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /rosé/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /sparkling/i })).toBeInTheDocument();
+});
+
+it('selecting a wine type chip includes it in apiReq.wine_types', () => {
+  renderScreen();
+  fireEvent.click(screen.getByRole('button', { name: /^red$/i }));
+  fireEvent.click(screen.getByRole('button', { name: /find wines/i }));
+  expect(mockNavigate).toHaveBeenCalledWith('/recommend', expect.objectContaining({
+    state: expect.objectContaining({
+      apiReq: expect.objectContaining({ wine_types: ['red'] }),
+    }),
+  }));
+});

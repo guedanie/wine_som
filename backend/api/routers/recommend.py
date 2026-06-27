@@ -182,6 +182,14 @@ async def recommend(req: RecommendRequest):
             candidates = retailer_pool
             logger.info("RETAILER FILTER | %r → %d candidates", preferred_retailer, len(candidates))
 
+    # Wine type filter (multi-select). wine_types takes precedence; fall back to legacy wine_type.
+    effective_types = req.wine_types or ([req.wine_type] if req.wine_type else [])
+    if effective_types:
+        type_pool = [c for c in candidates if c.get("wine_type") in effective_types]
+        if type_pool:
+            candidates = type_pool
+            logger.info("TYPE FILTER | %s → %d candidates", effective_types, len(candidates))
+
     top = score_candidates(resolved, candidates)[:_MAX_CANDIDATES]
 
     logger.info(

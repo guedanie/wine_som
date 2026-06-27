@@ -257,3 +257,15 @@ async def test_recommend_reattaches_retailer_from_candidate_not_model():
     assert pick["name"] == "Test Malbec"          # authoritative name
     assert pick["price"] == 22.0                  # authoritative price
     assert pick["why"] == "because"               # model's narrative kept
+
+
+def test_recommend_request_accepts_wine_types():
+    from api.schemas import RecommendRequest
+    req = RecommendRequest(zip_code="78209", wine_types=["red", "white"])
+    assert req.wine_types == ["red", "white"]
+
+
+def test_recommend_request_wine_types_defaults_empty():
+    from api.schemas import RecommendRequest
+    req = RecommendRequest(zip_code="78209")
+    assert req.wine_types == []

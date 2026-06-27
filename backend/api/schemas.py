@@ -19,7 +19,8 @@ class RecommendRequest(BaseModel):
     budget_max: float = 50.0
     style_preferences: List[str] = []
     avoid: List[str] = []
-    wine_type: Optional[str] = None
+    wine_type: Optional[str] = None          # legacy single-type (kept for compat)
+    wine_types: List[str] = []               # multi-select; takes precedence over wine_type
     message: str = "Recommend wines based on my preferences"
     conversation_history: Optional[List[Dict[str, Any]]] = None
 

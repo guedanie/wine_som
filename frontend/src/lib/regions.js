@@ -75,13 +75,16 @@ export function deriveWineCardMeta(pick) {
 
 export function buildApiReq(prefs) {
   const tags = [...new Set(prefs.styles.flatMap(s => STYLE_TAG_MAP[s] ?? []))];
-  const wineType = prefs.styles.map(s => STYLE_WINE_TYPE[s]).find(Boolean) ?? null;
+  // wine_types from explicit chip selection; fall back to style-derived type if none selected
+  const wineTypes = (prefs.wineTypes ?? []).length > 0
+    ? prefs.wineTypes
+    : [prefs.styles.map(s => STYLE_WINE_TYPE[s]).find(Boolean)].filter(Boolean);
   return {
     zip_code:          prefs.zip,
     budget_min:        10,
     budget_max:        prefs.budget,
     style_preferences: tags,
-    wine_type:         wineType,
+    wine_types:        wineTypes,
     message:           occasionMessage(prefs.occasion),
   };
 }
