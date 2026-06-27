@@ -100,7 +100,7 @@ it('back button navigates to /recommend with _restored when chatState is present
     prefs: { zip: '78209', budget: 60, styles: [], occasion: 'Tonight', wineTypes: [], grapes: [] },
     apiReq: { zip_code: '78209', budget_min: 10, budget_max: 60, style_preferences: [] },
   };
-  renderScreen('uuid-1', { pick: { ...pick, chatState } });
+  renderScreen('uuid-1', { pick, chatState });
   fireEvent.click(screen.getByText(/← back/i));
   expect(mockNavigate).toHaveBeenCalledWith('/recommend', {
     state: expect.objectContaining({ _restored: chatState }),

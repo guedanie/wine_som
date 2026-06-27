@@ -8,7 +8,7 @@ vi.mock('react-router-dom', async () => {
   return { ...actual, useNavigate: () => mockNavigate };
 });
 
-beforeEach(() => mockNavigate.mockClear());
+beforeEach(() => { mockNavigate.mockClear(); });
 
 function renderScreen() {
   return render(<MemoryRouter><PreferenceCapture /></MemoryRouter>);
