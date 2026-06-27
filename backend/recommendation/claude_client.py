@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 _TOOL = {
     "name": "recommend_wines",
-    "description": "Return wine recommendations with narrative and structured picks.",
+    "description": "Return wine recommendations with narrative, structured picks, and followup suggestions.",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -28,8 +28,15 @@ _TOOL = {
                     "required": ["wine_id", "name", "price", "retailer", "why"],
                 },
             },
+            "followup_suggestions": {
+                "type": "array",
+                "description": "Exactly 3 short followup questions the user might ask next, grounded in what was just recommended (specific regions, price range, or styles mentioned).",
+                "items": {"type": "string"},
+                "minItems": 3,
+                "maxItems": 3,
+            },
         },
-        "required": ["narrative", "picks"],
+        "required": ["narrative", "picks", "followup_suggestions"],
     },
 }
 
@@ -112,7 +119,10 @@ Blank line between wines. No bullet lists. No numbered lists. Keep the entire re
 You must always call the recommend_wines tool. Put your full response — narrative, \
 explanations, structural reasoning, educational context, or pairing logic — in the \
 `narrative` field. Put your wine picks in `picks`, selecting wines from the inventory \
-that best serve the user's intent.
+that best serve the user's intent. In `followup_suggestions`, provide exactly 3 short \
+questions the user might naturally ask next — make them specific to what you just \
+recommended (e.g. the region, grape, price tier, or occasion). Phrase them as the user \
+would ask, like "Anything from Burgundy?" or "What pairs well with pasta?".
 Set wine_id to the exact id shown in [wine_id: ...] for each pick — never guess or invent one.\
 """
 
@@ -296,6 +306,9 @@ def stream_recommendations(
             if tool_block is None:
                 raise ValueError("Claude did not return tool picks")
             yield ("picks", tool_block.input.get("picks", []))
+            suggestions = tool_block.input.get("followup_suggestions") or []
+            if suggestions:
+                yield ("suggestions", suggestions)
         except Exception as e:
             logger.exception("CLAUDE | streaming error: %s", e)
             yield ("error", str(e))

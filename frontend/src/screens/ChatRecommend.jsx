@@ -8,7 +8,7 @@ import WineCard from '../components/WineCard.jsx';
 import { streamRecommend } from '../lib/api.js';
 import { deriveWineCardMeta } from '../lib/regions.js';
 
-const FOLLOWUPS = ["Anything from Burgundy?", "What about under $30?", "Something to cellar"];
+const DEFAULT_FOLLOWUPS = ["Anything from Burgundy?", "What about under $30?", "Something to cellar"];
 
 function SommelierBubble({ children }) {
   return (
@@ -40,6 +40,7 @@ export default function ChatRecommend() {
 
   const [messages,   setMessages]  = useState(() => _restored?.messages ?? []);
   const [picks,      setPicks]     = useState(() => _restored?.picks    ?? []);
+  const [followups,  setFollowups] = useState(DEFAULT_FOLLOWUPS);
   const [loading,    setLoading]   = useState(() => !_restored);
   const [streaming,  setStreaming] = useState(false);
   const [error,      setError]     = useState(null);
@@ -77,6 +78,8 @@ export default function ChatRecommend() {
           }
         } else if (event.type === 'picks') {
           setPicks(event.picks.map(deriveWineCardMeta));
+        } else if (event.type === 'suggestions') {
+          setFollowups(event.suggestions);
         } else if (event.type === 'error') {
           setError(event.message);
         }
@@ -135,7 +138,7 @@ export default function ChatRecommend() {
         {/* Follow-up composer */}
         <div style={{ borderTop: '1px solid var(--border)', padding: '14px 24px 18px' }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-            {FOLLOWUPS.map(f => (
+            {followups.map(f => (
               <button key={f} onClick={() => handleFollowup(f)} disabled={loading || streaming}
                 style={{ cursor: (loading || streaming) ? 'default' : 'pointer', opacity: (loading || streaming) ? 0.4 : 1, fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--bordeaux)', background: 'var(--bordeaux-tint)', border: 'none', borderRadius: 999, padding: '6px 12px' }}>
                 {f}

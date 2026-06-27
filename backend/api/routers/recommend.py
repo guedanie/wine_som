@@ -234,6 +234,8 @@ async def recommend(req: RecommendRequest):
                 else:
                     _result["picks"] = enriched_picks
                     yield "data: " + json.dumps({"type": "picks", "picks": enriched_picks, "session_id": session_id}) + "\n\n"
+            elif event_type == "suggestions":
+                yield "data: " + json.dumps({"type": "suggestions", "suggestions": data}) + "\n\n"
             elif event_type == "error":
                 yield "data: " + json.dumps({"type": "error", "message": data}) + "\n\n"
         yield "data: [DONE]\n\n"
