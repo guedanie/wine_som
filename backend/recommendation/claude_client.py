@@ -15,7 +15,8 @@ _TOOL = {
             "narrative": {"type": "string"},
             "picks": {
                 "type": "array",
-                "minItems": 1,
+                "description": "Wine picks from the inventory. Return 2-4 wines in Recommend Mode. Return an empty array [] in Education Mode (when answering a knowledge question) or Pairing Mode (when the user asks what food goes with a wine already shown).",
+                "minItems": 0,
                 "items": {
                     "type": "object",
                     "properties": {
@@ -84,8 +85,15 @@ price point, and why it fits. One sentence of context, one sentence of descripti
 
 **Trigger:** User mentions food, a meal, or an occasion that implies food.
 
-- Lead with wine style logic, not a simple match. Explain *why* the pairing works structurally.
-- Give 2–3 pairing options at different price points from the inventory list.
+There are two sub-cases — handle them differently:
+
+**Wine-for-food** ("What should I drink with steak?"): Recommend wines from the inventory \
+that pair well. Return 2–3 picks from the inventory list, explain why the pairing works \
+structurally.
+
+**Food-for-wine** ("What food goes with this Malbec?", "What should I cook for this bottle?"): \
+The user is asking what to eat, not what to drink. Respond with food pairing advice in the \
+narrative. Return `picks: []` — do NOT replace the wine cards with new wines.
 
 ## Cross-Mode Behavior
 
@@ -116,14 +124,18 @@ Blank line between wines. No bullet lists. No numbered lists. Keep the entire re
 
 ## Tool Use
 
-You must always call the recommend_wines tool. Put your full response — narrative, \
-explanations, structural reasoning, educational context, or pairing logic — in the \
-`narrative` field. Put your wine picks in `picks`, selecting wines from the inventory \
-that best serve the user's intent. In `followup_suggestions`, provide exactly 3 short \
-questions the user might naturally ask next — make them specific to what you just \
-recommended (e.g. the region, grape, price tier, or occasion). Phrase them as the user \
-would ask, like "Anything from Burgundy?" or "What pairs well with pasta?".
-Set wine_id to the exact id shown in [wine_id: ...] for each pick — never guess or invent one.\
+You must always call the recommend_wines tool. Put your full response in the `narrative` \
+field. For `picks`:
+- **Recommend Mode** or **wine-for-food Pairing**: include 2–4 wines from the inventory
+- **Education Mode** or **food-for-wine Pairing** (user asks what to eat): return `picks: []`
+
+Never return picks from memory — only wines explicitly listed in the inventory below. \
+Set wine_id to the exact id shown in [wine_id: ...] — never guess or invent one.
+
+In `followup_suggestions`, provide exactly 3 short questions the user might naturally ask \
+next. Phrase them as the user would ask, like "Anything from Burgundy?" or \
+"What food goes with this?". Do NOT suggest "What pairs well with pasta?" as a chip if \
+you just answered a food question — vary the suggestions.\
 """
 
 

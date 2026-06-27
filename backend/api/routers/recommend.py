@@ -229,7 +229,8 @@ async def recommend(req: RecommendRequest):
                 yield "data: " + json.dumps({"type": "token", "text": data}) + "\n\n"
             elif event_type == "picks":
                 enriched_picks = _enrich_picks(data, by_id)
-                if not enriched_picks:
+                if data and not enriched_picks:
+                    # Claude returned picks but none matched known wine IDs — real error
                     yield "data: " + json.dumps({"type": "error", "message": "Recommendation service unavailable"}) + "\n\n"
                 else:
                     _result["picks"] = enriched_picks

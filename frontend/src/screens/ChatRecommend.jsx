@@ -49,7 +49,14 @@ export default function ChatRecommend() {
   // All hooks must be called before any early return
   useEffect(() => {
     if (!prefs || _restored) return;   // skip if no prefs or state is restored
-    setMessages([{ role: 'user', text: prefs.styles.join(', ') + ' · under $' + prefs.budget + ' · ' + prefs.occasion.toLowerCase() }]);
+    const parts = [];
+    if (prefs.styles?.length)    parts.push(prefs.styles.join(', '));
+    if (prefs.wineTypes?.length) parts.push(prefs.wineTypes.join(', '));
+    if (prefs.grapes?.length)    parts.push(prefs.grapes.join(', '));
+    parts.push('under $' + prefs.budget);
+    parts.push(prefs.occasion.toLowerCase());
+    if (prefs.freeText?.trim())  parts.push(prefs.freeText.trim());
+    setMessages([{ role: 'user', text: parts.join(' · ') }]);
     callRecommend(apiReq);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -77,7 +84,7 @@ export default function ChatRecommend() {
             });
           }
         } else if (event.type === 'picks') {
-          setPicks(event.picks.map(deriveWineCardMeta));
+          if (event.picks.length > 0) setPicks(event.picks.map(deriveWineCardMeta));
         } else if (event.type === 'suggestions') {
           setFollowups(event.suggestions);
         } else if (event.type === 'error') {

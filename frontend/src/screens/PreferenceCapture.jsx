@@ -30,7 +30,7 @@ export default function PreferenceCapture() {
   const [freeText, setFreeText] = useState('');
 
   const toggle = s => setStyles(p => p.includes(s) ? p.filter(x => x !== s) : [...p, s]);
-  const valid  = zip.length === 5 && styles.length > 0;
+  const valid  = zip.length === 5 && (styles.length > 0 || freeText.trim().length > 0);
 
   const handleSubmit = () => {
     const prefs  = { zip, budget, styles, occasion, wineTypes, grapes, freeText };
