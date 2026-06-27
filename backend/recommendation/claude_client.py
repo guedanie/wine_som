@@ -6,13 +6,13 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 
-# Picks-only tool — narrative goes in the text response, not the tool.
 _TOOL = {
     "name": "recommend_wines",
-    "description": "Submit structured wine picks after your text response. Do not put the narrative here.",
+    "description": "Return wine recommendations with narrative and structured picks.",
     "input_schema": {
         "type": "object",
         "properties": {
+            "narrative": {"type": "string"},
             "picks": {
                 "type": "array",
                 "minItems": 1,
@@ -29,7 +29,7 @@ _TOOL = {
                 },
             },
         },
-        "required": ["picks"],
+        "required": ["narrative", "picks"],
     },
 }
 
@@ -109,8 +109,10 @@ No bullet lists. No numbered lists. Keep the entire response under 120 words.
 
 ## Tool Use
 
-Write your complete response as text first. Then call the recommend_wines tool with your \
-structured picks. Do not put the narrative in the tool.
+You must always call the recommend_wines tool. Put your full response — narrative, \
+explanations, structural reasoning, educational context, or pairing logic — in the \
+`narrative` field. Put your wine picks in `picks`, selecting wines from the inventory \
+that best serve the user's intent.
 Set wine_id to the exact id shown in [wine_id: ...] for each pick — never guess or invent one.\
 """
 
@@ -190,11 +192,14 @@ def stream_recommendations(
 ):
     """
     Returns a generator that yields (type, data) tuples:
-      ("token", str)          — narrative text chunk
-      ("picks", list)         — raw model picks (unenriched)
+      ("token", str)   — narrative character(s) extracted from input_json_delta
+      ("picks", list)  — raw model picks (unenriched)
 
-    Raises if the Anthropic client cannot be initialized so the router can
-    return a 500 before the StreamingResponse starts.
+    With forced tool use the model writes everything inside the tool JSON.
+    We extract the narrative string by watching input_json_delta fragments
+    for the '"narrative":"' marker, then streaming chars until the closing quote.
+
+    Raises on init failure so the router can return 500 before streaming starts.
     """
     client_inst = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     user_msg = _build_user_message(candidates, intent, conversation_history)
@@ -206,6 +211,16 @@ def stream_recommendations(
     )
 
     def _gen():
+        # State machine for extracting the "narrative" string from streaming JSON.
+        # input_json_delta fragments arrive as raw JSON text, e.g.:
+        #   '{"narrative": "Here are'  →  ' three wines'  →  '...","picks":[...]}'
+        json_buf = ""
+        in_narrative = False
+        narrative_done = False
+        escape_next = False
+        # Both '"narrative":"' and '"narrative": "' (with space) are valid.
+        MARKERS = ['"narrative":"', '"narrative": "']
+
         try:
             with client_inst.messages.stream(
                 model="claude-sonnet-4-6",
@@ -213,10 +228,65 @@ def stream_recommendations(
                 system=_SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": user_msg}],
                 tools=[_TOOL],
-                tool_choice={"type": "any"},
+                tool_choice={"type": "tool", "name": "recommend_wines"},
             ) as stream:
-                for text in stream.text_stream:
-                    yield ("token", text)
+                for event in stream:
+                    # Only care about tool-input JSON deltas
+                    if (getattr(event, "type", None) != "content_block_delta"):
+                        continue
+                    delta = getattr(event, "delta", None)
+                    if delta is None or getattr(delta, "type", None) != "input_json_delta":
+                        continue
+
+                    fragment = delta.partial_json or ""
+
+                    if narrative_done:
+                        continue
+
+                    if not in_narrative:
+                        json_buf += fragment
+                        # Scan for the narrative value start
+                        start_idx = -1
+                        for marker in MARKERS:
+                            pos = json_buf.find(marker)
+                            if pos != -1:
+                                start_idx = pos + len(marker)
+                                break
+                        if start_idx == -1:
+                            continue
+                        in_narrative = True
+                        chars = json_buf[start_idx:]
+                        chunk = []
+                        for ch in chars:
+                            if escape_next:
+                                chunk.append(ch)
+                                escape_next = False
+                            elif ch == "\\":
+                                escape_next = True
+                            elif ch == '"':
+                                narrative_done = True
+                                break
+                            else:
+                                chunk.append(ch)
+                        if chunk:
+                            yield ("token", "".join(chunk))
+                    else:
+                        # Already inside the narrative string — stream chars directly
+                        chunk = []
+                        for ch in fragment:
+                            if escape_next:
+                                chunk.append(ch)
+                                escape_next = False
+                            elif ch == "\\":
+                                escape_next = True
+                            elif ch == '"':
+                                narrative_done = True
+                                break
+                            else:
+                                chunk.append(ch)
+                        if chunk:
+                            yield ("token", "".join(chunk))
+
                 final = stream.get_final_message()
 
             tool_block = next((b for b in final.content if b.type == "tool_use"), None)
@@ -245,14 +315,12 @@ def get_recommendations(
         system=_SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_msg}],
         tools=[_TOOL],
-        tool_choice={"type": "any"},
+        tool_choice={"type": "tool", "name": "recommend_wines"},
     )
 
     tool_block = next((b for b in response.content if b.type == "tool_use"), None)
     if tool_block is None:
         raise ValueError("Claude did not return a tool use block")
 
-    # narrative may come from a text block or be absent (picks-only response)
-    text_block = next((b for b in response.content if b.type == "text"), None)
-    narrative = (text_block.text if text_block else "") or ""
-    return narrative, tool_block.input.get("picks", [])
+    result = tool_block.input
+    return result.get("narrative", ""), result.get("picks", [])
