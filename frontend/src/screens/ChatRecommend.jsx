@@ -69,6 +69,7 @@ export default function ChatRecommend() {
   }
 
   const handleFollowup = (text) => {
+    if (loading || !text.trim()) return;
     const history = messages.map(m => ({ role: m.role, content: m.text }));
     setMessages(prev => [...prev, { role: 'user', text }]);
     callRecommend({ ...apiReq, message: text, conversation_history: history });
@@ -87,7 +88,11 @@ export default function ChatRecommend() {
           {messages.map((m, i) =>
             m.role === 'user'
               ? <UserBubble key={i}>{m.text}</UserBubble>
-              : <SommelierBubble key={i}>{m.text}</SommelierBubble>
+              : <SommelierBubble key={i}>
+                  {m.text.split('\n\n').map((para, j) => (
+                    <p key={j} style={{ margin: j > 0 ? '10px 0 0' : 0 }}>{para}</p>
+                  ))}
+                </SommelierBubble>
           )}
           {loading && <SommelierBubble>Finding the right bottles for you…</SommelierBubble>}
           {error && (
@@ -104,8 +109,8 @@ export default function ChatRecommend() {
         <div style={{ borderTop: '1px solid var(--border)', padding: '14px 24px 18px' }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
             {FOLLOWUPS.map(f => (
-              <button key={f} onClick={() => handleFollowup(f)}
-                style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--bordeaux)', background: 'var(--bordeaux-tint)', border: 'none', borderRadius: 999, padding: '6px 12px' }}>
+              <button key={f} onClick={() => handleFollowup(f)} disabled={loading}
+                style={{ cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.4 : 1, fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--bordeaux)', background: 'var(--bordeaux-tint)', border: 'none', borderRadius: 999, padding: '6px 12px' }}>
                 {f}
               </button>
             ))}
@@ -120,7 +125,8 @@ export default function ChatRecommend() {
             />
             <button
               onClick={() => { if (input.trim()) { handleFollowup(input.trim()); setInput(''); } }}
-              style={{ border: 'none', background: 'var(--bordeaux)', color: 'var(--cream)', padding: '0 16px', cursor: 'pointer', fontSize: 16, borderRadius: 0 }}>
+              disabled={loading}
+              style={{ border: 'none', background: 'var(--bordeaux)', color: 'var(--cream)', padding: '0 16px', cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.4 : 1, fontSize: 16, borderRadius: 0 }}>
               →
             </button>
           </div>
