@@ -36,17 +36,17 @@ function UserBubble({ children }) {
 export default function ChatRecommend() {
   const { state }  = useLocation();
   const navigate   = useNavigate();
-  const { prefs, apiReq } = state ?? {};
+  const { prefs, apiReq, _restored } = state ?? {};
 
-  const [messages, setMessages] = useState([]);
-  const [picks,    setPicks]    = useState([]);
-  const [loading,  setLoading]  = useState(true);
+  const [messages, setMessages] = useState(() => _restored?.messages ?? []);
+  const [picks,    setPicks]    = useState(() => _restored?.picks    ?? []);
+  const [loading,  setLoading]  = useState(() => !_restored);
   const [error,    setError]    = useState(null);
   const [input,    setInput]    = useState('');
 
   // All hooks must be called before any early return
   useEffect(() => {
-    if (!prefs) return;
+    if (!prefs || _restored) return;   // skip if no prefs or state is restored
     setMessages([{ role: 'user', text: prefs.styles.join(', ') + ' · under $' + prefs.budget + ' · ' + prefs.occasion.toLowerCase() }]);
     callRecommend(apiReq);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -146,7 +146,12 @@ export default function ChatRecommend() {
                 <WineCard
                   key={pick.wine_id}
                   wine={pick}
-                  onClick={() => navigate('/wine/' + pick.wine_id, { state: { pick } })}
+                  onClick={() => navigate('/wine/' + pick.wine_id, {
+                    state: {
+                      pick,
+                      chatState: { messages, picks, prefs, apiReq },
+                    },
+                  })}
                 />
               ))}
             </div>

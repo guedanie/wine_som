@@ -22,7 +22,8 @@ export default function RegionDossier() {
   const { id }     = useParams();
   const { state }  = useLocation();
   const navigate   = useNavigate();
-  const pick       = state?.pick ?? {};
+  const pick      = state?.pick ?? {};
+  const chatState = state?.pick?.chatState ?? state?.chatState ?? null;
 
   const [detail, setDetail] = useState(null);
 
@@ -42,7 +43,19 @@ export default function RegionDossier() {
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '28px 32px 72px' }}>
-      <button onClick={() => navigate(-1)}
+      <button onClick={() => {
+        if (chatState) {
+          navigate('/recommend', {
+            state: {
+              prefs:     chatState.prefs,
+              apiReq:    chatState.apiReq,
+              _restored: chatState,
+            },
+          });
+        } else {
+          navigate(-1);
+        }
+      }}
         style={{ cursor: 'pointer', background: 'none', border: 'none', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--faded)', padding: 0, marginBottom: 22 }}>
         ← Back to recommendations
       </button>

@@ -1,6 +1,12 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import RegionDossier from '../RegionDossier.jsx';
+
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return { ...actual, useNavigate: () => mockNavigate };
+});
 
 vi.mock('../../lib/api.js', () => ({ getWine: vi.fn() }));
 import { getWine } from '../../lib/api.js';
@@ -32,7 +38,7 @@ function renderScreen(id = 'uuid-1', state = { pick }) {
   );
 }
 
-beforeEach(() => { getWine.mockClear(); });
+beforeEach(() => { getWine.mockClear(); mockNavigate.mockClear(); });
 
 it('shows pick name immediately from router state before API resolves', () => {
   getWine.mockReturnValue(new Promise(() => {}));
@@ -77,4 +83,26 @@ it('shows store address in the availability section', async () => {
   renderScreen();
   await waitFor(() => screen.getByText('Structure'));
   expect(screen.getByText('1000 Austin Hwy, San Antonio, TX 78209')).toBeInTheDocument();
+});
+
+it('back button calls navigate(-1) when no chatState', () => {
+  getWine.mockReturnValue(new Promise(() => {}));
+  renderScreen();
+  fireEvent.click(screen.getByText(/← back/i));
+  expect(mockNavigate).toHaveBeenCalledWith(-1);
+});
+
+it('back button navigates to /recommend with _restored when chatState is present', () => {
+  getWine.mockReturnValue(new Promise(() => {}));
+  const chatState = {
+    messages: [{ role: 'user', text: 'bold' }],
+    picks: [],
+    prefs: { zip: '78209', budget: 60, styles: [], occasion: 'Tonight', wineTypes: [], grapes: [] },
+    apiReq: { zip_code: '78209', budget_min: 10, budget_max: 60, style_preferences: [] },
+  };
+  renderScreen('uuid-1', { pick: { ...pick, chatState } });
+  fireEvent.click(screen.getByText(/← back/i));
+  expect(mockNavigate).toHaveBeenCalledWith('/recommend', {
+    state: expect.objectContaining({ _restored: chatState }),
+  });
 });

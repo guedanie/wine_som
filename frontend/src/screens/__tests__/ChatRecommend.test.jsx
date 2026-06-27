@@ -77,3 +77,24 @@ it('navigates to /wine/:id with pick state when a WineCard is clicked', async ()
     state: expect.objectContaining({ pick: expect.objectContaining({ wine_id: 'uuid-1' }) }),
   }));
 });
+
+it('does not call recommend when _restored state is provided', async () => {
+  const restoredMessages = [
+    { role: 'user', text: 'bold · under $60 · tonight' },
+    { role: 'sommelier', text: 'Here are my top picks.' },
+  ];
+  const restoredPicks = [
+    { wine_id: 'uuid-1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's",
+      why: 'Great.', tagline: 'PASO ROBLES', coord: null, flavors: [] },
+  ];
+  renderScreen({
+    prefs,
+    apiReq,
+    _restored: { messages: restoredMessages, picks: restoredPicks },
+  });
+  // API should never be called — state is restored
+  await new Promise(r => setTimeout(r, 50));
+  expect(recommend).not.toHaveBeenCalled();
+  expect(screen.getByText('Here are my top picks.')).toBeInTheDocument();
+  expect(screen.getByText('Esprit de Tablas')).toBeInTheDocument();
+});
