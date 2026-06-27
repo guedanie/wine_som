@@ -13,6 +13,31 @@ class WineSearchResult(BaseModel):
     wine_type: Optional[str] = None
 
 
+class RegionWineItem(BaseModel):
+    wine_id: str
+    name: str
+    varietal: Optional[str] = None
+    region: Optional[str] = None
+    country: Optional[str] = None
+    wine_type: Optional[str] = None
+    price: float
+    retailer: str
+    store_address: Optional[str] = None
+    image_url: Optional[str] = None
+    flavor_profile: List[str] = []
+    grapes: List[str] = []
+
+
+class RegionRetailerGroup(BaseModel):
+    retailer: str
+    wines: List[RegionWineItem]
+
+
+class RegionResponse(BaseModel):
+    region: str
+    retailers: List[RegionRetailerGroup]
+
+
 class RecommendRequest(BaseModel):
     zip_code: str
     budget_min: float = 10.0
