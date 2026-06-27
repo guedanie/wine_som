@@ -65,3 +65,27 @@ it('selecting a wine type chip includes it in apiReq.wine_types', () => {
     }),
   }));
 });
+
+it('does not show varietal chips until Advanced search is expanded', () => {
+  renderScreen();
+  expect(screen.queryByRole('button', { name: /cabernet sauvignon/i })).not.toBeInTheDocument();
+});
+
+it('shows varietal chips after clicking Advanced search toggle', () => {
+  renderScreen();
+  fireEvent.click(screen.getByRole('button', { name: /advanced search/i }));
+  expect(screen.getByRole('button', { name: /cabernet sauvignon/i })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /chardonnay/i })).toBeInTheDocument();
+});
+
+it('selected varietals are included in apiReq.grapes', () => {
+  renderScreen();
+  fireEvent.click(screen.getByRole('button', { name: /advanced search/i }));
+  fireEvent.click(screen.getByRole('button', { name: /cabernet sauvignon/i }));
+  fireEvent.click(screen.getByRole('button', { name: /find wines/i }));
+  expect(mockNavigate).toHaveBeenCalledWith('/recommend', expect.objectContaining({
+    state: expect.objectContaining({
+      apiReq: expect.objectContaining({ grapes: ['Cabernet Sauvignon'] }),
+    }),
+  }));
+});

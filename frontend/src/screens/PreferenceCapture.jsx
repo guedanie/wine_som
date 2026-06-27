@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Eyebrow from '../components/Eyebrow.jsx';
 import Btn from '../components/Btn.jsx';
-import { buildApiReq } from '../lib/regions.js';
+import { buildApiReq, VARIETAL_OPTS } from '../lib/regions.js';
 
 const STYLE_OPTS = [
   ['Bold & Tannic',   'dark fruit · grip · structure'],
@@ -23,11 +23,15 @@ export default function PreferenceCapture() {
   const [wineTypes, setWineTypes] = useState([]);
   const toggleType = t => setWineTypes(p => p.includes(t) ? p.filter(x => x !== t) : [...p, t]);
 
+  const [grapes,       setGrapes]      = useState([]);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const toggleGrape = g => setGrapes(p => p.includes(g) ? p.filter(x => x !== g) : [...p, g]);
+
   const toggle = s => setStyles(p => p.includes(s) ? p.filter(x => x !== s) : [...p, s]);
   const valid  = zip.length === 5 && styles.length > 0;
 
   const handleSubmit = () => {
-    const prefs  = { zip, budget, styles, occasion, wineTypes };
+    const prefs  = { zip, budget, styles, occasion, wineTypes, grapes };
     const apiReq = buildApiReq(prefs);
     navigate('/recommend', { state: { prefs, apiReq } });
   };
@@ -97,6 +101,36 @@ export default function PreferenceCapture() {
             );
           })}
         </div>
+      </div>
+
+      <div style={{ marginTop: 24 }}>
+        <button
+          onClick={() => setAdvancedOpen(o => !o)}
+          style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Eyebrow>Advanced search</Eyebrow>
+          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--faded)' }}>
+            {advancedOpen ? '▲' : '▼'}
+          </span>
+        </button>
+
+        {advancedOpen && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--faded)', marginBottom: 10 }}>
+              Filter by grape varietal — any that match
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {VARIETAL_OPTS.map(g => {
+                const on = grapes.includes(g);
+                return (
+                  <button key={g} onClick={() => toggleGrape(g)}
+                    style={{ cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 12, padding: '6px 14px', borderRadius: 0, border: on ? '1.5px solid var(--bordeaux)' : '1.5px solid var(--border)', background: on ? 'var(--bordeaux)' : 'var(--cream-raised)', color: on ? 'var(--cream)' : 'var(--ink)', transition: 'all .15s var(--ease)' }}>
+                    {g}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{ marginTop: 32, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>

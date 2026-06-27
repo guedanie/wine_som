@@ -269,3 +269,15 @@ def test_recommend_request_wine_types_defaults_empty():
     from api.schemas import RecommendRequest
     req = RecommendRequest(zip_code="78209")
     assert req.wine_types == []
+
+
+def test_recommend_request_accepts_grapes():
+    from api.schemas import RecommendRequest
+    req = RecommendRequest(zip_code="78209", grapes=["Cabernet Sauvignon", "Merlot"])
+    assert req.grapes == ["Cabernet Sauvignon", "Merlot"]
+
+
+def test_recommend_request_grapes_defaults_empty():
+    from api.schemas import RecommendRequest
+    req = RecommendRequest(zip_code="78209")
+    assert req.grapes == []

@@ -60,13 +60,14 @@ def parse_message(message: str) -> Optional[Dict[str, Any]]:
 
 
 def intent_from_request(wine_type: Optional[str], style_preferences: List[str],
-                        avoid: List[str], budget_min: float, budget_max: float) -> Dict[str, Any]:
+                        avoid: List[str], budget_min: float, budget_max: float,
+                        grapes: Optional[List[str]] = None) -> Dict[str, Any]:
     """Build a resolved-intent dict from explicit request fields only."""
     return {
         "wine_type": wine_type,
         "body": None,
         "flavors": list(style_preferences or []),
-        "grapes": [],
+        "grapes": list(grapes or []),
         "region": None,
         "avoid": list(avoid or []),
         "budget_min": budget_min,

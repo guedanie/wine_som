@@ -167,6 +167,7 @@ async def recommend(req: RecommendRequest):
         avoid=req.avoid,
         budget_min=req.budget_min,
         budget_max=req.budget_max,
+        grapes=req.grapes,
     )
     parsed = parse_message(req.message) if req.message and req.message != \
         "Recommend wines based on my preferences" else None

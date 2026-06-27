@@ -21,6 +21,7 @@ class RecommendRequest(BaseModel):
     avoid: List[str] = []
     wine_type: Optional[str] = None          # legacy single-type (kept for compat)
     wine_types: List[str] = []               # multi-select; takes precedence over wine_type
+    grapes: List[str] = []                   # explicit varietal filter from advanced search
     message: str = "Recommend wines based on my preferences"
     conversation_history: Optional[List[Dict[str, Any]]] = None
 

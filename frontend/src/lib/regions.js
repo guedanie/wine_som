@@ -14,6 +14,12 @@ export const STYLE_WINE_TYPE = {
   'Bright & Fruity': null,
 };
 
+export const VARIETAL_OPTS = [
+  'Cabernet Sauvignon', 'Merlot', 'Pinot Noir', 'Malbec', 'Syrah',
+  'Zinfandel', 'Sangiovese', 'Chardonnay', 'Sauvignon Blanc',
+  'Riesling', 'Pinot Grigio', 'Albariño',
+];
+
 // All 10 Tier 1 region posters are live. Tier 2 regions fall back to the
 // striped placeholder in the Poster component until posters are designed.
 export const REGION_POSTERS = {
@@ -85,6 +91,7 @@ export function buildApiReq(prefs) {
     budget_max:        prefs.budget,
     style_preferences: tags,
     wine_types:        wineTypes,
+    grapes:            prefs.grapes ?? [],
     message:           occasionMessage(prefs.occasion),
   };
 }
