@@ -24,21 +24,35 @@ from scrapers.base import BaseScraper, RetailInventoryItem
 from utils import infer_wine_type
 
 GRAPHQL_URL = "https://www.heb.com/graphql"
-STORE_NAME = "H-E-B"
-STORE_ID = "567"
-STORE_ZIP = "78208"            # Lincoln Heights, San Antonio
-STORE_ADDRESS = "1520 Austin Hwy, San Antonio, TX 78218"
 RETAILER_NAME = "H-E-B"
 
-# SA stores near 78209, verified to carry wine via productSearch probe
-SA_STORES = {
-    "567": {"name": "Lincoln Heights Market H-E-B", "address": "999 East Basse Rd",  "zip": "78209"},
-    "372": {"name": "Oak Park H-E-B",               "address": "1955 Nacogdoches",   "zip": "78209"},
-    "585": {"name": "Austin Highway H-E-B",          "address": "1520 Austin Hwy",   "zip": "78218"},
-    "385": {"name": "Olmos Park H-E-B",              "address": "300 Olmos Dr",       "zip": "78212"},
-    "568": {"name": "Perrin Beitel H-E-B",           "address": "12018 Perrin Beitel Rd", "zip": "78217"},
-    "556": {"name": "Deco District H-E-B",           "address": "2118 Fredericksburg Rd", "zip": "78201"},
+# All known HEB stores, keyed by store_id string.
+# city/state drive the geo-upsert; zip is used for nearby-store lookup.
+STORE_REGISTRY: Dict[str, Dict[str, str]] = {
+    # San Antonio
+    "567": {"name": "Lincoln Heights Market H-E-B", "address": "999 East Basse Rd",         "zip": "78209", "city": "San Antonio", "state": "TX"},
+    "372": {"name": "Oak Park H-E-B",               "address": "1955 Nacogdoches",           "zip": "78209", "city": "San Antonio", "state": "TX"},
+    "585": {"name": "Austin Highway H-E-B",          "address": "1520 Austin Hwy",           "zip": "78218", "city": "San Antonio", "state": "TX"},
+    "385": {"name": "Olmos Park H-E-B",              "address": "300 Olmos Dr",               "zip": "78212", "city": "San Antonio", "state": "TX"},
+    "568": {"name": "Perrin Beitel H-E-B",           "address": "12018 Perrin Beitel Rd",    "zip": "78217", "city": "San Antonio", "state": "TX"},
+    "556": {"name": "Deco District H-E-B",           "address": "2118 Fredericksburg Rd",    "zip": "78201", "city": "San Antonio", "state": "TX"},
+    # Austin — stores within 10 mi of 78749, sorted by distance
+    "68":  {"name": "Slaughter & Escarpment H-E-B", "address": "5800 W. Slaughter Lane",    "zip": "78749", "city": "Austin",      "state": "TX"},
+    "765": {"name": "Oak Hill H-E-B",                "address": "7901 US-290",               "zip": "78735", "city": "Austin",      "state": "TX"},
+    "229": {"name": "I-35 & William Cannon H-E-B",   "address": "6607 South IH 35",          "zip": "78745", "city": "Austin",      "state": "TX"},
+    "428": {"name": "Brodie Lane H-E-B",             "address": "6900 Brodie Lane",          "zip": "78745", "city": "Austin",      "state": "TX"},
+    "227": {"name": "Slaughter & Manchaca H-E-B",    "address": "2110 West Slaughter Ln",    "zip": "78748", "city": "Austin",      "state": "TX"},
+    "710": {"name": "Slaughter & S Congress H-E-B",  "address": "8801 South Congress Ave",   "zip": "78748", "city": "Austin",      "state": "TX"},
+    "780": {"name": "Nutty Brown H-E-B",             "address": "12021 W US 290",            "zip": "78736", "city": "Austin",      "state": "TX"},
+    "754": {"name": "SoCo H-E-B",                    "address": "2400 S. Congress Ave.",     "zip": "78704", "city": "Austin",      "state": "TX"},
+    "768": {"name": "Lake Austin H-E-B",             "address": "2652 Lake Austin Blvd",     "zip": "78703", "city": "Austin",      "state": "TX"},
+    "91":  {"name": "Riverside H-E-B plus!",         "address": "2508 East Riverside Drive", "zip": "78741", "city": "Austin",      "state": "TX"},
+    "465": {"name": "7th Street H-E-B",              "address": "2701 East 7th",             "zip": "78702", "city": "Austin",      "state": "TX"},
+    "425": {"name": "Hancock Center H-E-B",          "address": "1000 East 41st",            "zip": "78751", "city": "Austin",      "state": "TX"},
 }
+
+# Kept for backward compatibility — callers that imported SA_STORES directly still work.
+SA_STORES = {k: v for k, v in STORE_REGISTRY.items() if v["city"] == "San Antonio"}
 
 _HEADERS = {
     "Content-Type": "application/json",
@@ -147,7 +161,7 @@ def _graphql_post(query: str, timeout: int = 20, retries: int = 3) -> Dict[str, 
     raise last_err
 
 
-def fetch_wine_page(offset: int = 0, limit: int = 60, store_id: str = STORE_ID):
+def fetch_wine_page(offset: int = 0, limit: int = 60, store_id: str = "567"):
     """
     Fetch one page of wine products. Returns (server_total, [HEBProduct]).
     Non-wine rows are filtered out by _parse_record.
@@ -173,23 +187,26 @@ class HebScraper(BaseScraper):
     def _products_to_inventory_items(
         self,
         products: List[HEBProduct],
-        store_id: str = STORE_ID,
-        store_name: str = STORE_NAME,
-        store_zip: str = STORE_ZIP,
-        store_address: str = STORE_ADDRESS,
+        store_id: str = "567",
+        store_name: str = "H-E-B",
+        store_zip: str = "78209",
+        store_address: str = "999 East Basse Rd",
+        city: str = "San Antonio",
+        state: str = "TX",
+        retailer_name: str = RETAILER_NAME,
     ) -> List[RetailInventoryItem]:
         return [
             RetailInventoryItem(
                 wine_name=p.name,
-                retailer_name=RETAILER_NAME,
+                retailer_name=retailer_name,
                 zip_code=store_zip,
                 upc=p.upc,
                 price=p.price,
                 store_name=store_name,
                 store_id=store_id,
                 address=store_address,
-                city="San Antonio",
-                state="TX",
+                city=city,
+                state=state,
                 in_stock=p.in_stock,
                 varietal=None,
                 brand=p.brand,
@@ -225,14 +242,17 @@ class HebScraper(BaseScraper):
     def _upsert_inventory_with_curbside(
         self,
         products: List[HEBProduct],
-        store_id: str = STORE_ID,
-        store_name: str = STORE_NAME,
-        store_zip: str = STORE_ZIP,
-        store_address: str = STORE_ADDRESS,
+        store_id: str = "567",
+        store_name: str = "H-E-B",
+        store_zip: str = "78209",
+        store_address: str = "999 East Basse Rd",
+        city: str = "San Antonio",
+        state: str = "TX",
+        retailer_name: str = RETAILER_NAME,
     ):
         """Like base._upsert_inventory but includes curbside_price; references store_ref."""
         from datetime import datetime, timezone
-        items = self._products_to_inventory_items(products, store_id, store_name, store_zip, store_address)
+        items = self._products_to_inventory_items(products, store_id, store_name, store_zip, store_address, city, state, retailer_name)
         upc_to_id = self._upsert_wines(items)
         store_map = self._upsert_stores(items)
         now = datetime.now(timezone.utc).isoformat()
@@ -276,11 +296,23 @@ class HebScraper(BaseScraper):
                 records, on_conflict="wine_id"
             ).execute()
 
-    async def run_full(self) -> dict:
-        """Full scrape across all SA_STORES with per-page commit."""
+    async def run_full(self, city: Optional[str] = None, store_ids: Optional[List[str]] = None) -> dict:
+        """Full scrape across STORE_REGISTRY with per-page commit.
+
+        Args:
+            city: If set, only scrape stores in that city (e.g. "Austin").
+            store_ids: If set, only scrape those specific store IDs.
+            If neither is set, scrapes all registered stores.
+        """
         import uuid
         import time
         from datetime import datetime, timezone
+
+        stores = {
+            k: v for k, v in STORE_REGISTRY.items()
+            if (city is None or v["city"] == city)
+            and (store_ids is None or k in store_ids)
+        }
 
         run_id = str(uuid.uuid4())
         self.supabase.table("scraper_runs").insert({
@@ -291,11 +323,13 @@ class HebScraper(BaseScraper):
         page_size = 60
 
         try:
-            for store_id, store_info in SA_STORES.items():
-                store_name = store_info["name"]
-                store_zip = store_info["zip"]
+            for store_id, store_info in stores.items():
+                store_name    = store_info["name"]
+                store_zip     = store_info["zip"]
                 store_address = store_info["address"]
-                print(f"\n  Store {store_id} — {store_name}")
+                store_city    = store_info["city"]
+                store_state   = store_info["state"]
+                print(f"\n  Store {store_id} — {store_name} ({store_city})")
 
                 offset = 0
                 server_total = None
@@ -306,7 +340,8 @@ class HebScraper(BaseScraper):
                         server_total = page_total
                     if products:
                         upc_to_id = self._upsert_inventory_with_curbside(
-                            products, store_id, store_name, store_zip, store_address
+                            products, store_id, store_name, store_zip, store_address,
+                            city=store_city, state=store_state,
                         )
                         self._upsert_wine_details(products, upc_to_id)
                         total_committed += len(products)
@@ -322,7 +357,7 @@ class HebScraper(BaseScraper):
                 "completed_at": datetime.now(timezone.utc).isoformat(),
             }).eq("id", run_id).execute()
 
-            return {"wines_committed": total_committed, "stores": len(SA_STORES)}
+            return {"wines_committed": total_committed, "stores": len(stores)}
 
         except Exception as e:
             self.supabase.table("scraper_runs").update({
