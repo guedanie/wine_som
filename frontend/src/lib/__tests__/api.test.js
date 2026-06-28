@@ -61,3 +61,28 @@ describe('getWine', () => {
     await expect(getWine('bad-id')).rejects.toThrow('HTTP');
   });
 });
+
+describe('getRegionWines', () => {
+  it('GETs /api/region/:name with zip query param', async () => {
+    const mockResp = { region: 'Tuscany', retailers: [] };
+    fetch.mockResolvedValueOnce({ ok: true, json: async () => mockResp });
+    const { getRegionWines } = await import('../api.js');
+    await getRegionWines('Tuscany', '78209');
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/api\/region\/Tuscany\?zip=78209/)
+    );
+  });
+
+  it('throws on non-ok response', async () => {
+    fetch.mockResolvedValueOnce({ ok: false, json: async () => ({ detail: 'Not found' }) });
+    const { getRegionWines } = await import('../api.js');
+    await expect(getRegionWines('Tuscany', '78209')).rejects.toThrow('Not found');
+  });
+
+  it('URL-encodes region names with spaces', async () => {
+    fetch.mockResolvedValueOnce({ ok: true, json: async () => ({ region: 'Napa Valley', retailers: [] }) });
+    const { getRegionWines } = await import('../api.js');
+    await getRegionWines('Napa Valley', '78209');
+    expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/Napa%20Valley/));
+  });
+});

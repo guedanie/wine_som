@@ -34,3 +34,12 @@ export async function getWine(id) {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
+
+export async function getRegionWines(region, zip) {
+  const res = await fetch(`${BASE}/api/region/${encodeURIComponent(region)}?zip=${encodeURIComponent(zip)}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail ?? `HTTP ${res.status}`);
+  }
+  return res.json();
+}

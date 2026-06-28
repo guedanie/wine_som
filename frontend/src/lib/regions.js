@@ -14,6 +14,13 @@ export const STYLE_WINE_TYPE = {
   'Bright & Fruity': null,
 };
 
+// Two DISCOVERY_REGIONS names differ from what the extractor wrote to wines.region.
+// The backend handles the mapping; this export documents it for reference.
+export const REGION_DB_ALIASES = {
+  'Rhône Valley': 'Rhône',
+  'Douro Valley': 'Douro',
+};
+
 export const VARIETAL_OPTS = [
   'Cabernet Sauvignon', 'Merlot', 'Pinot Noir', 'Malbec', 'Syrah',
   'Zinfandel', 'Sangiovese', 'Chardonnay', 'Sauvignon Blanc',
