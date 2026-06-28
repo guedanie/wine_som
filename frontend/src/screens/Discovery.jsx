@@ -3,17 +3,6 @@ import Eyebrow from '../components/Eyebrow.jsx';
 import Poster from '../components/Poster.jsx';
 import { DISCOVERY_REGIONS } from '../lib/regions.js';
 
-function regionApiReq(r) {
-  return {
-    zip_code:          '78209',
-    budget_min:        10,
-    budget_max:        100,
-    style_preferences: r.flavors,
-    wine_type:         null,
-    message:           `Recommend wines from ${r.name}.`,
-  };
-}
-
 function RegionCard({ region, onClick }) {
   return (
     <div onClick={onClick} style={{ cursor: 'pointer' }}>
@@ -32,12 +21,7 @@ export default function Discovery() {
   const tier2    = DISCOVERY_REGIONS.filter(r => r.tier === 2);
 
   function openRegion(r) {
-    navigate('/recommend', {
-      state: {
-        prefs:  { zip: '78209', budget: 100, styles: [], occasion: 'Tonight' },
-        apiReq: regionApiReq(r),
-      },
-    });
+    navigate(`/region/${encodeURIComponent(r.name)}`);
   }
 
   return (

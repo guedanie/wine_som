@@ -4,6 +4,7 @@ import PreferenceCapture from './screens/PreferenceCapture.jsx';
 import ChatRecommend from './screens/ChatRecommend.jsx';
 import RegionDossier from './screens/RegionDossier.jsx';
 import Discovery from './screens/Discovery.jsx';
+import RegionBrowse from './screens/RegionBrowse.jsx';
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
         <Route path="/recommend" element={<ChatRecommend />} />
         <Route path="/wine/:id" element={<RegionDossier />} />
         <Route path="/discover" element={<Discovery />} />
+        <Route path="/region/:slug" element={<RegionBrowse />} />
       </Routes>
     </div>
   );
