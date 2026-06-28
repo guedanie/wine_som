@@ -226,7 +226,7 @@ export default function RegionBrowse() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 18 }}>
             {section.wines.map(w => {
-              const meta = deriveWineCardMeta(w);
+              const meta = { ...deriveWineCardMeta(w), store_address: null };
               return (
                 <WineCard
                   key={w.wine_id}

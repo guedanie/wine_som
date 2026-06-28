@@ -112,23 +112,28 @@ export default function RegionDossier() {
 
               <Eyebrow style={{ display: 'block', marginBottom: 10 }}>Available near you</Eyebrow>
               <div style={{ border: '1.5px solid var(--ink)', background: 'var(--cream)', maxWidth: 540 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px' }}>
-                  <div style={{ width: 26, height: 26, borderRadius: '50%', border: '1px solid var(--brass)', position: 'relative', overflow: 'hidden', flex: 'none' }}>
-                    <Contours w={26} h={26} color="var(--brass)"
-                      cfg={{ cx: 13, cy: 13, r0: 3, step: 3, count: 4, wob: 2, seed: 1, sx: 1.4 }} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>
-                      {pick.retailer}
+                {(wine.availability?.length > 0 ? wine.availability : pick.retailer ? [{ retailer: pick.retailer, address: pick.store_address, price: pick.price }] : []).map((loc, i) => (
+                  <div key={i} style={{
+                    display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px',
+                    borderTop: i > 0 ? '1px solid var(--border)' : 'none',
+                  }}>
+                    <div style={{ width: 26, height: 26, borderRadius: '50%', border: '1px solid var(--brass)', position: 'relative', overflow: 'hidden', flex: 'none' }}>
+                      <Contours w={26} h={26} color="var(--brass)"
+                        cfg={{ cx: 13, cy: 13, r0: 3, step: 3, count: 4, wob: 2, seed: i + 1, sx: 1.4 }} />
                     </div>
-                    {pick.store_address && (
-                      <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--faded)', marginTop: 2 }}>
-                        {pick.store_address}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>
+                        {loc.retailer}
                       </div>
-                    )}
+                      {loc.address && (
+                        <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--faded)', marginTop: 2 }}>
+                          {loc.address}
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ fontFamily: 'var(--font-serif)', fontSize: 19, color: 'var(--bordeaux)' }}>${loc.price}</div>
                   </div>
-                  <div style={{ fontFamily: 'var(--font-serif)', fontSize: 19, color: 'var(--bordeaux)' }}>${pick.price}</div>
-                </div>
+                ))}
               </div>
             </>
           )}
