@@ -108,19 +108,28 @@ async def get_region_wines(
             .select(_REGION_INVENTORY_SELECT)
             .in_("store_ref", store_ids)
             .eq("in_stock", True)
+            .eq("wines.region", db_region)
             .gte("price", 0)
             .lte("price", 9999)
             .limit(_FETCH_LIMIT)
             .execute()
         )
+        # Dedup by wine_id, keeping the lowest price across stores
+        seen: Dict[str, Dict[str, Any]] = {}
         for row in (rows.data or []):
             wine = row.get("wines") or {}
-            if wine.get("region") != db_region:
+            if not wine:
                 continue
-            address = (row.get("stores") or {}).get("address")
-            item = _row_to_wine_item(row, rname, address)
-            if item:
-                by_retailer.setdefault(rname, []).append(item.model_dump())
+            wid = wine.get("id", "")
+            price = float(row.get("price") or 0)
+            if wid not in seen or price < seen[wid]["price"]:
+                address = (row.get("stores") or {}).get("address")
+                item = _row_to_wine_item(row, rname, address)
+                if item:
+                    seen[wid] = item.model_dump()
+        by_retailer[rname] = list(seen.values()) if seen else []
+        if not by_retailer[rname]:
+            del by_retailer[rname]
 
     if not by_retailer:
         raise HTTPException(

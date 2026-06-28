@@ -34,11 +34,11 @@ def _make_db_mock(inv_rows=None, store_rows=None):
     stores_resp = MagicMock()
     stores_resp.data = store_rows if store_rows is not None else [_STORE]
     db.table.return_value.select.return_value.in_.return_value.execute.return_value = stores_resp
-    # inventory query
+    # inventory query — chain: .in_().eq(in_stock).eq(wines.region).gte().lte().limit().execute()
     inv_resp = MagicMock()
     inv_resp.data = inv_rows if inv_rows is not None else [_INV_ROW]
     q = db.table.return_value.select.return_value
-    q.in_.return_value.eq.return_value.gte.return_value.lte.return_value.limit.return_value.execute.return_value = inv_resp
+    q.in_.return_value.eq.return_value.eq.return_value.gte.return_value.lte.return_value.limit.return_value.execute.return_value = inv_resp
     return db
 
 
