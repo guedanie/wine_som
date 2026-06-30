@@ -152,6 +152,16 @@ class AntonellisScraper(BaseScraper):
                 records, on_conflict="wine_id"
             ).execute()
 
+    async def search_by_zip(self, zip_code: str) -> List[RetailInventoryItem]:
+        """Antonelli's is a single Austin location — zip filter is a no-op."""
+        products = [p for raw in _fetch_page_antonellis() if (p := _parse_product_antonellis(raw))]
+        return self._products_to_inventory_items(products)
+
+    async def search_by_wine(self, wine_name: str, zip_code: str) -> List[RetailInventoryItem]:
+        products = [p for raw in _fetch_page_antonellis() if (p := _parse_product_antonellis(raw))
+                    and wine_name.lower() in p.title.lower()]
+        return self._products_to_inventory_items(products)
+
     async def run_full(self) -> dict:
         import uuid
         import time

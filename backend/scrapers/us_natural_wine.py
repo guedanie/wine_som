@@ -164,6 +164,16 @@ class USNaturalWineScraper(BaseScraper):
                 records, on_conflict="wine_id"
             ).execute()
 
+    async def search_by_zip(self, zip_code: str) -> List[RetailInventoryItem]:
+        """US Natural Wine ships to Austin — zip filter is a no-op for this single-location store."""
+        products = [p for raw in _fetch_page_usnw() if (p := _parse_product_usnw(raw))]
+        return self._products_to_inventory_items(products)
+
+    async def search_by_wine(self, wine_name: str, zip_code: str) -> List[RetailInventoryItem]:
+        products = [p for raw in _fetch_page_usnw() if (p := _parse_product_usnw(raw))
+                    and wine_name.lower() in p.title.lower()]
+        return self._products_to_inventory_items(products)
+
     async def run_full(self) -> dict:
         import uuid
         import time
