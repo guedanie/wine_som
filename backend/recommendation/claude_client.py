@@ -242,6 +242,45 @@ def stream_recommendations(
         user_message[:60], len(conversation_history or []), len(candidates),
     )
 
+    def _try_extract_picks(buf: str) -> Optional[list]:
+        """
+        Parse the picks array from a partial JSON buffer as soon as it closes.
+        Returns the parsed list or None if the array isn't complete yet.
+        Tracks string context so brackets inside quoted values don't confuse the depth counter.
+        """
+        import json as _json
+        marker = '"picks":'
+        pos = buf.find(marker)
+        if pos == -1:
+            return None
+        rest = buf[pos + len(marker):].lstrip()
+        if not rest or rest[0] != '[':
+            return None
+        depth = 0
+        in_str = False
+        esc = False
+        for i, ch in enumerate(rest):
+            if esc:
+                esc = False
+                continue
+            if ch == '\\' and in_str:
+                esc = True
+                continue
+            if ch == '"':
+                in_str = not in_str
+                continue
+            if not in_str:
+                if ch == '[':
+                    depth += 1
+                elif ch == ']':
+                    depth -= 1
+                    if depth == 0:
+                        try:
+                            return _json.loads(rest[:i + 1])
+                        except _json.JSONDecodeError:
+                            return None
+        return None
+
     def _gen():
         # State machine for extracting the "narrative" string from streaming JSON.
         # input_json_delta fragments arrive as raw JSON text, e.g.:
@@ -255,6 +294,11 @@ def stream_recommendations(
         escape_next = False
         # Both '"narrative":"' and '"narrative": "' (with space) are valid.
         MARKERS = ['"narrative":"', '"narrative": "']
+
+        # Post-narrative buffer: accumulate fragments after narrative ends so we can
+        # parse picks as soon as the array closes, before followup_suggestions arrive.
+        post_buf = ""
+        picks_yielded = False
 
         try:
             with client_inst.messages.stream(
@@ -276,6 +320,15 @@ def stream_recommendations(
                     fragment = delta.partial_json or ""
 
                     if narrative_done:
+                        # Accumulate post-narrative JSON and try to parse picks early.
+                        # This yields picks the moment the array closes, without waiting
+                        # for followup_suggestions or get_final_message().
+                        if not picks_yielded:
+                            post_buf += fragment
+                            early_picks = _try_extract_picks(post_buf)
+                            if early_picks is not None:
+                                picks_yielded = True
+                                yield ("picks", early_picks)
                         continue
 
                     if not in_narrative:
@@ -327,7 +380,9 @@ def stream_recommendations(
             tool_block = next((b for b in final.content if b.type == "tool_use"), None)
             if tool_block is None:
                 raise ValueError("Claude did not return tool picks")
-            yield ("picks", tool_block.input.get("picks", []))
+            # Fall back to final message picks only if streaming extraction missed them.
+            if not picks_yielded:
+                yield ("picks", tool_block.input.get("picks", []))
             suggestions = tool_block.input.get("followup_suggestions") or []
             if suggestions:
                 yield ("suggestions", suggestions)
