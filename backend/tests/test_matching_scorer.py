@@ -14,9 +14,21 @@ def test_producer_score_exact_match():
     assert _producer_score("Decoy", "Decoy") == 1.0
 
 
-def test_producer_score_contains():
-    # GrapeMinds "Duckhorn Vineyards ... Decoy ..." contains our brand "Decoy"
-    assert _producer_score("Decoy", "Duckhorn Vineyards Decoy") == 0.6
+def test_producer_score_token_subset():
+    # "Decoy" tokens ⊂ "Duckhorn Vineyards Decoy" tokens → 0.85 (subset rule)
+    assert _producer_score("Decoy", "Duckhorn Vineyards Decoy") == 0.85
+
+
+def test_producer_score_rombauer_subset():
+    # "Rombauer" ⊂ "Rombauer Vineyards" — common winery suffix pattern
+    assert _producer_score("Rombauer", "Rombauer Vineyards") == 0.85
+
+
+def test_producer_score_contains_no_subset():
+    # "Silver" in "Silver Oak" but {"silver"} ⊂ {"silver", "oak"} → still 0.85
+    # "Opus" NOT in any GrapeMinds producer token set here — falls to jaccard
+    s = _producer_score("Opus One", "Constellation Brands Opus")
+    assert 0.0 < s < 0.85
 
 
 def test_producer_score_token_overlap():

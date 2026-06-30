@@ -3,18 +3,22 @@
 ## What This Is
 Full-stack wine recommendation app. Users enter zip code + budget + style preferences and get Claude-powered sommelier recommendations for wines available at local retailers near them.
 
-## Current Build Status (as of 2026-06-26)
+## Current Build Status (as of 2026-06-28)
 
 ### Done
 | Component | Location | Notes |
 |---|---|---|
-| Supabase schema | `supabase/migrations/` | 10 migrations live in cloud DB |
+| Supabase schema | `supabase/migrations/` | 11 migrations live in cloud DB |
 | FastAPI app | `backend/api/` | `/health`, `/api/wines/search`, `/api/wines/:id` |
 | Enrichment endpoints | `backend/api/routers/enrichment.py` | `/api/enrich/:id`, `/api/enrich/batch/pending` |
 | GrapeMinds client | `backend/enrichment/grapeminds.py` | curl subprocess (Cloudflare bypass) |
 | Enrichment pipeline | `backend/enrichment/pipeline.py` | Two-step warm-up, cache check, batch mode |
 | Geraldine's scraper | `backend/scrapers/geraldines.py` | Shopify API, ~200 wines, no bot protection |
-| HEB scraper | `backend/scrapers/heb.py` | Pure-curl GraphQL, 6 SA stores, ~5,983 inventory records, dual (in-store/curbside) pricing |
+| HEB scraper | `backend/scrapers/heb.py` | Pure-curl GraphQL, 18 stores (6 SA + 12 Austin), dual (in-store/curbside) pricing |
+| Central Market scraper | `backend/scrapers/central_market.py` | Same HEB GraphQL, `central-market` client header, 2 Austin stores (61, 420); SA store 191 not e-commerce-enabled |
+| AOC Selections scraper | `backend/scrapers/aoc_selections.py` | Shopify API, SA-only (Location_SanAntonio tag filter), ~fine wine catalog, page-param pagination |
+| US Natural Wine scraper | `backend/scrapers/us_natural_wine.py` | Shopify API, Austin (~560 natural wines), normalizes inconsistent product_types |
+| Antonelli's scraper | `backend/scrapers/antonellis.py` | Shopify API, Austin (391 wines), product_type=Wine filter, slash-separated title format |
 | Recommend endpoint v2 | `backend/api/routers/recommend.py` | `/api/recommend` — tiered candidate pool, knowledge-based scorer, optional NL intent parse, Claude Haiku pick+narrative, radius store lookup, session persistence |
 | BaseScraper | `backend/scrapers/base.py` | Upsert to Supabase + auto-geocodes stores on seed |
 | Wine type utils | `backend/utils/__init__.py` | `infer_wine_type()` — utils.py converted to package |
@@ -25,9 +29,9 @@ Full-stack wine recommendation app. Users enter zip code + budget + style prefer
 | Store coords backfill | `backend/scripts/backfill_store_coords.py` | One-time lat/lon backfill — already run, all stores geocoded |
 | Spec's scraper | `backend/scrapers/specs.py` | Pure-curl REST API, 12 SA stores, wine-only filter, ~33k inventory records seeded |
 | Wine images | `wines.image_url` (scrapers capture) | Spec's + Geraldine's CDN URLs hotlinked; HEB has none (no image in GraphQL, Imperva blocks page) |
-| Cross-retailer dedup | `backend/utils/upc.py`, `scripts/merge_duplicate_wines.py` | canonical-UPC normalization; 910 dup wine rows merged (9321→8411), 0 inventory loss |
+| Cross-retailer dedup | `backend/utils/upc.py`, `scripts/merge_duplicate_wines.py` | canonical-UPC normalization; 910 dup wine rows merged (9321→8411), 0 inventory loss; full UNIQUE CONSTRAINT (migration 11) |
 | Recommendation engine v2 | `backend/recommendation/` | Tiered pool (GrapeMinds + extractor), knowledge-based scorer (`flavor_profiles.py`), optional NL intent (`intent.py`) |
-| Test suite | `backend/tests/` | 155 passing (152 unit + 3 integration-schema vs live DB) |
+| Test suite | `backend/tests/` | 164 passing (161 unit + 3 integration-schema vs live DB) |
 | Frontend | `frontend/` | Vite + React 19 + Tailwind v3 — 4 screens, 59 tests passing; `npm run dev` at localhost:5173 |
 
 ### In Progress / Blocked
@@ -35,9 +39,11 @@ Full-stack wine recommendation app. Users enter zip code + budget + style prefer
 |---|---|
 | Total Wine scraper | Blocked — Imperva Enterprise, 403 on everything |
 | Wine-Searcher API | Blocked — denied, use case too similar to their product |
+| Whole Foods scraper | Blocked — price requires Amazon auth (`offerDetails: null`); catalog open but price-less data not useful for recommendations |
 
 ### Not Started
-- Frontend (intentionally last)
+- Enrichment pipeline run on new wines (AOC, CM, HEB Austin, USNW, Antonelli's)
+- Spec's Austin stores (same scraper pattern, just add Austin store IDs)
 
 ---
 
@@ -77,9 +83,24 @@ System Python is **3.9.6**. Use `Optional[str]` from `typing`, NOT `str | None` 
 - Query: `productSearch(shoppingContext: CURBSIDE_PICKUP, query: "wine", storeId: N, limit, offset)` → paginate via `offset` (store 567 has ~1993 "wine" results)
 - Price lives at `records.SKUs[].contextPrices[]`: **ONLINE = in-store/shelf price (lower, canonical)**, **CURBSIDE = pickup+delivery price (~4% higher)** — stored in `retail_inventory.curbside_price`
 - UPC at `SKUs[].twelveDigitUPC`; `productDescription` embeds Type/Blend/Tasting Notes/ABV as light HTML
-- 6 SA stores hardcoded in `SA_STORES` dict: 567, 372, 585, 385, 568, 556 (all verified to carry wine)
+- 18 stores total in `STORE_REGISTRY`: 6 SA (567, 372, 585, 385, 568, 556) + 12 Austin within 10mi of 78749
+- `SA_STORES` dict kept for backward compat; `run_full(city='Austin')` or `run_full(store_ids=[...])` to filter
 - Store list source: `data/heb-store-list.csv`
 - `robots.txt` disallows `/graphql` (politeness only — it's open); scrape responsibly with the built-in retry/backoff
+
+### Central Market (GraphQL — same as HEB)
+- Same endpoint as HEB (`heb.com/graphql`) with `Apollographql-Client-Name: central-market`
+- 10 CM store IDs total: 55 (Southlake), 61 (Austin NL), 191 (SA Broadway), 420 (Austin Westgate), 491, 545, 546, 552, 653, 747
+- **SA Broadway (store 191) is in centralmarket.com's store list but returns 0 from GraphQL** — not e-commerce-enabled for online ordering; confirmed via RSC product page showing store_id arrays
+- Austin stores 61 and 420 are fully e-commerce-enabled; all others untested
+- `CentralMarketScraper` inherits `HebScraper`, uses `CM_STORES` dict with stores 61+420
+
+### AOC Selections / US Natural Wine / Antonelli's (Shopify)
+- All three use same pattern as Geraldine's: `GET /products.json?limit=250&page=N`
+- **AOC** (`aocselections.com`): wine-only store, NO product_type filter; use `Location_SanAntonio` tag to filter SA inventory (store also has Houston location); wine type inferred from colour tags (`White`, `Red`, `Sparkling`, etc.)
+- **US Natural Wine** (`usnaturalwine.com`): scrape all (wine-only); normalize inconsistent `product_type` values (`Red` → `Red Wine`, etc.); `_SKIP_TYPES` excludes Non-Alcoholic and Cider
+- **Antonelli's** (`antonellischeese.com`): filter via `?product_type=Wine` URL param; title format `WINE NAME / Producer / Region / Wine` (slash-separated)
+- Synthetic UPCs (`shopify-aoc-{handle}`, `shopify-usnw-{handle}`, `shopify-antonellis-{handle}`) — no cross-retailer dedup possible (natural wines have no barcodes)
 
 ### Spec's (REST API — pure curl, no browser)
 - **Domain**: `specsonline.com` (NOT `specs.com` — that's a glasses company)
@@ -96,7 +117,7 @@ System Python is **3.9.6**. Use `Optional[str]` from `typing`, NOT `str | None` 
 ### Cross-Retailer UPC Dedup (canonical UPC)
 - The same wine is encoded differently per retailer: **HEB** stores full 12-digit UPC-A (11-digit core + check digit); **Spec's** stores the 11-digit core with a leading zero. Both normalize to the same 11-digit core.
 - `backend/utils/upc.py` `canonical_upc(raw)` does the normalization (UPC-A check-digit validation decides HEB-style `[:11]` vs Spec's-style `[1:]`). Synthetic `shopify-…` IDs pass through unchanged (Geraldine's natural wines have no barcode — never dedup).
-- `wines.upc_canonical` column + **partial UNIQUE index** (`WHERE upc_canonical IS NOT NULL`) is the dedup identity. `BaseScraper._upsert_wines` upserts `on_conflict="upc_canonical"`; it still returns a `{raw_upc → wine_id}` map because `retail_inventory.upc` stores the **raw** barcode.
+- `wines.upc_canonical` column + **full UNIQUE CONSTRAINT** (`wines_upc_canonical_unique`) is the dedup identity (migration 11 replaced the partial index — PostgREST ON CONFLICT requires a full constraint). `BaseScraper._upsert_wines` upserts `on_conflict="upc_canonical"`; it still returns a `{raw_upc → wine_id}` map because `retail_inventory.upc` stores the **raw** barcode.
 - Prices are NOT deduplicated — they live in `retail_inventory` per (wine × store). Merging wines re-points all inventory rows, preserving every retailer's price.
 - One-time merge already run (2026-06-21): `backend/scripts/merge_duplicate_wines.py` collapsed 910 duplicate wine rows (9321 → 8411), 0 inventory loss. Script is idempotent + has `--dry-run`. Re-run it after adding a new barcode retailer if needed.
 - Geraldine's (and other natural-wine shops) can't UPC-dedup — that's a future fuzzy name/producer/vintage matching problem (GrapeMinds matching subsystem).
@@ -170,12 +191,45 @@ from scrapers.geraldines import GeraldinesScraper
 asyncio.run(GeraldinesScraper().run_full())
 "
 
-# Run HEB scraper (live GraphQL, 6 SA stores in SA_STORES, dual pricing)
+# Run HEB scraper (live GraphQL, STORE_REGISTRY — all 18 stores SA+Austin, or filter by city)
 cd backend
 python3 -c "
 import asyncio
 from scrapers.heb import HebScraper
-asyncio.run(HebScraper().run_full())
+asyncio.run(HebScraper().run_full())                   # all 18 stores
+# asyncio.run(HebScraper().run_full(city='Austin'))    # Austin only
+"
+
+# Run Central Market scraper (2 Austin stores: 61 + 420; SA store 191 not e-commerce-enabled)
+cd backend
+python3 -c "
+import asyncio
+from scrapers.central_market import CentralMarketScraper
+asyncio.run(CentralMarketScraper().run_full())
+"
+
+# Run AOC Selections scraper (Shopify, SA only — Location_SanAntonio tag filter, ~fine wine catalog)
+cd backend
+python3 -c "
+import asyncio
+from scrapers.aoc_selections import AOCSelectionsScraper
+asyncio.run(AOCSelectionsScraper().run_full())
+"
+
+# Run US Natural Wine scraper (Shopify, Austin, ~560 natural wines)
+cd backend
+python3 -c "
+import asyncio
+from scrapers.us_natural_wine import USNaturalWineScraper
+asyncio.run(USNaturalWineScraper().run_full())
+"
+
+# Run Antonelli's scraper (Shopify, Austin, 391 wines)
+cd backend
+python3 -c "
+import asyncio
+from scrapers.antonellis import AntonellisScraper
+asyncio.run(AntonellisScraper().run_full())
 "
 
 # Run Spec's scraper (REST API, 12 SA stores, wine-only, ~4,983 wines per store)
@@ -216,8 +270,12 @@ backend/
     claude_client.py           — Claude Haiku tool-use call (final pick + narrative)
   scrapers/
     base.py                    — BaseScraper ABC + Supabase upsert + auto-geocode stores
-    geraldines.py              — Shopify scraper for shopgeraldines.com
-    heb.py                     — HEB GraphQL scraper (pure curl, store 567)
+    geraldines.py              — Shopify scraper for shopgeraldines.com (SA, ~200 natural wines)
+    heb.py                     — HEB GraphQL scraper (18 stores: 6 SA + 12 Austin; STORE_REGISTRY)
+    central_market.py          — Central Market scraper (same GraphQL, CM client header, Austin stores 61+420)
+    aoc_selections.py          — AOC Selections Shopify scraper (SA, Location_SanAntonio tag filter)
+    us_natural_wine.py         — US Natural Wine Shopify scraper (Austin, ~560 natural wines)
+    antonellis.py              — Antonelli's Cheese Shop Shopify scraper (Austin, 391 wines)
     specs.py                   — Spec's REST scraper (pure curl, 12 SA stores, wine-only)
   scripts/
     backfill_store_coords.py   — One-time lat/lon backfill for existing stores
@@ -271,6 +329,12 @@ data/
     geraldines_probe.py
     specs_probe.py             — Spec's API discovery (specsonline.com)
     specs_findings.md          — Spec's API reference (search endpoint, store numbers, field shapes)
+    local_shopify_wine_shops.md — SA/Austin Shopify wine shop research (3 confirmed: AOC, USNW, Antonelli's)
+    wholefoodsmarket_findings.md — WFM catalog API open, price blocked (requires Amazon auth)
+    wholefoodsmarket_price_probe.md — WFM price probe: Amazon HTML works but bot-blocked; PA API is viable path
+    costco_findings.md         — Blocked (Akamai), no TX online wine
+    traderjoes_findings.md     — Blocked (Akamai), no inventory API
+    publix_findings.md         — Blocked (Akamai), wrong geography
 
 docs/
   superpowers/
@@ -311,3 +375,4 @@ docs/
 3. Add more Shopify local wine shops (same scraper pattern as Geraldine's, zero new code)
 4. Add more HEB stores across San Antonio (6 live, `data/heb-store-list.csv` has full list)
 5. Target scraper — Playwright probe needed first
+6. WFM prices — Amazon Product Advertising API is the cleanest path (affiliate account needed); see `data/exploration/wholefoodsmarket_price_probe.md`

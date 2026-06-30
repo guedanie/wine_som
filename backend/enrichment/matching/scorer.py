@@ -52,9 +52,13 @@ def _producer_score(brand: Optional[str], producer_name: Optional[str]) -> float
         return 0.0
     if a == b:
         return 1.0
+    a_tokens, b_tokens = set(a.split()), set(b.split())
+    # All tokens of the shorter are in the longer (e.g. "Rombauer" ⊂ "Rombauer Vineyards")
+    if a_tokens <= b_tokens or b_tokens <= a_tokens:
+        return 0.85
     if a in b or b in a:
         return 0.6
-    return _jaccard(set(a.split()), set(b.split()))
+    return _jaccard(a_tokens, b_tokens)
 
 
 def _color_score(wine_type: Optional[str], color: Optional[str]) -> float:
