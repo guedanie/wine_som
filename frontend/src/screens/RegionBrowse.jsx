@@ -7,6 +7,13 @@ import Btn from '../components/Btn.jsx';
 import { getRegionWines } from '../lib/api.js';
 import { DISCOVERY_REGIONS, deriveWineCardMeta, buildApiReq } from '../lib/regions.js';
 
+const PRICE_BANDS = [
+  { label: 'Under $20',  min: 0,   max: 20 },
+  { label: '$20 – $40',  min: 20,  max: 40 },
+  { label: '$40 – $75',  min: 40,  max: 75 },
+  { label: '$75+',       min: 75,  max: Infinity },
+];
+
 function Chip({ label, active, onClick }) {
   return (
     <button
@@ -42,16 +49,12 @@ export default function RegionBrowse() {
   // Filter state
   const [activeGrapes,    setActiveGrapes]    = useState([]);
   const [activeRetailers, setActiveRetailers] = useState([]);
-  const [priceMin,        setPriceMin]        = useState(0);
-  const [priceMax,        setPriceMax]        = useState(999);
-  const [boundsSet,       setBoundsSet]       = useState(false);
 
   async function fetchWines(z) {
     setLoading(true);
     setError(null);
     setActiveGrapes([]);
     setActiveRetailers([]);
-    setBoundsSet(false);
     try {
       const data = await getRegionWines(regionName, z);
       setRetailers(data.retailers ?? []);
@@ -64,44 +67,51 @@ export default function RegionBrowse() {
 
   useEffect(() => { fetchWines(zip); }, [zip]);
 
-  // Set price bounds once after first load
-  useEffect(() => {
-    if (boundsSet || retailers.length === 0) return;
-    const all = retailers.flatMap(s => s.wines.map(w => w.price));
-    if (!all.length) return;
-    setPriceMin(Math.floor(Math.min(...all)));
-    setPriceMax(Math.ceil(Math.max(...all)));
-    setBoundsSet(true);
-  }, [retailers, boundsSet]);
-
   function handleZipSubmit(e) {
     e.preventDefault();
     if (zipInput.length === 5) setZip(zipInput);
   }
 
+  // Flatten all wines from all retailers, dedup by wine_id keeping lowest price.
+  const allWines = useMemo(() => {
+    const seen = new Map();
+    retailers.forEach(section => {
+      section.wines.forEach(w => {
+        const existing = seen.get(w.wine_id);
+        if (!existing || w.price < existing.price) {
+          seen.set(w.wine_id, w);
+        }
+      });
+    });
+    return [...seen.values()];
+  }, [retailers]);
+
   const availableGrapes = useMemo(() => {
     const seen = new Set();
-    retailers.forEach(s => s.wines.forEach(w => { if (w.varietal) seen.add(w.varietal); }));
+    allWines.forEach(w => { if (w.varietal) seen.add(w.varietal); });
     return [...seen].sort();
-  }, [retailers]);
+  }, [allWines]);
 
   const availableRetailers = useMemo(() => retailers.map(s => s.retailer), [retailers]);
 
-  const filteredRetailers = useMemo(() => {
-    return retailers.map(section => {
-      if (activeRetailers.length > 0 && !activeRetailers.includes(section.retailer)) {
-        return { ...section, wines: [] };
-      }
-      const wines = section.wines.filter(w => {
-        if (activeGrapes.length > 0 && !activeGrapes.includes(w.varietal)) return false;
-        if (w.price < priceMin || w.price > priceMax) return false;
-        return true;
-      });
-      return { ...section, wines };
-    }).filter(s => s.wines.length > 0);
-  }, [retailers, activeGrapes, activeRetailers, priceMin, priceMax]);
+  const filteredWines = useMemo(() => {
+    return allWines.filter(w => {
+      if (activeRetailers.length > 0 && !activeRetailers.includes(w.retailer)) return false;
+      if (activeGrapes.length > 0 && !activeGrapes.includes(w.varietal)) return false;
+      return true;
+    });
+  }, [allWines, activeRetailers, activeGrapes]);
 
-  const totalVisible = filteredRetailers.reduce((n, s) => n + s.wines.length, 0);
+  const byPriceBand = useMemo(() => {
+    return PRICE_BANDS.map(band => ({
+      ...band,
+      wines: filteredWines
+        .filter(w => w.price >= band.min && w.price < band.max)
+        .sort((a, b) => a.price - b.price),
+    })).filter(band => band.wines.length > 0);
+  }, [filteredWines]);
+
+  const totalVisible = filteredWines.length;
   const hasFilters   = activeGrapes.length > 0 || activeRetailers.length > 0;
 
   function toggleGrape(g) {
@@ -116,7 +126,7 @@ export default function RegionBrowse() {
       `Wines from ${regionName}`,
       ...(activeGrapes.length ? [`Grape: ${activeGrapes.join(', ')}`] : []),
     ].join(' · ');
-    const prefs = { zip, budget: priceMax || 100, styles: [], occasion: 'Tonight', wineTypes: [], grapes: activeGrapes, freeText };
+    const prefs = { zip, budget: 100, styles: [], occasion: 'Tonight', wineTypes: [], grapes: activeGrapes, freeText };
     navigate('/recommend', { state: { prefs, apiReq: buildApiReq(prefs) } });
   }
 
@@ -158,7 +168,7 @@ export default function RegionBrowse() {
       </div>
 
       {/* Filter bar */}
-      {!loading && !error && retailers.length > 0 && (
+      {!loading && !error && allWines.length > 0 && (
         <div style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '14px 0', marginBottom: 32, display: 'flex', flexDirection: 'column', gap: 10 }}>
           {availableGrapes.length > 0 && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -176,21 +186,14 @@ export default function RegionBrowse() {
               ))}
             </div>
           )}
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--faded)', width: 52 }}>Price</span>
-            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--ink)' }}>$</span>
-            <input type="number" value={priceMin} min={0} onChange={e => setPriceMin(+e.target.value)}
-              style={{ fontFamily: 'var(--font-sans)', fontSize: 13, width: 60, border: '1.5px solid var(--border)', background: 'var(--cream-raised)', padding: '4px 8px', borderRadius: 0, outline: 'none', color: 'var(--ink)' }} />
-            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--faded)' }}>–</span>
-            <input type="number" value={priceMax} min={0} onChange={e => setPriceMax(+e.target.value)}
-              style={{ fontFamily: 'var(--font-sans)', fontSize: 13, width: 60, border: '1.5px solid var(--border)', background: 'var(--cream-raised)', padding: '4px 8px', borderRadius: 0, outline: 'none', color: 'var(--ink)' }} />
-            {hasFilters && (
+          {hasFilters && (
+            <div>
               <button onClick={() => { setActiveGrapes([]); setActiveRetailers([]); }}
-                style={{ cursor: 'pointer', background: 'none', border: 'none', fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--faded)', padding: '0 4px', textDecoration: 'underline' }}>
-                Clear
+                style={{ cursor: 'pointer', background: 'none', border: 'none', fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--faded)', padding: 0, textDecoration: 'underline' }}>
+                Clear filters
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -204,7 +207,7 @@ export default function RegionBrowse() {
       )}
 
       {/* Empty state after filtering */}
-      {!loading && !error && totalVisible === 0 && retailers.length > 0 && (
+      {!loading && !error && totalVisible === 0 && allWines.length > 0 && (
         <div style={{ padding: '48px 0', textAlign: 'center' }}>
           <div style={{ fontFamily: 'var(--font-serif)', fontSize: 24, color: 'var(--ink)', marginBottom: 10 }}>No matches</div>
           <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--faded)', marginBottom: 20 }}>
@@ -214,18 +217,18 @@ export default function RegionBrowse() {
         </div>
       )}
 
-      {/* Retailer sections */}
-      {!loading && !error && filteredRetailers.map(section => (
-        <div key={section.retailer} style={{ marginBottom: 48 }}>
+      {/* Price band sections */}
+      {!loading && !error && byPriceBand.map(band => (
+        <div key={band.label} style={{ marginBottom: 56 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
-            <Eyebrow>{section.retailer}</Eyebrow>
+            <Eyebrow>{band.label}</Eyebrow>
             <span style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
             <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--faded)' }}>
-              {section.wines.length} wine{section.wines.length !== 1 ? 's' : ''}
+              {band.wines.length} wine{band.wines.length !== 1 ? 's' : ''}
             </span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 18 }}>
-            {section.wines.map(w => {
+            {band.wines.map(w => {
               const meta = { ...deriveWineCardMeta(w), store_address: null };
               return (
                 <WineCard
@@ -240,6 +243,17 @@ export default function RegionBrowse() {
           </div>
         </div>
       ))}
+
+      {/* Ask sommelier CTA */}
+      {!loading && !error && totalVisible > 0 && (
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 32, display: 'flex', alignItems: 'center', gap: 16 }}>
+          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--faded)' }}>
+            {totalVisible} wine{totalVisible !== 1 ? 's' : ''} available near {zip}
+          </span>
+          <span style={{ flex: 1 }} />
+          <Btn onClick={handleAskSommelier}>Get a recommendation →</Btn>
+        </div>
+      )}
     </div>
   );
 }

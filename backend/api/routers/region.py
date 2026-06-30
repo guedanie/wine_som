@@ -19,30 +19,12 @@ _REGION_INVENTORY_SELECT = (
     "wine_details(flavor_profile))"
 )
 
-_FETCH_LIMIT = 500   # rows per retailer before partitioning
+_FETCH_LIMIT = 500   # rows per retailer from DB
+_PER_RETAILER_LIMIT = 40  # wines returned per retailer (sorted by price)
 
 
 def _db_region_name(region: str) -> str:
     return _REGION_ALIASES.get(region, region)
-
-
-def _price_partition(wines: List[Dict[str, Any]], n_per_tier: int = 5) -> List[Dict[str, Any]]:
-    """Return up to n_per_tier wines from each of 3 price tiers (low/mid/high)."""
-    if not wines:
-        return []
-    prices = [w["price"] for w in wines]
-    lo, hi = min(prices), max(prices)
-    if lo == hi:
-        return wines[:n_per_tier * 3]
-    span = (hi - lo) / 3
-    tiers: List[List[Dict[str, Any]]] = [[], [], []]
-    for w in wines:
-        idx = min(int((w["price"] - lo) / span), 2)
-        tiers[idx].append(w)
-    result: List[Dict[str, Any]] = []
-    for tier in tiers:
-        result.extend(tier[:n_per_tier])
-    return result
 
 
 def _row_to_wine_item(row: Dict[str, Any], retailer: str, address: Optional[str]) -> Optional[RegionWineItem]:
@@ -139,8 +121,8 @@ async def get_region_wines(
 
     retailers = []
     for rname in sorted(by_retailer.keys()):
-        partitioned = _price_partition(by_retailer[rname], n_per_tier=5)
-        wines = [RegionWineItem(**w) for w in partitioned]
+        sorted_wines = sorted(by_retailer[rname], key=lambda w: w["price"])[:_PER_RETAILER_LIMIT]
+        wines = [RegionWineItem(**w) for w in sorted_wines]
         retailers.append(RegionRetailerGroup(retailer=rname, wines=wines))
 
     return RegionResponse(region=region_name, retailers=retailers)
