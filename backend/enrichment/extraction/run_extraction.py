@@ -1,9 +1,10 @@
 """
-One-shot script: extract facts for all wines and write back to wines table.
+Extract facts (region, varietal, grapes, abv, body) for wines and write back to wines table.
 
 Usage:
     cd backend
-    python3 -m enrichment.extraction.run_extraction
+    python3 -m enrichment.extraction.run_extraction            # all wines
+    python3 -m enrichment.extraction.run_extraction --null-only  # only wines with null region
 """
 import sys
 from db import get_service_client
@@ -13,11 +14,14 @@ BATCH_SIZE = 15
 WRITE_FIELDS = ["region", "sub_region", "country", "vintage_year", "varietal", "grapes", "abv", "body"]
 
 
-def fetch_all_wines(db):
+def fetch_wines(db, null_only: bool = False):
     wines, details = [], {}
     page, limit = 0, 1000
     while True:
-        rows = db.table("wines").select("id,name,wine_type").range(page * limit, (page + 1) * limit - 1).execute()
+        q = db.table("wines").select("id,name,wine_type")
+        if null_only:
+            q = q.is_("region", "null")
+        rows = q.range(page * limit, (page + 1) * limit - 1).execute()
         if not rows.data:
             break
         wines.extend(rows.data)
@@ -55,10 +59,12 @@ def write_results(db, results):
 
 
 def main():
+    null_only = "--null-only" in sys.argv
     db = get_service_client()
 
-    print("Fetching wines + descriptions...", flush=True)
-    wines = fetch_all_wines(db)
+    mode = "null-region wines only" if null_only else "all wines"
+    print(f"Fetching wines + descriptions ({mode})...", flush=True)
+    wines = fetch_wines(db, null_only=null_only)
     print(f"  {len(wines)} wines loaded", flush=True)
 
     print("Running extractor...", flush=True)
