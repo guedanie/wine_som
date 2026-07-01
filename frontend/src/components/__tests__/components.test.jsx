@@ -41,6 +41,42 @@ describe('WineCard', () => {
     render(<WineCard wine={{ ...wine, flavors: [] }} />);
     expect(screen.getByText('Esprit de Tablas')).toBeInTheDocument();
   });
+
+  describe('WineCard feedback thumbs', () => {
+    it('renders thumb buttons when onVote is provided', () => {
+      render(<WineCard wine={wine} onVote={() => {}} vote={null} />);
+      expect(screen.getByTitle('Good pick')).toBeInTheDocument();
+      expect(screen.getByTitle('Not for me')).toBeInTheDocument();
+    });
+
+    it('does not render thumb buttons when onVote is absent', () => {
+      render(<WineCard wine={wine} />);
+      expect(screen.queryByTitle('Good pick')).not.toBeInTheDocument();
+    });
+
+    it('calls onVote with "up" when up thumb is clicked', () => {
+      const onVote = vi.fn();
+      render(<WineCard wine={wine} onVote={onVote} vote={null} />);
+      fireEvent.click(screen.getByTitle('Good pick'));
+      expect(onVote).toHaveBeenCalledWith('up');
+    });
+
+    it('calls onVote with "down" when down thumb is clicked', () => {
+      const onVote = vi.fn();
+      render(<WineCard wine={wine} onVote={onVote} vote={null} />);
+      fireEvent.click(screen.getByTitle('Not for me'));
+      expect(onVote).toHaveBeenCalledWith('down');
+    });
+
+    it('thumb click does not bubble to card onClick', () => {
+      const onVote = vi.fn();
+      const onClick = vi.fn();
+      render(<WineCard wine={wine} onClick={onClick} onVote={onVote} vote={null} />);
+      fireEvent.click(screen.getByTitle('Good pick'));
+      expect(onVote).toHaveBeenCalled();
+      expect(onClick).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe('StructureBars', () => {

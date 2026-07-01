@@ -5,7 +5,7 @@ import Eyebrow from '../components/Eyebrow.jsx';
 import Btn from '../components/Btn.jsx';
 import Stamp from '../components/Stamp.jsx';
 import WineCard from '../components/WineCard.jsx';
-import { streamRecommend } from '../lib/api.js';
+import { streamRecommend, postFeedback } from '../lib/api.js';
 import { deriveWineCardMeta } from '../lib/regions.js';
 
 const DEFAULT_FOLLOWUPS = ["Anything from Burgundy?", "What about under $30?", "Something to cellar"];
@@ -38,6 +38,8 @@ export default function ChatRecommend() {
   const navigate   = useNavigate();
   const { prefs, apiReq, _restored } = state ?? {};
 
+  const [sessionId]  = useState(() => crypto.randomUUID());
+  const [wineVotes,  setWineVotes]  = useState({});
   const [messages,   setMessages]  = useState(() => _restored?.messages ?? []);
   const [picks,      setPicks]     = useState(() => _restored?.picks    ?? []);
   const [followups,  setFollowups] = useState(DEFAULT_FOLLOWUPS);
@@ -97,6 +99,13 @@ export default function ChatRecommend() {
       setLoading(false);
       setStreaming(false);
     }
+  }
+
+  function handleWineVote(wineId, direction) {
+    const current = wineVotes[wineId] ?? null;
+    const next    = current === direction ? null : direction;
+    setWineVotes(prev => ({ ...prev, [wineId]: next }));
+    postFeedback({ type: 'wine_card', entity_id: wineId, vote: next, session_id: sessionId, zip: prefs.zip });
   }
 
   const handleFollowup = (text) => {
@@ -183,6 +192,8 @@ export default function ChatRecommend() {
                 <WineCard
                   key={pick.wine_id}
                   wine={pick}
+                  vote={wineVotes[pick.wine_id] ?? null}
+                  onVote={direction => handleWineVote(pick.wine_id, direction)}
                   onClick={() => navigate('/wine/' + pick.wine_id, {
                     state: {
                       pick,

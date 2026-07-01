@@ -46,3 +46,11 @@ export async function getRegionWines(region, zip) {
   }
   return res.json();
 }
+
+export function postFeedback(payload) {
+  fetch(`${BASE}/api/feedback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }).catch(() => {});
+}

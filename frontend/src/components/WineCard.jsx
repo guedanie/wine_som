@@ -1,6 +1,34 @@
+import { ThumbsUp, ThumbsDown } from 'lucide-react';
 import Tag from './Tag.jsx';
 
-export default function WineCard({ wine, onClick }) {
+const _THUMB_EASE = 'all 140ms cubic-bezier(.25,.46,.45,.94)';
+
+function ThumbBtn({ direction, voted, onClick }) {
+  const title = direction === 'up' ? 'Good pick' : 'Not for me';
+  const Icon  = direction === 'up' ? ThumbsUp : ThumbsDown;
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={e => { e.stopPropagation(); onClick(direction); }}
+      style={{
+        cursor: 'pointer',
+        width: 26, height: 26,
+        borderRadius: 2,
+        border: voted ? '1px solid var(--brass)' : '1px solid var(--border)',
+        background: voted ? 'var(--brass)' : 'transparent',
+        color: voted ? 'var(--cream)' : 'var(--faded)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        transition: _THUMB_EASE,
+        padding: 0,
+      }}
+    >
+      <Icon size={12} strokeWidth={1.75} />
+    </button>
+  );
+}
+
+export default function WineCard({ wine, onClick, vote, onVote }) {
   return (
     <div
       onClick={onClick}
@@ -30,6 +58,12 @@ export default function WineCard({ wine, onClick }) {
           </div>
         )}
       </div>
+      {onVote && (
+        <div style={{ padding: '7px 12px 10px', borderTop: '0.75px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+          <ThumbBtn direction="up"   voted={vote === 'up'}   onClick={onVote} />
+          <ThumbBtn direction="down" voted={vote === 'down'} onClick={onVote} />
+        </div>
+      )}
     </div>
   );
 }
