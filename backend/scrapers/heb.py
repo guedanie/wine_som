@@ -15,9 +15,11 @@ Each wine record carries:
 """
 import re
 import json
+import csv as _csv
 import urllib.request
 import urllib.error
 from typing import Optional, List, Dict, Any
+from pathlib import Path as _Path
 from dataclasses import dataclass
 
 from scrapers.base import BaseScraper, RetailInventoryItem
@@ -26,30 +28,31 @@ from utils import infer_wine_type
 GRAPHQL_URL = "https://www.heb.com/graphql"
 RETAILER_NAME = "H-E-B"
 
-# All known HEB stores, keyed by store_id string.
-# city/state drive the geo-upsert; zip is used for nearby-store lookup.
-STORE_REGISTRY: Dict[str, Dict[str, str]] = {
-    # San Antonio
-    "567": {"name": "Lincoln Heights Market H-E-B", "address": "999 East Basse Rd",         "zip": "78209", "city": "San Antonio", "state": "TX"},
-    "372": {"name": "Oak Park H-E-B",               "address": "1955 Nacogdoches",           "zip": "78209", "city": "San Antonio", "state": "TX"},
-    "585": {"name": "Austin Highway H-E-B",          "address": "1520 Austin Hwy",           "zip": "78218", "city": "San Antonio", "state": "TX"},
-    "385": {"name": "Olmos Park H-E-B",              "address": "300 Olmos Dr",               "zip": "78212", "city": "San Antonio", "state": "TX"},
-    "568": {"name": "Perrin Beitel H-E-B",           "address": "12018 Perrin Beitel Rd",    "zip": "78217", "city": "San Antonio", "state": "TX"},
-    "556": {"name": "Deco District H-E-B",           "address": "2118 Fredericksburg Rd",    "zip": "78201", "city": "San Antonio", "state": "TX"},
-    # Austin — stores within 10 mi of 78749, sorted by distance
-    "68":  {"name": "Slaughter & Escarpment H-E-B", "address": "5800 W. Slaughter Lane",    "zip": "78749", "city": "Austin",      "state": "TX"},
-    "765": {"name": "Oak Hill H-E-B",                "address": "7901 US-290",               "zip": "78735", "city": "Austin",      "state": "TX"},
-    "229": {"name": "I-35 & William Cannon H-E-B",   "address": "6607 South IH 35",          "zip": "78745", "city": "Austin",      "state": "TX"},
-    "428": {"name": "Brodie Lane H-E-B",             "address": "6900 Brodie Lane",          "zip": "78745", "city": "Austin",      "state": "TX"},
-    "227": {"name": "Slaughter & Manchaca H-E-B",    "address": "2110 West Slaughter Ln",    "zip": "78748", "city": "Austin",      "state": "TX"},
-    "710": {"name": "Slaughter & S Congress H-E-B",  "address": "8801 South Congress Ave",   "zip": "78748", "city": "Austin",      "state": "TX"},
-    "780": {"name": "Nutty Brown H-E-B",             "address": "12021 W US 290",            "zip": "78736", "city": "Austin",      "state": "TX"},
-    "754": {"name": "SoCo H-E-B",                    "address": "2400 S. Congress Ave.",     "zip": "78704", "city": "Austin",      "state": "TX"},
-    "768": {"name": "Lake Austin H-E-B",             "address": "2652 Lake Austin Blvd",     "zip": "78703", "city": "Austin",      "state": "TX"},
-    "91":  {"name": "Riverside H-E-B plus!",         "address": "2508 East Riverside Drive", "zip": "78741", "city": "Austin",      "state": "TX"},
-    "465": {"name": "7th Street H-E-B",              "address": "2701 East 7th",             "zip": "78702", "city": "Austin",      "state": "TX"},
-    "425": {"name": "Hancock Center H-E-B",          "address": "1000 East 41st",            "zip": "78751", "city": "Austin",      "state": "TX"},
-}
+_CSV_PATH = _Path(__file__).parents[2] / "data" / "heb-stores.csv"
+
+
+def _load_store_registry() -> Dict[str, Dict[str, str]]:
+    """Load active HEB stores from data/heb-stores.csv.
+
+    To add a new store: set active=true in the CSV. No code change needed.
+    """
+    registry: Dict[str, Dict[str, str]] = {}
+    with open(_CSV_PATH, newline="") as f:
+        for row in _csv.DictReader(f):
+            if row["active"].strip().lower() == "true":
+                registry[row["store_id"].strip()] = {
+                    "name":    row["name"].strip(),
+                    "address": row["address"].strip(),
+                    "zip":     row["zip"].strip(),
+                    "city":    row["city"].strip(),
+                    "state":   row["state"].strip(),
+                }
+    return registry
+
+
+# All active HEB stores, keyed by store_id string.
+# To add a store: flip active=true in data/heb-stores.csv.
+STORE_REGISTRY: Dict[str, Dict[str, str]] = _load_store_registry()
 
 # Kept for backward compatibility — callers that imported SA_STORES directly still work.
 SA_STORES = {k: v for k, v in STORE_REGISTRY.items() if v["city"] == "San Antonio"}
