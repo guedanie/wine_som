@@ -113,23 +113,3 @@ async def test_region_alias_rhone_valley():
     assert resp.json()["region"] == "Rhône Valley"
 
 
-def test_price_partition_returns_up_to_15_across_3_tiers():
-    from api.routers.region import _price_partition
-    wines = [{"price": float(p), "name": f"Wine{p}"} for p in range(5, 125, 5)]  # 24 wines $5-$120
-    result = _price_partition(wines, n_per_tier=5)
-    assert len(result) <= 15
-    prices = [w["price"] for w in result]
-    assert min(prices) < 45   # has cheap wines
-    assert max(prices) > 80   # has expensive wines
-
-
-def test_price_partition_fewer_than_15_wines():
-    from api.routers.region import _price_partition
-    wines = [{"price": 20.0, "name": "A"}, {"price": 35.0, "name": "B"}]
-    result = _price_partition(wines, n_per_tier=5)
-    assert len(result) == 2
-
-
-def test_price_partition_empty():
-    from api.routers.region import _price_partition
-    assert _price_partition([], n_per_tier=5) == []

@@ -24,11 +24,12 @@ export default function RegionDossier() {
   const navigate   = useNavigate();
   const pick      = state?.pick ?? {};
   const chatState = state?.pick?.chatState ?? state?.chatState ?? null;
+  const zip       = state?.zip ?? chatState?.prefs?.zip ?? pick?.chatState?.prefs?.zip ?? null;
 
   const [detail, setDetail] = useState(null);
 
   async function fetchDetail() {
-    try { setDetail(await getWine(id)); } catch {}
+    try { setDetail(await getWine(id, zip)); } catch {}
   }
 
   useEffect(() => { fetchDetail(); }, [id]);

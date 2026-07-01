@@ -235,7 +235,7 @@ export default function RegionBrowse() {
                   key={w.wine_id}
                   wine={meta}
                   onClick={() => navigate(`/wine/${w.wine_id}`, {
-                    state: { pick: meta, chatState: null },
+                    state: { pick: meta, chatState: null, zip },
                   })}
                 />
               );

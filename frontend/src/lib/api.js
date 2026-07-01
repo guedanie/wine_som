@@ -29,8 +29,11 @@ export async function* streamRecommend(req) {
   }
 }
 
-export async function getWine(id) {
-  const res = await fetch(`${BASE}/api/wines/${id}`);
+export async function getWine(id, zip) {
+  const url = zip
+    ? `${BASE}/api/wines/${id}?zip=${encodeURIComponent(zip)}`
+    : `${BASE}/api/wines/${id}`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }

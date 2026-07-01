@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Query
 from api.schemas import WineSearchResult
 from db import get_supabase_client
@@ -24,8 +24,11 @@ async def search_wines(
 
 
 @router.get("/{wine_id}", response_model=dict)
-async def get_wine(wine_id: str):
-    """Get a single wine with enrichment detail and all in-stock store availability."""
+async def get_wine(
+    wine_id: str,
+    zip: Optional[str] = Query(None, description="User zip code — filters availability to nearby stores"),
+):
+    """Get a single wine with enrichment detail and nearby in-stock store availability."""
     client = get_supabase_client()
     wine_result = (
         client.table("wines")
@@ -42,15 +45,26 @@ async def get_wine(wine_id: str):
     )
     data = wine_result.data or {}
 
-    inv_result = (
+    inv_q = (
         client.table("retail_inventory")
-        .select("price, stores!inner(retailer_name, address)")
+        .select("price, stores!inner(id, retailer_name, address)")
         .eq("wine_id", wine_id)
         .eq("in_stock", True)
         .gte("price", 0)
         .order("price")
-        .execute()
     )
+
+    # Filter to nearby stores when zip is provided
+    if zip:
+        from utils.geo import zip_to_centroid, find_nearby_store_ids
+        centroid = zip_to_centroid(zip)
+        if centroid:
+            nearby_ids = find_nearby_store_ids(zip, client, centroid=centroid)
+            if nearby_ids:
+                inv_q = inv_q.in_("store_ref", nearby_ids)
+
+    inv_result = inv_q.execute()
+
     seen = set()
     availability = []
     for row in (inv_result.data or []):
