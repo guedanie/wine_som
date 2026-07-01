@@ -3,7 +3,7 @@
 ## What This Is
 Full-stack wine recommendation app. Users enter zip code + budget + style preferences and get Claude-powered sommelier recommendations for wines available at local retailers near them.
 
-## Current Build Status (as of 2026-06-28)
+## Current Build Status (as of 2026-06-30)
 
 ### Done
 | Component | Location | Notes |
@@ -25,13 +25,16 @@ Full-stack wine recommendation app. Users enter zip code + budget + style prefer
 | Geo utils | `backend/utils/geo.py` | `zip_to_centroid` (pgeocode offline), `haversine`, `find_nearby_store_ids` |
 | Haiku fact extractor | `backend/enrichment/extraction/extractor.py` | Extracts region/sub_region/varietal/grapes/abv/body from name+description; 97% varietal coverage, 78% region |
 | Extraction reference | `backend/enrichment/extraction/reference.py` | Appellation→region cheat sheet, core grapes, few-shot examples |
-| Extraction runner | `backend/enrichment/extraction/run_extraction.py` | One-shot: runs extractor on all wines, writes to DB — already run on all 2213 wines |
+| Extraction runner | `backend/enrichment/extraction/run_extraction.py` | `--null-only` flag for incremental runs; run on all 11,513 wines — 8,069 have region (70%) |
 | Store coords backfill | `backend/scripts/backfill_store_coords.py` | One-time lat/lon backfill — already run, all stores geocoded |
 | Spec's scraper | `backend/scrapers/specs.py` | Pure-curl REST API, 12 SA stores, wine-only filter, ~33k inventory records seeded |
 | Wine images | `wines.image_url` (scrapers capture) | Spec's + Geraldine's CDN URLs hotlinked; HEB has none (no image in GraphQL, Imperva blocks page) |
 | Cross-retailer dedup | `backend/utils/upc.py`, `scripts/merge_duplicate_wines.py` | canonical-UPC normalization; 910 dup wine rows merged (9321→8411), 0 inventory loss; full UNIQUE CONSTRAINT (migration 11) |
 | Recommendation engine v2 | `backend/recommendation/` | Tiered pool (GrapeMinds + extractor), knowledge-based scorer (`flavor_profiles.py`), optional NL intent (`intent.py`) |
-| Test suite | `backend/tests/` | 164 passing (161 unit + 3 integration-schema vs live DB) |
+| HEB store registry | `data/heb-stores.csv` | CSV-driven active flag; 18 active stores + 37 SA/suburb staged (active=false); flip flag to add a store, no code change |
+| Weekly scrape workflow | `.github/workflows/weekly-scrape.yml` | GitHub Actions cron Sunday 02:00 CT — all 7 scrapers + `--null-only` extraction; each step independent (`continue-on-error`) |
+| requirements.txt | `backend/requirements.txt` | 17 pinned deps for reproducible CI installs |
+| Test suite | `backend/tests/` | 168 passing (165 unit + 3 integration-schema vs live DB) |
 | Frontend | `frontend/` | Vite + React 19 + Tailwind v3 — 4 screens, 59 tests passing; `npm run dev` at localhost:5173 |
 
 ### In Progress / Blocked
@@ -42,7 +45,6 @@ Full-stack wine recommendation app. Users enter zip code + budget + style prefer
 | Whole Foods scraper | Blocked — price requires Amazon auth (`offerDetails: null`); catalog open but price-less data not useful for recommendations |
 
 ### Not Started
-- Enrichment pipeline run on new wines (AOC, CM, HEB Austin, USNW, Antonelli's)
 - Spec's Austin stores (same scraper pattern, just add Austin store IDs)
 
 ---
@@ -83,9 +85,10 @@ System Python is **3.9.6**. Use `Optional[str]` from `typing`, NOT `str | None` 
 - Query: `productSearch(shoppingContext: CURBSIDE_PICKUP, query: "wine", storeId: N, limit, offset)` → paginate via `offset` (store 567 has ~1993 "wine" results)
 - Price lives at `records.SKUs[].contextPrices[]`: **ONLINE = in-store/shelf price (lower, canonical)**, **CURBSIDE = pickup+delivery price (~4% higher)** — stored in `retail_inventory.curbside_price`
 - UPC at `SKUs[].twelveDigitUPC`; `productDescription` embeds Type/Blend/Tasting Notes/ABV as light HTML
-- 18 stores total in `STORE_REGISTRY`: 6 SA (567, 372, 585, 385, 568, 556) + 12 Austin within 10mi of 78749
+- 18 stores active in `STORE_REGISTRY`: 6 SA (567, 372, 585, 385, 568, 556) + 12 Austin within 10mi of 78749
+- **Store registry is CSV-driven** — `data/heb-stores.csv` has `active` flag; flip `false→true` to add a store, no code change; 37 additional SA/suburb stores already staged
 - `SA_STORES` dict kept for backward compat; `run_full(city='Austin')` or `run_full(store_ids=[...])` to filter
-- Store list source: `data/heb-store-list.csv`
+- Store list source: `data/heb-store-list.csv` (full HEB TX list); active stores managed in `data/heb-stores.csv`
 - `robots.txt` disallows `/graphql` (politeness only — it's open); scrape responsibly with the built-in retry/backoff
 
 ### Central Market (GraphQL — same as HEB)
@@ -176,8 +179,8 @@ npm run dev
 ```bash
 cd backend
 python3 -m pytest tests/ -v
-# 155 passing (152 unit + 3 integration vs live schema).
-# Fast/secret-less run: pytest tests/ -m "not integration"  (152 passing, 3 deselected)
+# 168 passing (165 unit + 3 integration vs live schema).
+# Fast/secret-less run: pytest tests/ -m "not integration"  (165 passing, 3 deselected)
 ```
 
 ## Seeding Data
@@ -280,7 +283,7 @@ backend/
   scripts/
     backfill_store_coords.py   — One-time lat/lon backfill for existing stores
     merge_duplicate_wines.py   — One-time canonical-UPC dedup merge (idempotent, --dry-run)
-  tests/                       — 155 tests (152 unit + 3 integration vs live schema)
+  tests/                       — 168 tests (165 unit + 3 integration vs live schema)
   conftest.py                  — registers the `integration` pytest marker
   config.py                    — Pydantic settings (reads from ../.env)
   db.py                        — Supabase anon + service role clients
@@ -322,6 +325,8 @@ frontend/
   vite.config.js               — Vitest + React plugin config
 
 data/
+  heb-stores.csv               — Active HEB store registry (active flag); edit to add stores, no code change
+  heb-store-list.csv           — Full HEB TX store list (source of truth for store IDs)
   exploration/                 — API probe scripts + results (not production code)
     grapeminds_findings.md     — GrapeMinds API findings doc
     heb_probe.py / heb_api_probe.py / heb_graphql_probe.py
@@ -348,6 +353,7 @@ docs/
       2026-06-18-specs-scraper.md            — Spec's scraper implementation plan
       2026-06-20-upc-canonical-dedup.md       — UPC dedup implementation plan
       2026-06-22-recommendation-engine-v2.md  — rec engine v2 implementation plan
+      2026-06-30-scheduled-scrape-heb-expansion.md — weekly scrape workflow + CSV store registry plan
       api_info.md                             — API key status + strategy
 ```
 
@@ -370,9 +376,13 @@ docs/
 ---
 
 ## What's Next (priority order)
-1. Sommelier agent routing — integrate `/Users/danielguerrero/Downloads/sommelier_agent_routing.md` into `backend/recommendation/claude_client.py` system prompt (3-mode: Recommend / Education / Pairing)
-2. Local MCP server for Claude Desktop (parked) — read-only tools over the catalog, anon key, narrow tools; see memory `mcp-desktop-parked`
-3. Add more Shopify local wine shops (same scraper pattern as Geraldine's, zero new code)
-4. Add more HEB stores across San Antonio (6 live, `data/heb-store-list.csv` has full list)
-5. Target scraper — Playwright probe needed first
-6. WFM prices — Amazon Product Advertising API is the cleanest path (affiliate account needed); see `data/exploration/wholefoodsmarket_price_probe.md`
+1. ~~Sommelier agent routing~~ ✅ Done
+2. ~~Scheduled scrape + extraction pipeline~~ ✅ Done — GitHub Actions cron Sunday 02:00 CT; see `.github/workflows/weekly-scrape.yml`
+3. ~~HEB store expansion (CSV-driven)~~ ✅ Done — 37 SA/suburb stores staged in `data/heb-stores.csv`; flip `active=true` to enable any
+4. Local MCP server for Claude Desktop (parked) — read-only tools over the catalog, anon key, narrow tools; see memory `mcp-desktop-parked`
+5. Add more Shopify local wine shops (same scraper pattern as Geraldine's, zero new code)
+6. Spec's Austin stores (same scraper pattern, just add Austin store IDs)
+7. Target scraper — Playwright probe needed first
+8. WFM prices — Amazon Product Advertising API is the cleanest path (affiliate account needed); see `data/exploration/wholefoodsmarket_price_probe.md`
+9. Local LLM for fact extraction — benchmark a local model (Ollama + Llama 3 / Mistral) against the Haiku extractor on region/varietal/grapes accuracy; goal is zero per-call cost for the extraction pipeline so re-enrichment on new scraper runs is free
+10. Deploy — Railway (backend) + Vercel (frontend); add CORS origin, set env vars in Railway dashboard
