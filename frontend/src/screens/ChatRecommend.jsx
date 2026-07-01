@@ -1,6 +1,7 @@
 // frontend/src/screens/ChatRecommend.jsx
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
+import { ThumbsUp, ThumbsDown } from 'lucide-react';
 import Eyebrow from '../components/Eyebrow.jsx';
 import Btn from '../components/Btn.jsx';
 import Stamp from '../components/Stamp.jsx';
@@ -10,14 +11,44 @@ import { deriveWineCardMeta } from '../lib/regions.js';
 
 const DEFAULT_FOLLOWUPS = ["Anything from Burgundy?", "What about under $30?", "Something to cellar"];
 
-function SommelierBubble({ children }) {
+function SommelierBubble({ children, vote, onVote }) {
   return (
     <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start', marginBottom: 14 }}>
       <div style={{ width: 32, height: 32, borderRadius: '50%', flex: 'none', background: 'var(--bordeaux)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <Stamp size={20} reversed />
       </div>
-      <div style={{ background: 'var(--cream-raised)', border: '1px solid var(--border)', borderRadius: '4px 14px 14px 14px', padding: '13px 15px', fontFamily: 'var(--font-sans)', fontSize: 14, lineHeight: 1.55, color: 'var(--ink-2)' }}>
-        {children}
+      <div style={{ flex: 1 }}>
+        <div style={{ background: 'var(--cream-raised)', border: '1px solid var(--border)', borderRadius: '4px 14px 14px 14px', padding: '13px 15px', fontFamily: 'var(--font-sans)', fontSize: 14, lineHeight: 1.55, color: 'var(--ink-2)' }}>
+          {children}
+        </div>
+        {onVote && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, paddingLeft: 4 }}>
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, letterSpacing: '0.06em', color: 'var(--faded)' }}>Was this useful?</span>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {[['up', ThumbsUp, 'Helpful', 'var(--sage)'], ['down', ThumbsDown, 'Not helpful', 'var(--bordeaux)']].map(([dir, Icon, label, activeColor]) => (
+                <button
+                  key={dir}
+                  type="button"
+                  title={label}
+                  onClick={e => { e.stopPropagation(); onVote(dir); }}
+                  style={{
+                    cursor: 'pointer',
+                    width: 24, height: 24,
+                    borderRadius: 2,
+                    border: vote === dir ? `1px solid ${activeColor}` : '1px solid var(--border)',
+                    background: vote === dir ? activeColor : 'transparent',
+                    color: vote === dir ? 'var(--cream)' : 'var(--faded)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    transition: 'all 140ms cubic-bezier(.25,.46,.45,.94)',
+                    padding: 0,
+                  }}
+                >
+                  <Icon size={11} strokeWidth={1.75} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -40,6 +71,7 @@ export default function ChatRecommend() {
 
   const [sessionId]  = useState(() => crypto.randomUUID());
   const [wineVotes,  setWineVotes]  = useState({});
+  const [messageVotes, setMessageVotes] = useState({});
   const [messages,   setMessages]  = useState(() => _restored?.messages ?? []);
   const [picks,      setPicks]     = useState(() => _restored?.picks    ?? []);
   const [followups,  setFollowups] = useState(DEFAULT_FOLLOWUPS);
@@ -58,7 +90,7 @@ export default function ChatRecommend() {
     parts.push('under $' + prefs.budget);
     parts.push(prefs.occasion.toLowerCase());
     if (prefs.freeText?.trim())  parts.push(prefs.freeText.trim());
-    setMessages([{ role: 'user', text: parts.join(' · ') }]);
+    setMessages([{ id: crypto.randomUUID(), role: 'user', text: parts.join(' · ') }]);
     callRecommend(apiReq);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -77,7 +109,7 @@ export default function ChatRecommend() {
             firstToken = false;
             setLoading(false);
             setStreaming(true);
-            setMessages(prev => [...prev, { role: 'sommelier', text: event.text }]);
+            setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'sommelier', text: event.text }]);
           } else {
             setMessages(prev => {
               const msgs = [...prev];
@@ -108,10 +140,25 @@ export default function ChatRecommend() {
     postFeedback({ type: 'wine_card', entity_id: wineId, vote: next, session_id: sessionId, zip: prefs.zip });
   }
 
+  function handleMessageVote(messageId, direction) {
+    const current = messageVotes[messageId] ?? null;
+    const next    = current === direction ? null : direction;
+    setMessageVotes(prev => ({ ...prev, [messageId]: next }));
+    if (direction === 'down' && current !== 'down') {
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        role: 'sommelier',
+        text: "Noted — what didn't land? The **grape variety**, the **price point**, or the **region**?",
+        noFeedback: true,
+      }]);
+    }
+    postFeedback({ type: 'sommelier_message', entity_id: messageId, vote: next, session_id: sessionId, zip: prefs.zip });
+  }
+
   const handleFollowup = (text) => {
     if (loading || streaming || !text.trim()) return;
     const history = messages.map(m => ({ role: m.role, content: m.text }));
-    setMessages(prev => [...prev, { role: 'user', text }]);
+    setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text }]);
     callRecommend({ ...apiReq, message: text, conversation_history: history });
   };
 
@@ -127,13 +174,17 @@ export default function ChatRecommend() {
         <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
           {messages.map((m, i) =>
             m.role === 'user'
-              ? <UserBubble key={i}>{m.text}</UserBubble>
-              : <SommelierBubble key={i}>
+              ? <UserBubble key={m.id ?? i}>{m.text}</UserBubble>
+              : <SommelierBubble
+                  key={m.id ?? i}
+                  vote={messageVotes[m.id] ?? null}
+                  onVote={m.noFeedback ? undefined : dir => handleMessageVote(m.id, dir)}
+                >
                   {m.text.split('\n\n').map((para, j) => (
                     <p key={j} style={{ margin: j > 0 ? '10px 0 0' : 0 }}>
                       {para.split(/\*\*([^*]+)\*\*/g).map((part, k) =>
                         k % 2 === 1
-                          ? <strong key={k} style={{ fontFamily: 'var(--font-serif)', fontWeight: 600 }}>{part}</strong>
+                          ? <strong key={k} style={{ color: 'var(--bordeaux)' }}>{part}</strong>
                           : part
                       )}
                     </p>

@@ -10,7 +10,7 @@ vi.mock('react-router-dom', async () => {
   return { ...actual, useNavigate: () => mockNavigate };
 });
 
-vi.mock('../../lib/api.js', () => ({ streamRecommend: vi.fn() }));
+vi.mock('../../lib/api.js', () => ({ streamRecommend: vi.fn(), postFeedback: vi.fn() }));
 import { streamRecommend } from '../../lib/api.js';
 
 const prefs  = { zip: '78209', budget: 60, styles: ['Bold & Tannic'], occasion: 'Tonight' };
@@ -86,6 +86,36 @@ it('navigates to /wine/:id with pick state when a WineCard is clicked', async ()
   expect(mockNavigate).toHaveBeenCalledWith('/wine/uuid-1', expect.objectContaining({
     state: expect.objectContaining({ pick: expect.objectContaining({ wine_id: 'uuid-1' }) }),
   }));
+});
+
+it('shows "Was this useful?" row under sommelier messages', async () => {
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'Here are your picks.' };
+  });
+  renderScreen();
+  await waitFor(() => expect(screen.getByText('Here are your picks.')).toBeInTheDocument());
+  expect(screen.getByText('Was this useful?')).toBeInTheDocument();
+});
+
+it('appends follow-up bubble on thumbs-down of sommelier message', async () => {
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'Here are your picks.' };
+  });
+  renderScreen();
+  await waitFor(() => expect(screen.getByText('Was this useful?')).toBeInTheDocument());
+  await userEvent.click(screen.getByTitle('Not helpful'));
+  expect(screen.getByText(/what didn't land/i)).toBeInTheDocument();
+});
+
+it('does not append a second follow-up when toggling thumbs-down off', async () => {
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'Here are your picks.' };
+  });
+  renderScreen();
+  await waitFor(() => expect(screen.getByText('Was this useful?')).toBeInTheDocument());
+  await userEvent.click(screen.getByTitle('Not helpful'));
+  await userEvent.click(screen.getByTitle('Not helpful')); // toggle off
+  expect(screen.getAllByText(/what didn't land/i)).toHaveLength(1);
 });
 
 it('does not call streamRecommend when _restored state is provided', async () => {
