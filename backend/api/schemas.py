@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from pydantic import BaseModel
 
 
@@ -64,3 +64,12 @@ class RecommendResponse(BaseModel):
     narrative: str
     picks: List[WinePick]
     session_id: str
+
+
+class FeedbackRequest(BaseModel):
+    type: Literal["wine_card", "sommelier_message"]
+    entity_id: str
+    vote: Optional[Literal["up", "down"]] = None
+    session_id: str
+    user_id: Optional[str] = None
+    zip: Optional[str] = None
