@@ -379,10 +379,15 @@ docs/
 1. ~~Sommelier agent routing~~ ✅ Done
 2. ~~Scheduled scrape + extraction pipeline~~ ✅ Done — GitHub Actions cron Sunday 02:00 CT; see `.github/workflows/weekly-scrape.yml`
 3. ~~HEB store expansion (CSV-driven)~~ ✅ Done — 37 SA/suburb stores staged in `data/heb-stores.csv`; flip `active=true` to enable any
-4. Local MCP server for Claude Desktop (parked) — read-only tools over the catalog, anon key, narrow tools; see memory `mcp-desktop-parked`
-5. Add more Shopify local wine shops (same scraper pattern as Geraldine's, zero new code)
-6. Spec's Austin stores (same scraper pattern, just add Austin store IDs)
-7. Target scraper — Playwright probe needed first
-8. WFM prices — Amazon Product Advertising API is the cleanest path (affiliate account needed); see `data/exploration/wholefoodsmarket_price_probe.md`
-9. Local LLM for fact extraction — benchmark a local model (Ollama + Llama 3 / Mistral) against the Haiku extractor on region/varietal/grapes accuracy; goal is zero per-call cost for the extraction pipeline so re-enrichment on new scraper runs is free
-10. Deploy — Railway (backend) + Vercel (frontend); add CORS origin, set env vars in Railway dashboard
+4. **Feedback loop** — thumbs up/down on wine cards (Pattern A) + sommelier messages (Pattern B); thumbs-down on message triggers follow-up "what didn't land?"; high-fidelity designs in `/Users/danielguerrero/Downloads/design_handoff_feedback_capture/`; needs `POST /api/feedback` endpoint + `feedback` Supabase table
+5. **User accounts** — Supabase Auth (already in stack); enables saved favorites, recommendation history, and ties feedback to a user identity; prerequisite for price alerts
+6. **Price alerts + promo scraping** — notify when a saved wine drops in price; scrape sale/promo prices where available (Spec's `unitPricePromoDiscount` already captured; HEB ONLINE vs CURBSIDE delta already stored)
+7. **Analytics** — PostHog free tier; track region clicks, style popularity, recommendation → dossier conversion, drop-off points
+8. **Ratings integration** — pull Vivino or Wine Spectator scores to add credibility to picks; Vivino has an unofficial API, WS requires a license
+9. Local MCP server for Claude Desktop (parked) — read-only tools over the catalog, anon key, narrow tools; see memory `mcp-desktop-parked`
+10. Add more Shopify local wine shops (same scraper pattern as Geraldine's, zero new code)
+11. Spec's Austin stores (same scraper pattern, just add Austin store IDs)
+12. Target scraper — Playwright probe needed first
+13. WFM prices — Amazon Product Advertising API is the cleanest path (affiliate account needed); see `data/exploration/wholefoodsmarket_price_probe.md`
+14. Local LLM for fact extraction — benchmark a local model (Ollama + Llama 3 / Mistral) against the Haiku extractor on region/varietal/grapes accuracy; goal is zero per-call cost for the extraction pipeline so re-enrichment on new scraper runs is free
+15. Deploy — Railway (backend) + Vercel (frontend); add CORS origin, set env vars in Railway dashboard
