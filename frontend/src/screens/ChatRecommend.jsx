@@ -113,7 +113,7 @@ export default function ChatRecommend() {
           } else {
             setMessages(prev => {
               const msgs = [...prev];
-              msgs[msgs.length - 1] = { role: 'sommelier', text: msgs[msgs.length - 1].text + event.text };
+              msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], text: msgs[msgs.length - 1].text + event.text };
               return msgs;
             });
           }
