@@ -69,9 +69,9 @@ export default function ChatRecommend() {
   const navigate   = useNavigate();
   const { prefs, apiReq, _restored } = state ?? {};
 
-  const [sessionId]  = useState(() => crypto.randomUUID());
-  const [wineVotes,  setWineVotes]  = useState({});
-  const [messageVotes, setMessageVotes] = useState({});
+  const [sessionId]    = useState(() => _restored?.sessionId    ?? crypto.randomUUID());
+  const [wineVotes,    setWineVotes]    = useState(() => _restored?.wineVotes    ?? {});
+  const [messageVotes, setMessageVotes] = useState(() => _restored?.messageVotes ?? {});
   const [messages,   setMessages]  = useState(() => _restored?.messages ?? []);
   const [picks,      setPicks]     = useState(() => _restored?.picks    ?? []);
   const [followups,  setFollowups] = useState(DEFAULT_FOLLOWUPS);
@@ -248,7 +248,7 @@ export default function ChatRecommend() {
                   onClick={() => navigate('/wine/' + pick.wine_id, {
                     state: {
                       pick,
-                      chatState: { messages, picks, prefs, apiReq },
+                      chatState: { messages, picks, prefs, apiReq, sessionId, wineVotes, messageVotes },
                     },
                   })}
                 />
