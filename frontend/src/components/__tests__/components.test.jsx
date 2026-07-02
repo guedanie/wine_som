@@ -80,11 +80,37 @@ describe('WineCard', () => {
 });
 
 describe('StructureBars', () => {
-  const items = [['Body', 'Full', 0.8], ['Tannin', 'High', 0.7]];
-  it('renders all bar labels', () => {
-    render(<StructureBars items={items} />);
-    expect(screen.getByText('Body')).toBeInTheDocument();
-    expect(screen.getByText('Tannin')).toBeInTheDocument();
+  const items = [['Body', 'Med-Full', 0.8], ['Tannin', 'Firm', 0.7]];
+
+  describe('ruler variant (default)', () => {
+    it('renders all labels', () => {
+      render(<StructureBars items={items} />);
+      expect(screen.getByText('Body')).toBeInTheDocument();
+      expect(screen.getByText('Tannin')).toBeInTheDocument();
+    });
+    it('renders numeric value markers', () => {
+      render(<StructureBars items={items} />);
+      expect(screen.getByText('80')).toBeInTheDocument();
+      expect(screen.getByText('70')).toBeInTheDocument();
+    });
+  });
+
+  describe('segmented variant', () => {
+    it('renders all labels', () => {
+      render(<StructureBars items={items} variant="segmented" />);
+      expect(screen.getByText('Body')).toBeInTheDocument();
+      expect(screen.getByText('Tannin')).toBeInTheDocument();
+    });
+    it('renders scale labels Low/Med/High/Max', () => {
+      render(<StructureBars items={items} variant="segmented" />);
+      expect(screen.getAllByText('Low').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('Max').length).toBeGreaterThan(0);
+    });
+    it('renders numeric value right of label', () => {
+      render(<StructureBars items={items} variant="segmented" />);
+      // 0.8 * 100 = 80, 0.7 * 100 = 70
+      expect(screen.getByText('80')).toBeInTheDocument();
+    });
   });
 });
 
