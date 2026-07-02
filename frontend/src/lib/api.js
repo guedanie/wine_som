@@ -54,3 +54,35 @@ export function postFeedback(payload) {
     body: JSON.stringify(payload),
   }).catch(() => {});
 }
+
+export async function* streamSomm({ wine, message, history }) {
+  let resp;
+  try {
+    resp = await fetch(`${BASE}/api/somm`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wine, message, history }),
+    });
+  } catch {
+    yield { type: 'error', message: 'Connection failed' };
+    return;
+  }
+  if (!resp.ok) { yield { type: 'error', message: 'Somm unavailable' }; return; }
+  const reader = resp.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const parts = buf.split('\n\n');
+    buf = parts.pop();
+    for (const part of parts) {
+      const line = part.trim();
+      if (!line.startsWith('data:')) continue;
+      const raw = line.slice(5).trim();
+      if (raw === '[DONE]') return;
+      try { yield JSON.parse(raw); } catch {}
+    }
+  }
+}
