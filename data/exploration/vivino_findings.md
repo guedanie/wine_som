@@ -1,6 +1,6 @@
 # Vivino API Findings
 
-**Probed:** 2026-07-01  
+**Probed:** 2026-07-01 (second probe same day — name-search path found)  
 **Method:** curl, no auth, standard browser headers
 
 ---
@@ -168,5 +168,55 @@ No rate limiting observed in rapid sequential requests. The API is open and does
 - **`?wine_id[]=N`** → ❌ 400 error. Not a supported filter param.
 - **`?winery_id[]=N`** → ✅ 200, works. But you need the correct Vivino winery ID. IDs are not discoverable from the explore endpoint — must be extracted from Vivino winery page URLs (e.g. `vivino.com/wineries/tablas-creek-winery` → scrape or parse the page to get the numeric ID). Once you have the winery ID, `?winery_id[]={id}` returns all vintages for that winery sorted by rating.
 - **`q=` search** → confirmed popularity-ranked, not relevance-ranked. `q=tablas+creek+esprit` returns Schrader, Hundred Acre, Colgin — completely unrelated high-rated wines. Not usable for name matching without a separate winery ID discovery step.
-- **Practical matching path**: (1) From winery name in our DB, scrape `vivino.com/search/wines?q={winery_name}` or `vivino.com/wineries/{seo-slug}` to get winery ID. (2) Call `explore?winery_id[]={id}` to get all wines. (3) Fuzzy-match wine name against our catalog. This is a 2–3 step pipeline per winery, not a simple 1-shot lookup.
+- **Practical matching path** → superseded by the HTML search route below (second probe).
 - **Full `type_id` mapping** → needs verification. Confirmed: 1=Red, 2=White. Others (Rosé, Sparkling, Fortified, Orange) unknown.
+
+---
+
+## Second Probe: Name Lookup Works via HTML Search (the real answer)
+
+**Q: Is `wine_id` proprietary? Can we look up by wine name?**
+
+`wine_id` is Vivino's internal ID — not a UPC or any external standard. It can't be
+derived; it must be resolved. The Medium-article pattern (`/api/wines/search?q=`)
+is dead — that endpoint 404s now; the article predates the lockdown. The old public
+Algolia index (`9TAKGWJUXL` / WINES) is also dead (404 — key rotated or index gone).
+
+**But the HTML search page does true relevance-ranked name search:**
+
+```
+GET https://www.vivino.com/search/wines?q={url-encoded wine name}
+```
+
+- Returns 200 HTML (~2 MB). Wine results appear as `/w/{wine_id}` links.
+- **First hit is the right wine**, and the URL slug is self-validating — it contains
+  producer + wine name, so a string-similarity check against our catalog confirms
+  the match without another request:
+
+| Query | Top hit slug | wine_id |
+|---|---|---|
+| `esprit de tablas` | `/en/tablas-creek-vineyard-esprit-de-tablas/w/2758387?year=2021` | 2758387 |
+| `altesino brunello di montalcino` | `/en/altesino-brunello-di-montalcino/w/77471?year=2012` | 77471 |
+| `la crema sonoma coast pinot noir` | `/en/la-crema-sonoma-coast-pinot-noir/w/9108?year=2023` | 9108 |
+| `kim crawford sauvignon blanc` | `/en/kim-crawford-sauvignon-blanc/w/66534?year=2025` | 66534 |
+| `caymus cabernet sauvignon` | (empty — transient; retry needed) | — |
+
+3/4 clean first-hit matches; the slug even carries the latest vintage `year`.
+
+**The wine page (`/w/{id}`) embeds full JSON** — no API call needed:
+
+- `ratings_average` / `ratings_count` at **vintage level** (2021 Esprit: 4.2, 74 reviews)
+  AND **wine level, all vintages** (26,908 reviews) — use wine-level for the credibility badge
+- `taste.structure`: acidity 3.74, intensity 4.53, sweetness 1.59, tannin 3.52 (1–5 scale)
+- `taste.flavor` groups with keywords
+- Bottle image CDN URLs
+
+### Revised integration path (simpler than the winery pipeline)
+
+1. `GET /search/wines?q={name}` → extract first `/w/{id}` link → validate slug vs our
+   wine name (string similarity, no LLM needed for clear matches)
+2. `GET` the wine page → parse embedded JSON for ratings/structure/flavors
+3. Store `vivino_wine_id` so re-enrichment skips step 1
+
+Two HTML requests per wine, once. ~8,400 wines ≈ 17k requests total at 1 req/s ≈ 5 hrs,
+or enrich lazily (only wines that appear in recommendations/dossiers).
