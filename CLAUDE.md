@@ -3,7 +3,7 @@
 ## What This Is
 Full-stack wine recommendation app. Users enter zip code + budget + style preferences and get Claude-powered sommelier recommendations for wines available at local retailers near them.
 
-## Current Build Status (as of 2026-06-30)
+## Current Build Status (as of 2026-07-01)
 
 ### Done
 | Component | Location | Notes |
@@ -34,8 +34,13 @@ Full-stack wine recommendation app. Users enter zip code + budget + style prefer
 | HEB store registry | `data/heb-stores.csv` | CSV-driven active flag; 18 active stores + 37 SA/suburb staged (active=false); flip flag to add a store, no code change |
 | Weekly scrape workflow | `.github/workflows/weekly-scrape.yml` | GitHub Actions cron Sunday 02:00 CT — all 7 scrapers + `--null-only` extraction; each step independent (`continue-on-error`) |
 | requirements.txt | `backend/requirements.txt` | 17 pinned deps for reproducible CI installs |
-| Test suite | `backend/tests/` | 168 passing (165 unit + 3 integration-schema vs live DB) |
-| Frontend | `frontend/` | Vite + React 19 + Tailwind v3 — 4 screens, 59 tests passing; `npm run dev` at localhost:5173 |
+| Feedback loop | `backend/api/routers/feedback.py`, `supabase/migrations/20260630000001_feedback_table.sql` | `POST /api/feedback` + `feedback` Supabase table; Pattern A (wine card thumbs) + Pattern B (sommelier message thumbs + follow-up bubble); session-scoped votes with toggle support |
+| Somm overlay | `frontend/src/components/SommOverlay.jsx`, `backend/api/routers/somm.py` | FAB + 400px slide-in chat panel; wine-context Claude Haiku system prompt; suggestion chips (red vs white set); Pattern B feedback; chat history persists across close/reopen |
+| StructureBars v2 | `frontend/src/components/StructureBars.jsx` | `variant="ruler"` (SVG editorial ruler, brass fill, bordeaux marker — default for dossier) + `variant="segmented"` (20-segment discrete track — for compact contexts) |
+| Poster Option B | `frontend/src/components/Poster.jsx` | Above-frame header (country · rule · coord mono); below-frame footer (serif 32px name + compass rose SVG + subregion); `REGION_META` lookup added to `regions.js` |
+| Ask Somm endpoint | `backend/api/routers/somm.py` | `POST /api/somm` — streaming SSE, Haiku, wine-context system prompt, history support; empty message → opening statement |
+| Test suite | `backend/tests/` | 175 passing (172 unit + 3 integration-schema vs live DB) |
+| Frontend | `frontend/` | Vite + React 19 + Tailwind v3 — 4 screens, 116 tests passing; `npm run dev` at localhost:5173 |
 
 ### In Progress / Blocked
 | Item | Status |
@@ -256,7 +261,9 @@ backend/
     routers/wines.py           — /api/wines/search + /api/wines/:id
     routers/enrichment.py      — /api/enrich/:id + /api/enrich/batch/pending
     routers/recommend.py       — /api/recommend (tiered candidate pool + NL intent merge, Claude Haiku tool-use, radius store lookup)
-    schemas.py                 — Pydantic request/response models
+    routers/feedback.py        — POST /api/feedback (upsert vote by session+entity+type; toggle support)
+    routers/somm.py            — POST /api/somm (streaming SSE; wine-context Haiku; empty message → opener)
+    schemas.py                 — Pydantic request/response models (incl. FeedbackRequest, SommWineContext, SommRequest)
   enrichment/
     grapeminds.py              — GrapeMinds API client (curl subprocess)
     pipeline.py                — Enrichment orchestrator + two-step warm-up
@@ -283,7 +290,7 @@ backend/
   scripts/
     backfill_store_coords.py   — One-time lat/lon backfill for existing stores
     merge_duplicate_wines.py   — One-time canonical-UPC dedup merge (idempotent, --dry-run)
-  tests/                       — 168 tests (165 unit + 3 integration vs live schema)
+  tests/                       — 175 tests (172 unit + 3 integration vs live schema)
   conftest.py                  — registers the `integration` pytest marker
   config.py                    — Pydantic settings (reads from ../.env)
   db.py                        — Supabase anon + service role clients
@@ -304,21 +311,24 @@ supabase/
     20260620000001_wine_image_url.sql       — wines.image_url
     20260620000002_wine_upc_canonical.sql   — wines.upc_canonical column
     20260620000003_wines_upc_canonical_index.sql — partial UNIQUE index on upc_canonical
+    20260630000001_feedback_table.sql           — feedback table (type/entity_id/vote/session_id/user_id/zip); RLS + service_role grant
 
 frontend/
   src/
     lib/
-      api.js                   — getWine, callRecommend fetch wrappers
-      regions.js               — DISCOVERY_REGIONS, REGION_POSTERS, buildApiReq, deriveWineCardMeta
+      api.js                   — getWine, callRecommend, streamRecommend, postFeedback, streamSomm fetch wrappers
+      regions.js               — DISCOVERY_REGIONS (+ country/subregion), REGION_META, REGION_POSTERS, buildApiReq, deriveWineCardMeta
     components/
-      Btn.jsx Eyebrow.jsx Tag.jsx StructureBars.jsx  — shared design-system atoms
+      Btn.jsx Eyebrow.jsx Tag.jsx  — shared design-system atoms
+      StructureBars.jsx        — variant="ruler" (SVG editorial, default) | variant="segmented" (20-seg discrete); items=[label,desc,value] tuples
       Contours.jsx             — procedural SVG contour map (connective motif)
-      Poster.jsx               — matted region poster (3:4, ink/brass frame, striped fallback)
-      WineCard.jsx             — editorial wine card (ink frame, brass keyline, flavor tags)
+      Poster.jsx               — Option B: above-frame header (country·rule·coord) + compass rose footer; `REGION_META` drives metadata
+      WineCard.jsx             — editorial wine card (ink frame, brass keyline, flavor tags, Pattern A thumbs)
+      SommOverlay.jsx          — FAB + 400px slide-in chat panel; wine context strip; streaming chat; Pattern B thumbs; suggestion chips; history persists on close
     screens/
       PreferenceCapture.jsx    — zip + budget + style cards + occasion toggle → /recommend
-      ChatRecommend.jsx        — sommelier chat left, WineCards right; navigates to /wine/:id
-      RegionDossier.jsx        — wine dossier: poster, tasting notes, structure bars, store row
+      ChatRecommend.jsx        — sommelier chat left, WineCards right; Pattern B message feedback; sessionId + vote state persisted across dossier round-trip
+      RegionDossier.jsx        — wine dossier: Poster (Option B), ruler StructureBars, store row, SommOverlay wired with wine context
       Discovery.jsx            — 18-region grid (10 Tier 1 + 8 Tier 2), click → /recommend
     App.jsx                    — NavBar + react-router-dom v7 routes
   design-system/               — design tokens, UI kit reference components, poster assets
@@ -354,6 +364,7 @@ docs/
       2026-06-20-upc-canonical-dedup.md       — UPC dedup implementation plan
       2026-06-22-recommendation-engine-v2.md  — rec engine v2 implementation plan
       2026-06-30-scheduled-scrape-heb-expansion.md — weekly scrape workflow + CSV store registry plan
+      2026-07-01-somm-overlay-design-refresh.md — somm overlay + StructureBars v2 + Poster Option B implementation plan
       api_info.md                             — API key status + strategy
 ```
 
@@ -379,15 +390,16 @@ docs/
 1. ~~Sommelier agent routing~~ ✅ Done
 2. ~~Scheduled scrape + extraction pipeline~~ ✅ Done — GitHub Actions cron Sunday 02:00 CT; see `.github/workflows/weekly-scrape.yml`
 3. ~~HEB store expansion (CSV-driven)~~ ✅ Done — 37 SA/suburb stores staged in `data/heb-stores.csv`; flip `active=true` to enable any
-4. **Feedback loop** — thumbs up/down on wine cards (Pattern A) + sommelier messages (Pattern B); thumbs-down on message triggers follow-up "what didn't land?"; high-fidelity designs in `/Users/danielguerrero/Downloads/design_handoff_feedback_capture/`; needs `POST /api/feedback` endpoint + `feedback` Supabase table
-5. **User accounts** — Supabase Auth (already in stack); enables saved favorites, recommendation history, and ties feedback to a user identity; prerequisite for price alerts
-6. **Price alerts + promo scraping** — notify when a saved wine drops in price; scrape sale/promo prices where available (Spec's `unitPricePromoDiscount` already captured; HEB ONLINE vs CURBSIDE delta already stored)
-7. **Analytics** — PostHog free tier; track region clicks, style popularity, recommendation → dossier conversion, drop-off points
-8. **Ratings integration** — pull Vivino or Wine Spectator scores to add credibility to picks; Vivino has an unofficial API, WS requires a license
-9. Local MCP server for Claude Desktop (parked) — read-only tools over the catalog, anon key, narrow tools; see memory `mcp-desktop-parked`
-10. Add more Shopify local wine shops (same scraper pattern as Geraldine's, zero new code)
-11. Spec's Austin stores (same scraper pattern, just add Austin store IDs)
-12. Target scraper — Playwright probe needed first
-13. WFM prices — Amazon Product Advertising API is the cleanest path (affiliate account needed); see `data/exploration/wholefoodsmarket_price_probe.md`
-14. Local LLM for fact extraction — benchmark a local model (Ollama + Llama 3 / Mistral) against the Haiku extractor on region/varietal/grapes accuracy; goal is zero per-call cost for the extraction pipeline so re-enrichment on new scraper runs is free
-15. Deploy — Railway (backend) + Vercel (frontend); add CORS origin, set env vars in Railway dashboard
+4. ~~Feedback loop~~ ✅ Done — Pattern A (wine card thumbs) + Pattern B (sommelier message thumbs + follow-up bubble); `POST /api/feedback` + `feedback` table live; session-scoped votes persist across dossier round-trip
+5. ~~Somm overlay + design refresh~~ ✅ Done — `SommOverlay` FAB + slide-in chat panel on dossier; `POST /api/somm` streaming; StructureBars ruler/segmented variants; Poster Option B with compass rose
+6. **User accounts** — Supabase Auth (already in stack); enables saved favorites, recommendation history, and ties feedback to a user identity; prerequisite for price alerts
+7. **Price alerts + promo scraping** — notify when a saved wine drops in price; scrape sale/promo prices where available (Spec's `unitPricePromoDiscount` already captured; HEB ONLINE vs CURBSIDE delta already stored)
+8. **Analytics** — PostHog free tier; track region clicks, style popularity, recommendation → dossier conversion, drop-off points
+9. **Ratings integration** — pull Vivino or Wine Spectator scores to add credibility to picks; Vivino has an unofficial API, WS requires a license
+10. Local MCP server for Claude Desktop (parked) — read-only tools over the catalog, anon key, narrow tools; see memory `mcp-desktop-parked`
+11. Add more Shopify local wine shops (same scraper pattern as Geraldine's, zero new code)
+12. Spec's Austin stores (same scraper pattern, just add Austin store IDs)
+13. Target scraper — Playwright probe needed first
+14. WFM prices — Amazon Product Advertising API is the cleanest path (affiliate account needed); see `data/exploration/wholefoodsmarket_price_probe.md`
+15. Local LLM for fact extraction — benchmark a local model (Ollama + Llama 3 / Mistral) against the Haiku extractor on region/varietal/grapes accuracy; goal is zero per-call cost for the extraction pipeline so re-enrichment on new scraper runs is free
+16. Deploy — Railway (backend) + Vercel (frontend); add CORS origin, set env vars in Railway dashboard
