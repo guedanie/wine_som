@@ -49,13 +49,13 @@ def fetch_wines(db, null_only: bool = False):
     return rows_for_extraction
 
 
-def write_results(db, results):
-    written = 0
+def write_batch(db, results):
     for r in results:
         payload = {f: r.get(f) for f in WRITE_FIELDS}
-        db.table("wines").update(payload).eq("id", r["wine_id"]).execute()
-        written += 1
-    return written
+        try:
+            db.table("wines").update(payload).eq("id", r["wine_id"]).execute()
+        except Exception as e:
+            print(f"  write failed for {r['wine_id']}: {e}", flush=True)
 
 
 def main():
@@ -65,15 +65,19 @@ def main():
     mode = "null-region wines only" if null_only else "all wines"
     print(f"Fetching wines + descriptions ({mode})...", flush=True)
     wines = fetch_wines(db, null_only=null_only)
-    print(f"  {len(wines)} wines loaded", flush=True)
+    total = len(wines)
+    print(f"  {total} wines loaded", flush=True)
 
-    print("Running extractor...", flush=True)
-    results = extract_facts(wines, batch_size=BATCH_SIZE)
-    print(f"  {len(results)} records extracted", flush=True)
+    written = 0
+    for i in range(0, total, BATCH_SIZE):
+        batch = wines[i:i + BATCH_SIZE]
+        results = extract_facts(batch, batch_size=BATCH_SIZE)
+        write_batch(db, results)
+        written += len(results)
+        pct = (i + len(batch)) / total * 100
+        print(f"  {i + len(batch)}/{total} ({pct:.0f}%) — {written} written", flush=True)
 
-    print("Writing to DB...", flush=True)
-    written = write_results(db, results)
-    print(f"  Done — {written} wines updated", flush=True)
+    print(f"Done — {written} wines updated", flush=True)
 
 
 if __name__ == "__main__":

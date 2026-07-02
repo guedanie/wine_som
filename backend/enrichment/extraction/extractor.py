@@ -117,6 +117,7 @@ def extract_facts(wines: List[Dict[str, Any]], batch_size: int = 15) -> List[Dic
                            "Extract facts for these wines:\n" + listing}],
                 tools=[_TOOL],
                 tool_choice={"type": "tool", "name": "extract_facts"},
+                timeout=60.0,
             )
             block = next((b for b in resp.content if b.type == "tool_use"), None)
             if not block:
