@@ -17,9 +17,9 @@ function renderScreen() {
 
 it('renders all 18 region names', () => {
   renderScreen();
-  expect(screen.getByText('Tuscany')).toBeInTheDocument();              // tier 1 — has poster, unique
-  expect(screen.getByText('Paso Robles')).toBeInTheDocument();         // tier 1 — has poster, unique
-  expect(screen.getAllByText('Champagne')[0]).toBeInTheDocument();      // tier 2 — Poster fallback also renders name
+  expect(screen.getAllByText('Tuscany')[0]).toBeInTheDocument();        // tier 1 — Poster footer renders name
+  expect(screen.getAllByText('Paso Robles')[0]).toBeInTheDocument();    // tier 1 — Poster footer renders name
+  expect(screen.getAllByText('Champagne')[0]).toBeInTheDocument();      // tier 2 — Poster footer also renders name
   expect(screen.getAllByText('Mosel')[0]).toBeInTheDocument();          // tier 2 — same
 });
 

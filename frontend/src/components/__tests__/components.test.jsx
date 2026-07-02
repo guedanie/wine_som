@@ -123,6 +123,20 @@ describe('Poster', () => {
     render(<Poster region="Unknown Region" />);
     expect(screen.getByText('Unknown Region')).toBeInTheDocument();
   });
+  it('shows country eyebrow above poster for known region', () => {
+    render(<Poster region="Tuscany" />);
+    expect(screen.getByText('Italy')).toBeInTheDocument();
+  });
+  it('shows region name in footer for known region', () => {
+    render(<Poster region="Paso Robles" />);
+    // The serif footer name — there will be two matches (eyebrow header + footer)
+    // so just check at least one is present
+    expect(screen.getAllByText('Paso Robles').length).toBeGreaterThan(0);
+  });
+  it('shows subregion in footer for known region', () => {
+    render(<Poster region="Tuscany" />);
+    expect(screen.getByText(/Chianti/i)).toBeInTheDocument();
+  });
 });
 
 describe('Tag', () => {

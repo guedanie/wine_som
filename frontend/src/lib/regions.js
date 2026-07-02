@@ -44,26 +44,30 @@ export const REGION_POSTERS = {
 
 export const DISCOVERY_REGIONS = [
   // Tier 1 — high priority (common at SA retailers)
-  { name: 'Tuscany',           coord: '43.8°N · 11.2°E',   flavors: ['dark cherry', 'leather', 'tobacco'],        tier: 1 },
-  { name: 'Paso Robles',       coord: '35.6°N · 120.7°W',  flavors: ['dark fruit', 'garrigue', 'structure'],      tier: 1 },
-  { name: 'Napa Valley',       coord: '38.5°N · 122.4°W',  flavors: ['blackcurrant', 'cedar', 'full body'],       tier: 1 },
-  { name: 'Sonoma',            coord: '38.3°N · 122.5°W',  flavors: ['red fruit', 'bright acidity', 'coastal'],   tier: 1 },
-  { name: 'Mendoza',           coord: '32.9°S · 68.8°W',   flavors: ['dark plum', 'chocolate', 'spice'],          tier: 1 },
-  { name: 'Willamette Valley', coord: '45.5°N · 123.0°W',  flavors: ['cherry', 'earthy', 'bright acidity'],       tier: 1 },
-  { name: 'Bordeaux',          coord: '44.8°N · 0.6°W',    flavors: ['blackcurrant', 'cedar', 'graphite'],        tier: 1 },
-  { name: 'Rioja',             coord: '42.3°N · 2.5°W',    flavors: ['cherry', 'vanilla', 'leather'],             tier: 1 },
-  { name: 'Marlborough',       coord: '41.5°S · 173.9°E',  flavors: ['citrus', 'passionfruit', 'bright acidity'], tier: 1 },
-  { name: 'Barossa Valley',    coord: '34.5°S · 138.9°E',  flavors: ['dark fruit', 'chocolate', 'spice'],         tier: 1 },
+  { name: 'Tuscany',           coord: '43.8°N · 11.2°E',   country: 'Italy',       subregion: 'Chianti & Brunello',          flavors: ['dark cherry', 'leather', 'tobacco'],        tier: 1 },
+  { name: 'Paso Robles',       coord: '35.6°N · 120.7°W',  country: 'California',  subregion: 'Westside & Eastside',          flavors: ['dark fruit', 'garrigue', 'structure'],      tier: 1 },
+  { name: 'Napa Valley',       coord: '38.5°N · 122.4°W',  country: 'California',  subregion: 'Oakville & Stags Leap',        flavors: ['blackcurrant', 'cedar', 'full body'],       tier: 1 },
+  { name: 'Sonoma',            coord: '38.3°N · 122.5°W',  country: 'California',  subregion: 'Russian River & Dry Creek',    flavors: ['red fruit', 'bright acidity', 'coastal'],   tier: 1 },
+  { name: 'Mendoza',           coord: '32.9°S · 68.8°W',   country: 'Argentina',   subregion: 'Luján de Cuyo & Valle de Uco', flavors: ['dark plum', 'chocolate', 'spice'],          tier: 1 },
+  { name: 'Willamette Valley', coord: '45.5°N · 123.0°W',  country: 'Oregon',      subregion: 'Dundee Hills & Eola-Amity',    flavors: ['cherry', 'earthy', 'bright acidity'],       tier: 1 },
+  { name: 'Bordeaux',          coord: '44.8°N · 0.6°W',    country: 'France',      subregion: 'Left Bank & Right Bank',       flavors: ['blackcurrant', 'cedar', 'graphite'],        tier: 1 },
+  { name: 'Rioja',             coord: '42.3°N · 2.5°W',    country: 'Spain',       subregion: 'Rioja Alta & Alavesa',         flavors: ['cherry', 'vanilla', 'leather'],             tier: 1 },
+  { name: 'Marlborough',       coord: '41.5°S · 173.9°E',  country: 'New Zealand', subregion: 'Wairau & Awatere',             flavors: ['citrus', 'passionfruit', 'bright acidity'], tier: 1 },
+  { name: 'Barossa Valley',    coord: '34.5°S · 138.9°E',  country: 'Australia',   subregion: 'Eden Valley & Greenock',       flavors: ['dark fruit', 'chocolate', 'spice'],         tier: 1 },
   // Tier 2 — add posters to REGION_POSTERS as designed
-  { name: 'Burgundy',          coord: '47.0°N · 4.8°E',    flavors: ['red fruit', 'earthy', 'silky'],             tier: 2 },
-  { name: 'Rhône Valley',      coord: '45.0°N · 4.8°E',    flavors: ['dark fruit', 'garrigue', 'pepper'],         tier: 2 },
-  { name: 'Champagne',         coord: '49.1°N · 4.0°E',    flavors: ['brioche', 'citrus', 'mineral'],             tier: 2 },
-  { name: 'Piedmont',          coord: '44.7°N · 8.0°E',    flavors: ['dark cherry', 'tar', 'roses'],              tier: 2 },
-  { name: 'Douro Valley',      coord: '41.1°N · 7.6°W',    flavors: ['dark fruit', 'spice', 'structure'],         tier: 2 },
-  { name: 'Columbia Valley',   coord: '46.2°N · 119.9°W',  flavors: ['dark cherry', 'spice', 'balance'],          tier: 2 },
-  { name: 'Maipo Valley',      coord: '33.5°S · 70.6°W',   flavors: ['blackcurrant', 'tobacco', 'structure'],     tier: 2 },
-  { name: 'Mosel',             coord: '49.9°N · 7.0°E',    flavors: ['citrus', 'slate', 'off-dry'],               tier: 2 },
+  { name: 'Burgundy',          coord: '47.0°N · 4.8°E',    country: 'France',      subregion: 'Côte d\'Or & Chablis',         flavors: ['red fruit', 'earthy', 'silky'],             tier: 2 },
+  { name: 'Rhône Valley',      coord: '45.0°N · 4.8°E',    country: 'France',      subregion: 'Northern & Southern',          flavors: ['dark fruit', 'garrigue', 'pepper'],         tier: 2 },
+  { name: 'Champagne',         coord: '49.1°N · 4.0°E',    country: 'France',      subregion: 'Grand Crus & Premier Crus',    flavors: ['brioche', 'citrus', 'mineral'],             tier: 2 },
+  { name: 'Piedmont',          coord: '44.7°N · 8.0°E',    country: 'Italy',       subregion: 'Barolo & Barbaresco',          flavors: ['dark cherry', 'tar', 'roses'],              tier: 2 },
+  { name: 'Douro Valley',      coord: '41.1°N · 7.6°W',    country: 'Portugal',    subregion: 'Cima Corgo & Douro Superior',  flavors: ['dark fruit', 'spice', 'structure'],         tier: 2 },
+  { name: 'Columbia Valley',   coord: '46.2°N · 119.9°W',  country: 'Washington',  subregion: 'Red Mountain & Walla Walla',   flavors: ['dark cherry', 'spice', 'balance'],          tier: 2 },
+  { name: 'Maipo Valley',      coord: '33.5°S · 70.6°W',   country: 'Chile',       subregion: 'Alto Maipo & Isla de Maipo',   flavors: ['blackcurrant', 'tobacco', 'structure'],     tier: 2 },
+  { name: 'Mosel',             coord: '49.9°N · 7.0°E',    country: 'Germany',     subregion: 'Middle Mosel & Saar',          flavors: ['citrus', 'slate', 'off-dry'],               tier: 2 },
 ];
+
+export const REGION_META = Object.fromEntries(
+  DISCOVERY_REGIONS.map(r => [r.name, r])
+);
 
 export function occasionMessage(occasion) {
   const map = {
