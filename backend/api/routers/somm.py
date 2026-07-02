@@ -3,10 +3,11 @@ import anthropic
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from api.schemas import SommRequest
+from config import settings
 
 router = APIRouter(prefix="/api/somm", tags=["somm"])
 
-anthropic_client = anthropic.Anthropic()
+anthropic_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
 _MODEL = "claude-haiku-4-5-20251001"
 _MAX_TOKENS = 512
