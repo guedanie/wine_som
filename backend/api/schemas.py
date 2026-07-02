@@ -73,3 +73,20 @@ class FeedbackRequest(BaseModel):
     session_id: str
     user_id: Optional[str] = None
     zip: Optional[str] = None
+
+
+class SommWineContext(BaseModel):
+    wine_name: str
+    producer: Optional[str] = None
+    vintage: Optional[int] = None
+    price: Optional[float] = None
+    store: Optional[str] = None
+    tags: List[str] = []
+    region: Optional[str] = None
+    wine_type: Optional[str] = None
+
+
+class SommRequest(BaseModel):
+    wine: SommWineContext
+    message: str
+    history: Optional[List[Dict[str, Any]]] = None
