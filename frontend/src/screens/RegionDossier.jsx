@@ -6,6 +6,7 @@ import Poster from '../components/Poster.jsx';
 import Contours from '../components/Contours.jsx';
 import Tag from '../components/Tag.jsx';
 import StructureBars from '../components/StructureBars.jsx';
+import SommOverlay from '../components/SommOverlay.jsx';
 import { getWine } from '../lib/api.js';
 
 function structureToBars(sp) {
@@ -41,6 +42,17 @@ export default function RegionDossier() {
   const bars    = structureToBars(details.structure_profile);
   const region  = wine.region ?? pick.region;
   const subtitle = [wine.brand, wine.vintage_year, pick.retailer].filter(Boolean).join(' · ');
+
+  const sommWine = {
+    wine_name: wine.name ?? pick.name,
+    producer:  wine.brand   ?? null,
+    vintage:   wine.vintage_year ?? null,
+    price:     pick.price   ?? null,
+    store:     pick.retailer ?? null,
+    tags:      flavors,
+    region:    region        ?? null,
+    wine_type: wine.wine_type ?? null,
+  };
 
   return (
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '28px 32px 72px' }}>
@@ -144,6 +156,7 @@ export default function RegionDossier() {
           </div>
         </div>
       </div>
+      <SommOverlay wine={sommWine} />
     </div>
   );
 }

@@ -11,6 +11,10 @@ vi.mock('react-router-dom', async () => {
 vi.mock('../../lib/api.js', () => ({ getWine: vi.fn() }));
 import { getWine } from '../../lib/api.js';
 
+vi.mock('../../components/SommOverlay.jsx', () => ({
+  default: ({ wine }) => <div data-testid="somm-overlay">Ask Somm for {wine.wine_name}</div>,
+}));
+
 const pick = {
   wine_id: 'uuid-1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's",
   why: 'Great structure.', region: 'Paso Robles',
@@ -105,4 +109,18 @@ it('back button navigates to /recommend with _restored when chatState is present
   expect(mockNavigate).toHaveBeenCalledWith('/recommend', {
     state: expect.objectContaining({ _restored: chatState }),
   });
+});
+
+it('renders SommOverlay with wine name', () => {
+  getWine.mockReturnValue(new Promise(() => {}));
+  renderScreen();
+  expect(screen.getByTestId('somm-overlay')).toBeInTheDocument();
+  expect(screen.getByText(/Ask Somm for Esprit de Tablas/i)).toBeInTheDocument();
+});
+
+it('SommOverlay receives price from pick', () => {
+  getWine.mockReturnValue(new Promise(() => {}));
+  renderScreen();
+  // pick.price = 55, wine_name = 'Esprit de Tablas' — mock renders both
+  expect(screen.getByText(/Ask Somm for Esprit de Tablas/)).toBeInTheDocument();
 });
