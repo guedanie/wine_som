@@ -135,6 +135,15 @@ export default function SommOverlay({ wine }) {
               return msgs;
             });
           }
+        } else if (event.type === 'error') {
+          setLoading(false);
+          setMessages(prev => [...prev, {
+            id: crypto.randomUUID(),
+            role: 'sommelier',
+            text: "I'm having trouble connecting right now. Try again in a moment.",
+            noFeedback: true,
+          }]);
+          return;
         }
       }
     } catch {}

@@ -106,3 +106,12 @@ it('chip click sends the chip text as a message', async () => {
   // The chip text should appear as a user bubble
   await waitFor(() => expect(screen.getByText('Cellar potential?')).toBeInTheDocument());
 });
+
+it('shows error message when stream yields error event', async () => {
+  streamSomm.mockImplementation(async function* () {
+    yield { type: 'error', message: 'Somm unavailable' };
+  });
+  render(<SommOverlay wine={wine} />);
+  await userEvent.click(screen.getByRole('button', { name: /ask somm/i }));
+  await waitFor(() => expect(screen.getByText(/trouble connecting/i)).toBeInTheDocument());
+});
