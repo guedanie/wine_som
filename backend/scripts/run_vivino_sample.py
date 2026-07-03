@@ -50,6 +50,25 @@ def fetch_sample(db, limit, missing_images_only=False):
     return q.limit(limit).execute().data
 
 
+def fetch_backfill(db, limit):
+    """Already-matched wines eligible for a facts/image backfill.
+
+    These were enriched before attribute extraction existed (or before image
+    capture). We stored vivino_wine_id, so no search request is needed —
+    one page fetch per wine.
+    """
+    return (
+        db.table("wines")
+        .select("id,name,brand,vintage_year,varietal,region,country,wine_type,"
+                "grapes,abv,image_url,vivino_wine_id,vivino_match_score")
+        .not_.is_("vivino_wine_id", "null")
+        .gte("vivino_match_score", FACTS_THRESHOLD)
+        .limit(limit)
+        .execute()
+        .data
+    )
+
+
 def write_facts(db, w, attrs):
     """Fill NULL canonical fields from a high-confidence Vivino match.
 
@@ -174,9 +193,53 @@ async def enrich_one(w, db, client, sem, args, results, state, abort):
         results.append((w["name"][:55], query[:50], status))
 
 
+async def backfill_one(w, db, client, sem, args, results, state, abort):
+    """Backfill facts + image for an already-matched wine — page fetch only,
+    no search. /w/{id} redirects to the canonical slug URL."""
+    if abort.is_set():
+        results.append((w["name"][:55], "", "SKIPPED_ABORT"))
+        return
+    async with sem:
+        if abort.is_set():
+            results.append((w["name"][:55], "", "SKIPPED_ABORT"))
+            return
+        match = {"wine_id": w["vivino_wine_id"], "href": f"/w/{w['vivino_wine_id']}"}
+        try:
+            stats = await fetch_ratings(match, client, delay=REQ_DELAY)
+        except VivinoFetchError:
+            state["consecutive_fails"] += 1
+            if state["consecutive_fails"] >= ABORT_AFTER:
+                if not abort.is_set():
+                    print(f"  !! {ABORT_AFTER} consecutive fetch failures — "
+                          "assuming rate-limited, aborting run", flush=True)
+                abort.set()
+            results.append((w["name"][:55], "", "FETCH_FAIL"))
+            return
+
+        state["consecutive_fails"] = 0
+        if stats is None:
+            status = "NO_STATS"
+        elif args.dry_run:
+            status = "OK (dry run)"
+        else:
+            filled = []
+            if stats.get("image_url") and not w.get("image_url"):
+                db.table("wines").update({"image_url": stats["image_url"]}) \
+                    .eq("id", w["id"]).execute()
+                filled.append("image")
+            filled += write_facts(db, w, stats.get("attributes"))
+            status = "OK" + (f" +{','.join(filled)}" if filled else " (nothing to fill)")
+
+        print(f"  {w['name'][:55]!r} → {status}", flush=True)
+        results.append((w["name"][:55], "", status))
+
+
 async def main_async(args):
     db = get_service_client()
-    wines = fetch_sample(db, args.limit, missing_images_only=args.missing_images)
+    if args.backfill_facts:
+        wines = fetch_backfill(db, args.limit)
+    else:
+        wines = fetch_sample(db, args.limit, missing_images_only=args.missing_images)
     total = len(wines)
     print(f"Sample: {total} wines | concurrency={CONCURRENCY} | threshold={MATCH_THRESHOLD} | "
           f"{'DRY RUN' if args.dry_run else 'writing to DB'}", flush=True)
@@ -186,8 +249,9 @@ async def main_async(args):
     state = {"consecutive_fails": 0}
     abort = asyncio.Event()
 
+    worker = backfill_one if args.backfill_facts else enrich_one
     async with httpx.AsyncClient(follow_redirects=True) as client:
-        tasks = [enrich_one(w, db, client, sem, args, results, state, abort) for w in wines]
+        tasks = [worker(w, db, client, sem, args, results, state, abort) for w in wines]
         await asyncio.gather(*tasks)
 
     matched = sum(1 for _, _, s in results if s.startswith("OK"))
@@ -221,6 +285,9 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--missing-images", action="store_true",
                     help="Only wines with image_url IS NULL (targets HEB/CM catalog)")
+    ap.add_argument("--backfill-facts", action="store_true",
+                    help="Re-fetch pages for already-matched wines (score >= 0.7) "
+                         "to fill facts/images added after their original enrichment")
     args = ap.parse_args()
     asyncio.run(main_async(args))
 
