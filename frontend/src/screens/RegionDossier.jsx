@@ -153,14 +153,16 @@ export default function RegionDossier() {
   const posterSrc = REGION_POSTERS[region] ?? null;
 
   const sommWine = {
-    wine_name: wine.name ?? pick.name,
-    producer:  wine.brand   ?? null,
-    vintage:   wine.vintage_year ?? null,
-    price:     pick.price   ?? null,
-    store:     pick.retailer ?? null,
-    tags:      flavors,
-    region:    region        ?? null,
-    wine_type: wine.wine_type ?? null,
+    wine_name:             wine.name ?? pick.name,
+    producer:              wine.brand        ?? null,
+    vintage:               wine.vintage_year ?? null,
+    price:                 pick.price        ?? null,
+    store:                 pick.retailer     ?? null,
+    tags:                  flavors,
+    region:                region            ?? null,
+    wine_type:             wine.wine_type    ?? null,
+    vivino_rating:         wine.vivino_rating         ?? null,
+    vivino_ratings_count:  wine.vivino_ratings_count  ?? null,
   };
 
   return (
@@ -217,6 +219,19 @@ export default function RegionDossier() {
             {subtitle && <span style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--ink-2)' }}>{subtitle}</span>}
             <span style={{ fontFamily: 'var(--font-serif)', fontSize: 26, color: 'var(--bordeaux)' }}>${pick.price}</span>
           </div>
+
+          {wine.vivino_rating && wine.vivino_ratings_count > 0 && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--ink-2)', fontWeight: 500 }}>
+                {wine.vivino_rating.toFixed(1)} ★
+              </span>
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--faded)' }}>
+                {wine.vivino_ratings_count >= 1000
+                  ? `${Math.round(wine.vivino_ratings_count / 1000)}k`
+                  : wine.vivino_ratings_count} ratings on Vivino
+              </span>
+            </div>
+          )}
 
           {details.tasting_notes && (
             <p className="t-body" style={{ marginTop: 16, maxWidth: 540 }}>{details.tasting_notes}</p>

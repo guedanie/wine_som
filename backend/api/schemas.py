@@ -84,6 +84,8 @@ class SommWineContext(BaseModel):
     tags: List[str] = []
     region: Optional[str] = None
     wine_type: Optional[str] = None
+    vivino_rating: Optional[float] = None
+    vivino_ratings_count: Optional[int] = None
 
 
 class SommRequest(BaseModel):

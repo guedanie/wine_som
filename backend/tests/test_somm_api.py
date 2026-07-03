@@ -97,6 +97,30 @@ async def test_somm_error_does_not_expose_exception_detail():
     assert "credit_balance" not in error_events[0]["message"]
 
 
+def test_system_prompt_includes_vivino_rating_when_present():
+    """_system_prompt must surface Vivino rating so Somm can cite community credibility."""
+    from api.routers.somm import _system_prompt
+    from api.schemas import SommWineContext
+    wine = SommWineContext(
+        wine_name="Esprit de Tablas",
+        vivino_rating=4.1,
+        vivino_ratings_count=26908,
+    )
+    prompt = _system_prompt(wine)
+    assert "4.1" in prompt
+    assert "Vivino" in prompt
+    assert "26908" in prompt or "26,908" in prompt
+
+
+def test_system_prompt_omits_vivino_when_absent():
+    """_system_prompt must not mention Vivino when no rating is available."""
+    from api.routers.somm import _system_prompt
+    from api.schemas import SommWineContext
+    wine = SommWineContext(wine_name="Obscure Cuvée")
+    prompt = _system_prompt(wine)
+    assert "Vivino" not in prompt
+
+
 @pytest.mark.asyncio
 async def test_somm_with_history():
     with patch("api.routers.somm.anthropic_client") as mock_client:

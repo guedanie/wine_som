@@ -23,6 +23,10 @@ def _system_prompt(wine) -> str:
     if wine.store:     parts.append(f"Available at: {wine.store}")
     if wine.region:    parts.append(f"Region: {wine.region}")
     if wine.tags:      parts.append(f"Flavor profile: {', '.join(wine.tags)}")
+    if wine.vivino_rating and wine.vivino_ratings_count:
+        parts.append(
+            f"Community rating: {wine.vivino_rating}/5 on Vivino ({wine.vivino_ratings_count:,} ratings)"
+        )
     context = "\n".join(parts)
     return (
         "You are a sommelier assistant — knowledgeable, opinionated, direct. "
