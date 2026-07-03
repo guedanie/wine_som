@@ -366,3 +366,38 @@ def test_enrich_picks_rating_fields_none_when_absent():
     picks = _enrich_picks([{"wine_id": "w1", "why": "y"}], by_id)
     assert picks[0]["image_url"] is None
     assert picks[0]["vivino_rating"] is None
+
+
+def test_select_diverse_top_caps_per_retailer():
+    """No retailer may fill more than _RETAILER_CAP of the Claude candidate list —
+    prevents one retailer's price/rating distribution from shutting others out."""
+    from api.routers.recommend import _select_diverse_top
+    scored = (
+        [{"wine_id": f"s{i}", "retailer": "Spec's", "_score": 10 - i * 0.1} for i in range(12)]
+        + [{"wine_id": f"a{i}", "retailer": "AOC Selections", "_score": 5 - i * 0.1} for i in range(6)]
+    )
+    top = _select_diverse_top(scored, max_candidates=12, per_retailer_cap=5)
+    assert len(top) == 12
+    from collections import Counter
+    mix = Counter(w["retailer"] for w in top)
+    # 5 capped slots each; the 2 leftover slots backfill from next-best (Spec's)
+    assert mix["AOC Selections"] == 5
+    assert mix["Spec's"] == 7
+
+
+def test_select_diverse_top_keeps_score_order():
+    from api.routers.recommend import _select_diverse_top
+    scored = (
+        [{"wine_id": f"s{i}", "retailer": "Spec's", "_score": 10 - i} for i in range(3)]
+        + [{"wine_id": "h0", "retailer": "H-E-B", "_score": 5}]
+    )
+    top = _select_diverse_top(scored, max_candidates=4, per_retailer_cap=5)
+    assert [w["wine_id"] for w in top] == ["s0", "s1", "s2", "h0"]
+
+
+def test_select_diverse_top_single_retailer_backfills():
+    """With only one retailer available, the cap must not starve the list."""
+    from api.routers.recommend import _select_diverse_top
+    scored = [{"wine_id": f"s{i}", "retailer": "Spec's", "_score": 10 - i} for i in range(12)]
+    top = _select_diverse_top(scored, max_candidates=12, per_retailer_cap=5)
+    assert len(top) == 12

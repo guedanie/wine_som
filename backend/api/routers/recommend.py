@@ -19,6 +19,36 @@ router = APIRouter(prefix="/api", tags=["recommend"])
 
 _MAX_CANDIDATES = 12
 _FETCH_PER_RETAILER = 500
+_RETAILER_CAP = 5    # max slots one retailer can take in the Claude candidate list
+
+
+def _select_diverse_top(scored: List[Dict[str, Any]], max_candidates: int,
+                        per_retailer_cap: int) -> List[Dict[str, Any]]:
+    """Take the best-scored candidates with a per-retailer cap.
+
+    Retailer-correlated data (price clustering, Vivino coverage) can otherwise
+    let one retailer fill the whole list. First pass respects the cap in score
+    order; if fewer than max_candidates survive, backfill from the skipped
+    wines (still in score order) so a single-retailer zip never starves.
+    """
+    counts: Dict[str, int] = {}
+    top: List[Dict[str, Any]] = []
+    skipped: List[Dict[str, Any]] = []
+    for w in scored:
+        if len(top) >= max_candidates:
+            break
+        r = w.get("retailer") or "?"
+        if counts.get(r, 0) < per_retailer_cap:
+            counts[r] = counts.get(r, 0) + 1
+            top.append(w)
+        else:
+            skipped.append(w)
+    for w in skipped:
+        if len(top) >= max_candidates:
+            break
+        top.append(w)
+    top.sort(key=lambda w: w.get("_score", 0), reverse=True)
+    return top
 
 _RETAILER_ALIASES = {
     "heb": "H-E-B",
@@ -216,7 +246,7 @@ async def recommend(req: RecommendRequest):
     for w in scored:
         w["_score"] += rng.uniform(-0.4, 0.4)
     scored.sort(key=lambda w: w["_score"], reverse=True)
-    top = scored[:_MAX_CANDIDATES]
+    top = _select_diverse_top(scored, _MAX_CANDIDATES, _RETAILER_CAP)
 
     logger.info(
         "RECOMMEND | zip=%s budget=%.0f-%.0f message=%r candidates=%d history=%d",
