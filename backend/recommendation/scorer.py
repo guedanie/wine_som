@@ -12,6 +12,20 @@ _W_FLAVOR_TAG = 1.0      # per matched flavor tag, capped
 _FLAVOR_CAP = 3.0
 _W_BUDGET = 1.0
 _W_TIER = 0.5
+_W_RATING = 1.5          # max community-rating boost (never a penalty)
+_MIN_RATINGS = 25        # below this, the rating is noise — ignore it
+
+
+def _body_from_structure(sp: Dict[str, Any]) -> str:
+    """Map a numeric structure body (1-10, GrapeMinds/Vivino) to the text scale."""
+    b = (sp or {}).get("body")
+    if b is None:
+        return None
+    if b >= 7:
+        return "full"
+    if b >= 4:
+        return "medium"
+    return "light"
 
 
 def _norm(s: str) -> str:
@@ -51,7 +65,9 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
             score += _W_TYPE
 
         if want_body:
-            body = wine.get("body") or infer_body(tags)
+            body = (wine.get("body")
+                    or _body_from_structure(wine.get("structure_profile"))
+                    or infer_body(tags))
             if body == want_body:
                 score += _W_BODY
 
@@ -73,6 +89,12 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
 
         if wine.get("tier") == 1:
             score += _W_TIER
+
+        # Community rating: boost-only above a 3.5 baseline, scaled so 5.0 = full
+        # weight. Thin rating counts are noise, not signal.
+        rating = wine.get("vivino_rating")
+        if rating and (wine.get("vivino_ratings_count") or 0) >= _MIN_RATINGS:
+            score += _W_RATING * max(0.0, min(1.0, (rating - 3.5) / 1.5))
 
         scored.append({**wine, "_score": score})
 

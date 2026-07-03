@@ -116,3 +116,53 @@ def test_region_match_uses_containment():
                   grapes=["Cabernet Sauvignon"], region="Napa Valley")
     result = score_candidates(_intent(region="Rhône"), [match, other])
     assert result[0]["name"] == "Cotes du Rhone Wine"
+
+
+def test_vivino_rating_boosts_score():
+    """A well-rated wine (with enough ratings to trust) outranks an identical unrated one."""
+    rated = _wine("Crowd Favorite")
+    rated["vivino_rating"] = 4.5
+    rated["vivino_ratings_count"] = 12000
+    unrated = _wine("Unknown Wine")
+    result = score_candidates(_intent(), [unrated, rated])
+    assert result[0]["name"] == "Crowd Favorite"
+
+
+def test_vivino_rating_low_count_ignored():
+    """A rating backed by too few reviews must not move the score."""
+    thin = _wine("Thin Rating")
+    thin["vivino_rating"] = 5.0
+    thin["vivino_ratings_count"] = 3
+    plain = _wine("Plain Wine")
+    result = score_candidates(_intent(), [thin, plain])
+    assert result[0]["_score"] == result[1]["_score"]
+
+
+def test_vivino_mediocre_rating_no_boost():
+    """Ratings at or below the 3.5 baseline add nothing (boost-only, no penalty)."""
+    meh = _wine("Mediocre Wine")
+    meh["vivino_rating"] = 3.2
+    meh["vivino_ratings_count"] = 50000
+    plain = _wine("Plain Wine")
+    result = score_candidates(_intent(), [meh, plain])
+    assert result[0]["_score"] == result[1]["_score"]
+
+
+def test_body_from_structure_profile():
+    """Numeric body in structure_profile (GrapeMinds/Vivino) must satisfy a body intent
+    even when the text body field is null and grapes imply nothing."""
+    structured = _wine("Structured Full", varietal=None, grapes=[], region=None,
+                       tasting_notes="")
+    structured["structure_profile"] = {"body": 8.0, "tannins": 7.0, "source": "vivino"}
+    flat = _wine("No Signal", varietal=None, grapes=[], region=None, tasting_notes="")
+    result = score_candidates(_intent(body="full"), [flat, structured])
+    assert result[0]["name"] == "Structured Full"
+
+
+def test_body_from_structure_light():
+    structured = _wine("Structured Light", varietal=None, grapes=[], region=None,
+                       tasting_notes="")
+    structured["structure_profile"] = {"body": 2.5}
+    flat = _wine("No Signal", varietal=None, grapes=[], region=None, tasting_notes="")
+    result = score_candidates(_intent(body="light"), [flat, structured])
+    assert result[0]["name"] == "Structured Light"

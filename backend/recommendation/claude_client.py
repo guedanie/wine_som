@@ -161,6 +161,11 @@ def _format_wine(wine: Dict[str, Any]) -> str:
     retailer = wine.get("retailer") or ""
     line = f"{wine.get('name', 'Unknown')} — {location} — ${price:.2f} @ {retailer}"
 
+    rating = wine.get("vivino_rating")
+    count = wine.get("vivino_ratings_count") or 0
+    if rating and count:
+        line += f" — {rating}★ ({count:,} ratings on Vivino)"
+
     notes = wine.get("tasting_notes") or ""
     structure = wine.get("structure_profile") or {}
     struct_parts = [

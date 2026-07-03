@@ -342,3 +342,27 @@ async def test_recommend_picks_include_store_address():
     assert response.status_code == 200
     pick = _sse_picks(response.text)[0]
     assert pick["store_address"] == "1000 Austin Hwy, San Antonio, TX 78209"
+
+
+def test_enrich_picks_carries_image_and_rating():
+    """Picks must carry image_url + vivino fields so WineCards can render them."""
+    from api.routers.recommend import _enrich_picks
+    by_id = {"w1": {
+        "wine_id": "w1", "name": "Jordan Cab", "price": 60.0,
+        "retailer": "Spec's", "store_address": "123 Main St",
+        "image_url": "https://images.vivino.com/x.png",
+        "vivino_rating": 4.3, "vivino_ratings_count": 57491,
+    }}
+    picks = _enrich_picks([{"wine_id": "w1", "why": "structured"}], by_id)
+    assert picks[0]["image_url"] == "https://images.vivino.com/x.png"
+    assert picks[0]["vivino_rating"] == 4.3
+    assert picks[0]["vivino_ratings_count"] == 57491
+
+
+def test_enrich_picks_rating_fields_none_when_absent():
+    from api.routers.recommend import _enrich_picks
+    by_id = {"w1": {"wine_id": "w1", "name": "X", "price": 10.0,
+                    "retailer": "H-E-B", "store_address": None}}
+    picks = _enrich_picks([{"wine_id": "w1", "why": "y"}], by_id)
+    assert picks[0]["image_url"] is None
+    assert picks[0]["vivino_rating"] is None

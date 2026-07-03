@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["recommend"])
 
 _MAX_CANDIDATES = 12
-_POOL_PER_RETAILER = 80
 _FETCH_PER_RETAILER = 500
 
 _RETAILER_ALIASES = {
@@ -47,6 +46,7 @@ INVENTORY_SELECT = (
     "price, curbside_price, wine_id,"
     "stores!inner(retailer_name, zip_code, address),"
     "wines(id, name, varietal, region, country, wine_type, grapes, abv, body,"
+    "image_url, vivino_rating, vivino_ratings_count,"
     "wine_details(tasting_notes, flavor_profile, structure_profile, grapeminds_enriched_at))"
 )
 
@@ -65,6 +65,9 @@ def _enrich_picks(raw_picks: List[Dict[str, Any]], by_id: Dict[str, Dict[str, An
             "retailer": cand.get("retailer") or p.get("retailer"),
             "store_address": cand.get("store_address"),
             "why": p.get("why", ""),
+            "image_url": cand.get("image_url"),
+            "vivino_rating": cand.get("vivino_rating"),
+            "vivino_ratings_count": cand.get("vivino_ratings_count"),
         })
     return enriched
 
@@ -151,6 +154,9 @@ async def recommend(req: RecommendRequest):
             "price": row.get("price"),
             "retailer": retailer,
             "store_address": store_address,
+            "image_url": wine.get("image_url"),
+            "vivino_rating": wine.get("vivino_rating"),
+            "vivino_ratings_count": wine.get("vivino_ratings_count"),
             "tier": 1 if enriched else 2,
         })
 
@@ -159,10 +165,10 @@ async def recommend(req: RecommendRequest):
     seed = int(hashlib.md5(seed_str.encode()).hexdigest(), 16) % (2 ** 32)
     rng = random.Random(seed)
 
-    candidates = []
-    for retailer, pool in by_retailer.items():
-        rng.shuffle(pool)
-        candidates.extend(pool[:_POOL_PER_RETAILER])
+    # Score EVERYTHING fetched — truncating per retailer before scoring randomly
+    # dropped the best matches. Turn-to-turn variety comes from seeded score
+    # jitter applied in the scorer output below, not from discarding candidates.
+    candidates = [w for pool in by_retailer.values() for w in pool]
 
     logger.info(
         "INVENTORY | fetched=%d retailers=%s pool=%d",
@@ -204,7 +210,13 @@ async def recommend(req: RecommendRequest):
             candidates = type_pool
             logger.info("TYPE FILTER | %s → %d candidates", effective_types, len(candidates))
 
-    top = score_candidates(resolved, candidates)[:_MAX_CANDIDATES]
+    # Seeded jitter (±0.4, well under any single axis weight) varies the
+    # candidate mix between turns without ever dropping strong matches.
+    scored = score_candidates(resolved, candidates)
+    for w in scored:
+        w["_score"] += rng.uniform(-0.4, 0.4)
+    scored.sort(key=lambda w: w["_score"], reverse=True)
+    top = scored[:_MAX_CANDIDATES]
 
     logger.info(
         "RECOMMEND | zip=%s budget=%.0f-%.0f message=%r candidates=%d history=%d",

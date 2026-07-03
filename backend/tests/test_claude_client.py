@@ -202,3 +202,24 @@ def test_stream_recommendations_error_message_is_generic():
     assert len(error_events) == 1
     assert "sk-ant" not in error_events[0]
     assert "credit_balance" not in error_events[0]
+
+
+def test_format_wine_includes_vivino_rating():
+    """Claude's inventory listing must show the community rating so it can cite
+    credibility in picks ('a crowd favorite at 4.3 on Vivino')."""
+    from recommendation.claude_client import _format_wine
+    wine = {
+        "name": "Jordan Cabernet Sauvignon", "varietal": "Cabernet Sauvignon",
+        "region": "Alexander Valley", "country": "USA", "price": 60.0,
+        "retailer": "Spec's", "vivino_rating": 4.3, "vivino_ratings_count": 57491,
+    }
+    line = _format_wine(wine)
+    assert "4.3" in line
+    assert "Vivino" in line
+
+
+def test_format_wine_omits_rating_when_absent():
+    from recommendation.claude_client import _format_wine
+    wine = {"name": "Obscure Wine", "varietal": "Malbec", "region": "Mendoza",
+            "country": "Argentina", "price": 20.0, "retailer": "H-E-B"}
+    assert "Vivino" not in _format_wine(wine)
