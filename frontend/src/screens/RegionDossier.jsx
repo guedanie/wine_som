@@ -19,9 +19,19 @@ function structureToBars(sp) {
   ].filter(([,, v]) => v > 0);
 }
 
+function shopifyHiRes(url) {
+  if (!url || !url.includes('cdn.shopify.com')) return url;
+  // Shopify CDN: insert _1200x before the extension to request larger size.
+  // Guard: skip if a size suffix is already present.
+  return /(_\d+x\d*)\.[a-z]+(\?|$)/i.test(url)
+    ? url
+    : url.replace(/(\.[a-z]{3,4})(\?|$)/i, '_1200x$1$2');
+}
+
 function BottleFrame({ src, alt }) {
   const [imgFailed, setImgFailed] = useState(false);
   const showImage = src && !imgFailed;
+  const hiResSrc  = showImage ? shopifyHiRes(src) : null;
 
   return (
     <div style={{
@@ -33,16 +43,20 @@ function BottleFrame({ src, alt }) {
       <div style={{ border: '0.75px solid var(--brass)' }}>
         <div style={{
           aspectRatio: '372/494',
-          background: 'repeating-linear-gradient(135deg, #EFE6D4, #EFE6D4 11px, #E6DAC2 11px, #E6DAC2 22px)',
+          // Stripe only shows through when there is NO image — clean cream behind a bottle shot
+          background: showImage
+            ? 'var(--cream-raised)'
+            : 'repeating-linear-gradient(135deg, #EFE6D4, #EFE6D4 11px, #E6DAC2 11px, #E6DAC2 22px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           overflow: 'hidden',
           position: 'relative',
+          padding: showImage ? '12px 8%' : 0,
         }}>
           {showImage && (
             <img
-              src={src}
+              src={hiResSrc}
               alt={alt}
               onError={() => setImgFailed(true)}
               style={{
@@ -50,8 +64,7 @@ function BottleFrame({ src, alt }) {
                 width: '100%',
                 height: '100%',
                 objectFit: 'contain',
-                position: 'relative',
-                zIndex: 1,
+                imageRendering: 'high-quality',
               }}
             />
           )}
