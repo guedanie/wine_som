@@ -2,9 +2,9 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import NavBar from '../NavBar.jsx';
 
-it('renders the Terroir wordmark as a link', () => {
+it('renders the Somm wordmark as a link', () => {
   render(<MemoryRouter><NavBar /></MemoryRouter>);
-  expect(screen.getByRole('link', { name: /terroir/i })).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: /somm/i })).toBeInTheDocument();
 });
 
 it('renders a Recommend nav link', () => {

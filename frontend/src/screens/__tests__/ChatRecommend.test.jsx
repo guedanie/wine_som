@@ -41,12 +41,12 @@ it('redirects to / when there is no prefs state', () => {
   expect(screen.getByText('Home')).toBeInTheDocument();
 });
 
-it('shows loading bubble while streamRecommend is pending', () => {
+it('shows the wine glass loader while streamRecommend is pending', () => {
   streamRecommend.mockImplementation(async function* () {
     await new Promise(() => {}); // never resolves
   });
   renderScreen();
-  expect(screen.getByText(/finding/i)).toBeInTheDocument();
+  expect(screen.getByTestId('wine-glass-loader')).toBeInTheDocument();
 });
 
 it('shows error message when streamRecommend throws', async () => {

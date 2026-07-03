@@ -18,3 +18,11 @@ input[type="range"] { accent-color: var(--bordeaux); }
 
 /* Warm matte filter on Leaflet map tiles (RegionMap) */
 .leaflet-tile { filter: sepia(0.2) saturate(0.75) brightness(1.03); }
+
+/* Wine glass loading animation (WineGlassLoader) */
+@keyframes wave-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes glass-shimmer { 0%, 100% { opacity: 0.22; } 50% { opacity: 0.55; } }
+@keyframes dot-pulse {
+  0%, 80%, 100% { opacity: 0.25; transform: scaleY(0.6); }
+  40% { opacity: 1; transform: scaleY(1); }
+}

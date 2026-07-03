@@ -4,24 +4,38 @@ import Stamp from './Stamp.jsx';
 export default function NavBar() {
   const navigate = useNavigate();
   return (
-    <nav style={{ borderBottom: '1.5px solid var(--ink)', background: 'var(--cream)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px', height: 56 }}>
-      <Link to="/" aria-label="Terroir" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-        <Stamp size={28} />
-        <span style={{ fontFamily: 'var(--font-serif)', fontSize: 20, color: 'var(--ink)' }}>Terroir</span>
+    <nav style={{
+      display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center',
+      padding: '0 32px', height: 56,
+      borderBottom: '1.5px solid var(--ink)', background: 'var(--cream)',
+      position: 'sticky', top: 0, zIndex: 10,
+    }}>
+      {/* Brand — left */}
+      <Link to="/" aria-label="Somm" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', justifySelf: 'start' }}>
+        <Stamp size={36} />
+        <div>
+          <div style={{ fontFamily: 'var(--font-serif)', fontSize: 22, color: 'var(--ink)', lineHeight: 1 }}>Somm</div>
+          <div style={{ fontFamily: 'var(--font-sans)', fontSize: 8.5, letterSpacing: '0.26em', textTransform: 'uppercase', color: 'var(--faded)' }}>Wine Atlas</div>
+        </div>
       </Link>
-      <div style={{ display: 'flex', gap: 28, alignItems: 'center' }}>
+
+      {/* Links — centered */}
+      <div style={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'center' }}>
         {[['Recommend', '/'], ['Discover', '/discover']].map(([label, to]) => (
           <NavLink key={to} to={to} end
             style={({ isActive }) => ({
-              fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600,
-              textDecoration: 'none', letterSpacing: '0.04em',
-              color: isActive ? 'var(--bordeaux)' : 'var(--faded)',
-              borderBottom: isActive ? '1.5px solid var(--bordeaux)' : 'none',
-              paddingBottom: 2,
+              fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 500,
+              textDecoration: 'none', padding: '6px 13px',
+              color: isActive ? 'var(--ink)' : 'var(--faded)',
+              boxShadow: isActive ? 'inset 0 -2px 0 var(--bordeaux)' : 'none',
             })}>
             {label}
           </NavLink>
         ))}
+      </div>
+
+      {/* Search — right */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
         <button
           onClick={() => navigate('/search')}
           style={{

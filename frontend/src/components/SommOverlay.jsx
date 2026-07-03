@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
 import Stamp from './Stamp.jsx';
+import WineGlassLoader from './WineGlassLoader.jsx';
 import Tag from './Tag.jsx';
 import { streamSomm, postFeedback } from '../lib/api.js';
 
@@ -59,9 +60,7 @@ function ThumbBtn({ direction, voted, onClick }) {
 function SommelierBubble({ children, vote, onVote }) {
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
-      <div style={{ width: 28, height: 28, borderRadius: '50%', flex: 'none', background: 'var(--bordeaux)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Stamp size={18} reversed />
-      </div>
+      <Stamp size={28} />
       <div style={{ flex: 1 }}>
         <div style={{ background: 'var(--cream-raised)', border: '1px solid var(--border)', borderRadius: '4px 12px 12px 12px', padding: '11px 13px', fontFamily: 'var(--font-sans)', fontSize: 13, lineHeight: 1.55, color: 'var(--ink-2)' }}>
           {children}
@@ -199,9 +198,7 @@ export default function SommOverlay({ wine }) {
           onMouseEnter={e => { e.currentTarget.style.background = 'var(--bordeaux-deep)'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 28px rgba(110,16,35,0.46)'; }}
           onMouseLeave={e => { e.currentTarget.style.background = 'var(--bordeaux)'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(110,16,35,0.38)'; }}
         >
-          <div style={{ width: 24, height: 24, borderRadius: '50%', border: '1px solid rgba(245,239,230,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
-            <Stamp size={16} reversed />
-          </div>
+          <Stamp size={24} />
           Ask Somm
         </button>
       )}
@@ -237,9 +234,7 @@ export default function SommOverlay({ wine }) {
         {/* Panel title bar */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 18px', borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-            <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--bordeaux)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
-              <Stamp size={16} reversed />
-            </div>
+            <Stamp size={26} />
             <span style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>Somm</span>
           </div>
           <button
@@ -273,9 +268,10 @@ export default function SommOverlay({ wine }) {
                 </SommelierBubble>
           )}
           {loading && (
-            <SommelierBubble>
-              <span style={{ color: 'var(--faded)', fontStyle: 'italic' }}>Thinking…</span>
-            </SommelierBubble>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
+              <Stamp size={28} />
+              <WineGlassLoader />
+            </div>
           )}
         </div>
 

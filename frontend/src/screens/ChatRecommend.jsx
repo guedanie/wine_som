@@ -6,6 +6,7 @@ import Eyebrow from '../components/Eyebrow.jsx';
 import Btn from '../components/Btn.jsx';
 import Stamp from '../components/Stamp.jsx';
 import WineCard from '../components/WineCard.jsx';
+import WineGlassLoader from '../components/WineGlassLoader.jsx';
 import { streamRecommend, postFeedback } from '../lib/api.js';
 import { deriveWineCardMeta } from '../lib/regions.js';
 
@@ -14,9 +15,7 @@ const DEFAULT_FOLLOWUPS = ["Anything from Burgundy?", "What about under $30?", "
 function SommelierBubble({ children, vote, onVote }) {
   return (
     <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start', marginBottom: 14 }}>
-      <div style={{ width: 32, height: 32, borderRadius: '50%', flex: 'none', background: 'var(--bordeaux)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Stamp size={20} reversed />
-      </div>
+      <Stamp size={32} />
       <div style={{ flex: 1 }}>
         <div style={{ background: 'var(--cream-raised)', border: '1px solid var(--border)', borderRadius: '4px 14px 14px 14px', padding: '13px 15px', fontFamily: 'var(--font-sans)', fontSize: 14, lineHeight: 1.55, color: 'var(--ink-2)' }}>
           {children}
@@ -191,7 +190,12 @@ export default function ChatRecommend() {
                   ))}
                 </SommelierBubble>
           )}
-          {loading && <SommelierBubble>Finding the right bottles for you…</SommelierBubble>}
+          {loading && (
+            <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start', marginBottom: 14 }}>
+              <Stamp size={32} />
+              <WineGlassLoader />
+            </div>
+          )}
           {error && (
             <SommelierBubble>
               <div>{error}</div>
@@ -238,10 +242,11 @@ export default function ChatRecommend() {
               <span className="t-eyebrow">{picks.length} wine{picks.length !== 1 ? 's' : ''} for you</span>
               <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--faded)' }}>within 10 mi · in stock</span>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 18 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {picks.map(pick => (
                 <WineCard
                   key={pick.wine_id}
+                  variant="landscape"
                   wine={pick}
                   vote={wineVotes[pick.wine_id] ?? null}
                   onVote={direction => handleWineVote(pick.wine_id, direction)}
