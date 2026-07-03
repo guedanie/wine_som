@@ -22,9 +22,11 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 
 from db import get_service_client
 from enrichment.vivino import (VivinoFetchError, build_query, fetch_ratings,
-                               search_wine, strip_query_noise)
+                               search_wine, strip_query_noise,
+                               structure_to_profile)
 
-MATCH_THRESHOLD = 0.6
+MATCH_THRESHOLD = 0.6   # ratings + image: cosmetic, tolerate borderline matches
+FACTS_THRESHOLD = 0.7   # grapes/region/abv/structure: canonical facts need a stronger match
 CONCURRENCY = 2      # parallel workers — 5 workers @ 0.3s tripped Vivino's 429 limiter
 REQ_DELAY = 1.0      # seconds between each HTTP request within a worker (~2 req/s total)
 ABORT_AFTER = 10     # consecutive fetch failures → assume we're blocked, stop the run
@@ -33,7 +35,7 @@ ABORT_AFTER = 10     # consecutive fetch failures → assume we're blocked, stop
 def fetch_sample(db, limit, missing_images_only=False):
     q = (
         db.table("wines")
-        .select("id,name,brand,vintage_year,varietal,region,wine_type")
+        .select("id,name,brand,vintage_year,varietal,region,country,wine_type,grapes,abv")
         .is_("vivino_enriched_at", "null")
     )
     if missing_images_only:
@@ -46,6 +48,57 @@ def fetch_sample(db, limit, missing_images_only=False):
                  "%pina colada%", "%spiked%", "%lemonade%"):
         q = q.not_.ilike("name", junk)
     return q.limit(limit).execute().data
+
+
+def write_facts(db, w, attrs):
+    """Fill NULL canonical fields from a high-confidence Vivino match.
+
+    Precedence: scraped/extracted data always wins — Vivino only fills gaps.
+    Returns the list of fields written (for the status line).
+    """
+    if not attrs:
+        return []
+    filled = []
+
+    wine_update = {}
+    if attrs.get("grapes") and not (w.get("grapes") or []):
+        wine_update["grapes"] = attrs["grapes"]
+    if attrs.get("abv") is not None and w.get("abv") is None:
+        wine_update["abv"] = attrs["abv"]
+    if attrs.get("region") and not w.get("region"):
+        wine_update["region"] = attrs["region"]
+    if attrs.get("country") and not w.get("country"):
+        wine_update["country"] = attrs["country"]
+    if wine_update:
+        db.table("wines").update(wine_update).eq("id", w["id"]).execute()
+        filled += list(wine_update.keys())
+
+    profile = structure_to_profile(attrs.get("structure"))
+    pairing = ", ".join(attrs.get("foods") or []) or None
+    if profile or pairing:
+        existing = (
+            db.table("wine_details")
+            .select("wine_id,structure_profile,pairing")
+            .eq("wine_id", w["id"]).limit(1).execute().data
+        )
+        if existing:
+            detail_update = {}
+            if profile and not existing[0].get("structure_profile"):
+                detail_update["structure_profile"] = profile
+            if pairing and not existing[0].get("pairing"):
+                detail_update["pairing"] = pairing
+            if detail_update:
+                db.table("wine_details").update(detail_update).eq("wine_id", w["id"]).execute()
+                filled += list(detail_update.keys())
+        else:
+            record = {"wine_id": w["id"], "source": "vivino"}
+            if profile:
+                record["structure_profile"] = profile
+            if pairing:
+                record["pairing"] = pairing
+            db.table("wine_details").insert(record).execute()
+            filled += [k for k in record if k not in ("wine_id", "source")]
+    return filled
 
 
 async def enrich_one(w, db, client, sem, args, results, state, abort):
@@ -96,6 +149,10 @@ async def enrich_one(w, db, client, sem, args, results, state, abort):
                         if stats.get("image_url"):
                             update["image_url"] = stats["image_url"]
                         db.table("wines").update(update).eq("id", w["id"]).execute()
+                        if hit["score"] >= FACTS_THRESHOLD:
+                            filled = write_facts(db, w, stats.get("attributes"))
+                            if filled:
+                                status += f" +facts({','.join(filled)})"
         except VivinoFetchError:
             state["consecutive_fails"] += 1
             if state["consecutive_fails"] >= ABORT_AFTER:

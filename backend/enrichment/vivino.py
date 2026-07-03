@@ -36,6 +36,26 @@ _VOLUME_RE = re.compile(r"\b\d+(\.\d+)?\s*(ml|ltr|l|liter|litre)s?\b", re.I)
 _STATS_PAIR_RE = re.compile(r'"ratings_count":\s*(\d+)\s*,\s*"ratings_average":\s*([\d.]+)')
 _BOTTLE_MEDIUM_RE = re.compile(r'"bottle_medium":"(//[^"]+)"')
 
+# Wine-object attribute regexes — anchored on the wine id, applied to a bounded
+# window so we read this wine's data, not the recommended-wines carousel's.
+_REGION_RE = re.compile(r'"region":\{"id":\d+,"name":"([^"]+)"')
+_COUNTRY_RE = re.compile(r'"country":\{"code":"[^"]*","name":"([^"]+)"')
+_ALCOHOL_RE = re.compile(r'"alcohol":([\d.]+)')
+_BASELINE_RE = re.compile(
+    r'"baseline_structure":\{'
+    r'"acidity":(null|[\d.]+),'
+    r'"fizziness":(null|[\d.]+),'
+    r'"intensity":(null|[\d.]+),'
+    r'"sweetness":(null|[\d.]+),'
+    r'"tannin":(null|[\d.]+)\}'
+)
+_NAME_RE = re.compile(r'"name":"([^"]+)"')
+
+# On the real page the wine object spans ~33KB (region blob is huge) and the
+# recommended-wines carousel starts ~55KB past the anchor — 40KB covers ours
+# and excludes theirs.
+_ATTR_WINDOW = 40000
+
 # Retail-listing junk that never appears in Vivino slugs
 _JUNK_TOKENS = {"bottle", "750", "375", "1.5", "ml", "wine"}
 
@@ -195,6 +215,96 @@ def parse_wine_stats(page: str, wine_id: int) -> Optional[Dict[str, Any]]:
     return None
 
 
+def _extract_array(page: str, key: str) -> Optional[str]:
+    """Return the text of the first `"key":[...]` array via bracket counting."""
+    m = re.search(r'"%s":\[' % key, page)
+    if not m:
+        return None
+    start = m.end() - 1
+    depth = 0
+    for i in range(start, min(len(page), start + 20000)):
+        c = page[i]
+        if c == "[":
+            depth += 1
+        elif c == "]":
+            depth -= 1
+            if depth == 0:
+                return page[start:i + 1]
+    return None
+
+
+def _num_or_none(token: str) -> Optional[float]:
+    return None if token == "null" else float(token)
+
+
+def parse_wine_attributes(page: str, wine_id: int) -> Optional[Dict[str, Any]]:
+    """Extract canonical wine attributes from the wine page's embedded JSON.
+
+    Anchors on the wine object ("id":{wine_id}) and reads within a bounded
+    window — this skips the localization strings earlier in the page (where
+    "grapes" is a UI label, not data) and stops short of the recommended-wines
+    carousel. Returns None when the wine id isn't on the page; individual
+    attributes missing from the page come back as None/[].
+    """
+    anchor = page.find('"id":%d' % wine_id)
+    if anchor == -1:
+        return None
+    window = page[anchor:anchor + _ATTR_WINDOW]
+
+    region_m = _REGION_RE.search(window)
+    country_m = _COUNTRY_RE.search(window)
+    alcohol_m = _ALCOHOL_RE.search(window)
+
+    grapes_arr = _extract_array(window, "grapes")
+    foods_arr = _extract_array(window, "foods")
+    # foods objects nest a background_image whose keys carry no "name",
+    # so a flat name scan inside the array text is safe for both arrays.
+    grapes = _NAME_RE.findall(grapes_arr) if grapes_arr else []
+    foods = _NAME_RE.findall(foods_arr) if foods_arr else []
+
+    structure = None
+    base_m = _BASELINE_RE.search(window)
+    if base_m:
+        structure = {
+            "acidity":   _num_or_none(base_m.group(1)),
+            "fizziness": _num_or_none(base_m.group(2)),
+            "intensity": _num_or_none(base_m.group(3)),
+            "sweetness": _num_or_none(base_m.group(4)),
+            "tannin":    _num_or_none(base_m.group(5)),
+        }
+
+    return {
+        "grapes": grapes,
+        "foods": foods,
+        "region": region_m.group(1) if region_m else None,
+        "country": country_m.group(1) if country_m else None,
+        "abv": float(alcohol_m.group(1)) if alcohol_m else None,
+        "structure": structure,
+    }
+
+
+def structure_to_profile(structure: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Convert Vivino baseline_structure (1-5) to the GrapeMinds structure_profile
+    convention (1-10) used by the scorer and the dossier StructureBars.
+
+    intensity maps to body; fizziness has no equivalent and is dropped. The
+    "source" marker lets downstream consumers prefer GrapeMinds when both exist.
+    """
+    if not structure:
+        return None
+    mapping = {"acidity": "acidity", "tannin": "tannins",
+               "sweetness": "sweetness", "intensity": "body"}
+    out = {}
+    for src, dst in mapping.items():
+        v = structure.get(src)
+        if v is not None:
+            out[dst] = round(v * 2, 1)
+    if not out:
+        return None
+    out["source"] = "vivino"
+    return out
+
+
 async def fetch_ratings(
     match: Dict[str, Any],
     client: httpx.AsyncClient,
@@ -211,4 +321,7 @@ async def fetch_ratings(
     page = await _get(BASE + match["href"], client)
     if page is None:
         raise VivinoFetchError(f"wine page fetch failed: {match['href']}")
-    return parse_wine_stats(page, match["wine_id"])
+    stats = parse_wine_stats(page, match["wine_id"])
+    if stats is not None:
+        stats["attributes"] = parse_wine_attributes(page, match["wine_id"])
+    return stats

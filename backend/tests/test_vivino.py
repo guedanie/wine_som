@@ -10,8 +10,10 @@ from enrichment.vivino import (
     build_query,
     clean_wine_name,
     match_score,
+    parse_wine_attributes,
     parse_wine_stats,
     search_wine,
+    structure_to_profile,
     fetch_ratings,
 )
 from unittest.mock import patch, AsyncMock, MagicMock
@@ -242,3 +244,108 @@ def test_fetch_ratings_includes_image_url():
             delay=0,
         ))
     assert stats["image_url"] == "https://images.vivino.com/thumbs/test_pb_x600.png"
+
+
+# ── parse_wine_attributes (real page shapes from Yellow Tail Shiraz w/2547) ──
+
+# Localization junk that appears BEFORE the wine object on real pages — the
+# parser must not read attribute labels ("grapes":"Grapes") as data.
+_L10N_JUNK = (
+    '{"wine_summary":{"acidity":"Acidity","alcohol":"Alcohol content",'
+    '"grapes":"Grapes","region":"Region","food_pairing":"Food pairing"},'
+)
+
+_ATTR_PAGE = _L10N_JUNK + (
+    '"wine":{"id":2547,"name":"Shiraz","seo_name":"shiraz","type_id":1,'
+    '"is_natural":false,'
+    '"region":{"id":685,"name":"South Eastern Australia","name_en":"","seo_name":"south-eastern",'
+    '"country":{"code":"au","name":"Australia","native_name":"Australia","seo_name":"australia"}},'
+    '"grapes":[{"id":1,"name":"Shiraz/Syrah","seo_name":"shiraz-syrah","parent_grape_id":null,"color":5}],'
+    '"foods":[{"id":4,"name":"Beef","weight":0.5,'
+    '"background_image":{"location":"//x/4_beef.png","variations":{"small":"//x/4s.png"}},"seo_name":"beef"},'
+    '{"id":8,"name":"Lamb","weight":0.5,'
+    '"background_image":{"location":"//x/8_lamb.png","variations":{"small":"//x/8s.png"}},"seo_name":"lamb"}],'
+    '"non_vintage":false,"alcohol":13.5,"sweetness_id":null,'
+    '"style":{"id":926,"seo_name":"south-eastern-australia-shiraz",'
+    '"baseline_structure":{"acidity":4.5,"fizziness":null,"intensity":4.5,"sweetness":1.0,"tannin":4.0}},'
+    '"has_valid_ratings":true}}'
+)
+
+
+def test_parse_attributes_full_page():
+    attrs = parse_wine_attributes(_ATTR_PAGE, 2547)
+    assert attrs["grapes"] == ["Shiraz/Syrah"]
+    assert attrs["foods"] == ["Beef", "Lamb"]
+    assert attrs["region"] == "South Eastern Australia"
+    assert attrs["country"] == "Australia"
+    assert attrs["abv"] == 13.5
+    assert attrs["structure"] == {
+        "acidity": 4.5, "fizziness": None, "intensity": 4.5,
+        "sweetness": 1.0, "tannin": 4.0,
+    }
+
+
+def test_parse_attributes_ignores_l10n_labels():
+    """Labels like "grapes":"Grapes" before the anchor must not poison the parse."""
+    attrs = parse_wine_attributes(_ATTR_PAGE, 2547)
+    assert "Grapes" not in (attrs["grapes"] or [])
+    assert attrs["region"] != "Region"
+
+
+def test_parse_attributes_missing_wine_returns_none():
+    assert parse_wine_attributes(_ATTR_PAGE, 999999) is None
+
+
+def test_parse_attributes_partial_page():
+    """Attributes absent from the page come back as None/empty, not crashes."""
+    page = '{"wine":{"id":42,"name":"Mystery","statistics":{}}}'
+    attrs = parse_wine_attributes(page, 42)
+    assert attrs["grapes"] == []
+    assert attrs["foods"] == []
+    assert attrs["region"] is None
+    assert attrs["abv"] is None
+    assert attrs["structure"] is None
+
+
+# ── structure_to_profile (Vivino 1-5 → GrapeMinds 1-10 convention) ──
+
+def test_structure_to_profile_scales_and_maps():
+    profile = structure_to_profile({
+        "acidity": 4.5, "fizziness": None, "intensity": 4.5,
+        "sweetness": 1.0, "tannin": 4.0,
+    })
+    assert profile == {
+        "acidity": 9.0, "body": 9.0, "sweetness": 2.0, "tannins": 8.0,
+        "source": "vivino",
+    }
+
+
+def test_structure_to_profile_skips_nulls():
+    profile = structure_to_profile({"acidity": 3.0, "tannin": None,
+                                    "intensity": None, "sweetness": None,
+                                    "fizziness": None})
+    assert profile == {"acidity": 6.0, "source": "vivino"}
+
+
+def test_structure_to_profile_none_input():
+    assert structure_to_profile(None) is None
+
+
+def test_fetch_ratings_includes_attributes():
+    """fetch_ratings must surface parsed attributes so the runner can write
+    facts without a second page fetch. (vivino attribute enrichment)"""
+    mock_client = AsyncMock()
+    page = _WINE_PAGE_WITH_IMAGE.replace(
+        '"name":"Esprit de Tablas",',
+        '"name":"Esprit de Tablas",'
+        '"region":{"id":1,"name":"Paso Robles","country":{"code":"us","name":"United States"}},'
+        '"grapes":[{"id":9,"name":"Mourvedre"}],"alcohol":14.5,',
+    )
+    with patch("enrichment.vivino._get", new=AsyncMock(return_value=page)):
+        stats = asyncio.run(fetch_ratings(
+            {"wine_id": 2758387, "href": "/en/tablas-creek/w/2758387"},
+            mock_client, delay=0,
+        ))
+    assert stats["attributes"]["grapes"] == ["Mourvedre"]
+    assert stats["attributes"]["region"] == "Paso Robles"
+    assert stats["attributes"]["abv"] == 14.5
