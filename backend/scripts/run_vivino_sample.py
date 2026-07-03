@@ -28,15 +28,22 @@ CONCURRENCY = 5      # parallel workers
 REQ_DELAY = 0.3      # seconds between each HTTP request within a worker
 
 
-def fetch_sample(db, limit):
-    resp = (
+def fetch_sample(db, limit, missing_images_only=False):
+    q = (
         db.table("wines")
         .select("id,name,brand,vintage_year,varietal,region,wine_type")
         .is_("vivino_enriched_at", "null")
-        .limit(limit)
-        .execute()
     )
-    return resp.data
+    if missing_images_only:
+        # Only HEB/CM wines lack images (all other scrapers capture CDN URLs),
+        # so this flag effectively targets the HEB catalog — the mainstream
+        # brands with the best Vivino match rates.
+        q = q.is_("image_url", "null")
+    # Non-wine catalog noise that will never match on Vivino
+    for junk in ("%sake%", "%cocktail%", "%margarita%", "%daiquiri%",
+                 "%pina colada%", "%spiked%", "%lemonade%"):
+        q = q.not_.ilike("name", junk)
+    return q.limit(limit).execute().data
 
 
 async def enrich_one(w, db, client, sem, args, results):
@@ -87,7 +94,7 @@ async def enrich_one(w, db, client, sem, args, results):
 
 async def main_async(args):
     db = get_service_client()
-    wines = fetch_sample(db, args.limit)
+    wines = fetch_sample(db, args.limit, missing_images_only=args.missing_images)
     total = len(wines)
     print(f"Sample: {total} wines | concurrency={CONCURRENCY} | threshold={MATCH_THRESHOLD} | "
           f"{'DRY RUN' if args.dry_run else 'writing to DB'}", flush=True)
@@ -122,6 +129,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int, default=100)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--missing-images", action="store_true",
+                    help="Only wines with image_url IS NULL (targets HEB/CM catalog)")
     args = ap.parse_args()
     asyncio.run(main_async(args))
 
