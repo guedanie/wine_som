@@ -5,22 +5,28 @@ endpoint's q= param is popularity-ranked, not relevance-ranked. The HTML
 search page (/search/wines?q=) does true name search, and the wine page
 embeds full JSON stats — so this client works in two HTML requests:
 
-  1. search_wine(query)   -> top /w/{id} hit + slug-similarity score
-  2. fetch_ratings(match) -> wine-level ratings parsed from the page JSON
+  1. search_wine(query, client)   -> top /w/{id} hit + slug-similarity score
+  2. fetch_ratings(match, client) -> wine-level ratings parsed from the page JSON
+
+Both functions are async. Callers should share a single httpx.AsyncClient
+across concurrent enrichment tasks to reuse connections.
 
 See data/exploration/vivino_findings.md for the probe history.
 """
 
+import asyncio
 import re
-import subprocess
 import urllib.parse
 from typing import Any, Dict, Optional
+
+import httpx
 
 BASE = "https://www.vivino.com"
 _UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
 )
+_HEADERS = {"User-Agent": _UA, "Accept-Language": "en-US,en;q=0.9"}
 
 # Match /w/{id} links; slug segment precedes /w/
 _WINE_LINK_RE = re.compile(r'href="(/[^"]*?/w/(\d+)[^"]*)"')
@@ -28,6 +34,7 @@ _SLUG_RE = re.compile(r"/([^/]+)/w/\d+")
 _YEAR_PARAM_RE = re.compile(r"[?&]year=(\d{4})")
 _VOLUME_RE = re.compile(r"\b\d+(\.\d+)?\s*(ml|ltr|l|liter|litre)s?\b", re.I)
 _STATS_PAIR_RE = re.compile(r'"ratings_count":\s*(\d+)\s*,\s*"ratings_average":\s*([\d.]+)')
+_BOTTLE_MEDIUM_RE = re.compile(r'"bottle_medium":"(//[^"]+)"')
 
 # Retail-listing junk that never appears in Vivino slugs
 _JUNK_TOKENS = {"bottle", "750", "375", "1.5", "ml", "wine"}
@@ -50,15 +57,12 @@ _QUERY_NOISE = {"white", "red", "rose", "rosé", "sparkling", "wine", "still",
                 "california", "blend"}
 
 
-def _get(url: str, timeout: int = 25) -> str:
-    cmd = [
-        "curl", "-s", "-L", "--max-time", str(timeout),
-        "-H", f"User-Agent: {_UA}",
-        "-H", "Accept-Language: en-US,en;q=0.9",
-        url,
-    ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    return result.stdout if result.returncode == 0 else ""
+async def _get(url: str, client: httpx.AsyncClient, timeout: int = 25) -> str:
+    try:
+        resp = await client.get(url, headers=_HEADERS, timeout=timeout)
+        return resp.text
+    except Exception:
+        return ""
 
 
 def clean_wine_name(name: str) -> str:
@@ -108,14 +112,22 @@ def strip_query_noise(query: str) -> str:
     return " ".join(kept)
 
 
-def search_wine(query: str) -> Optional[Dict[str, Any]]:
+async def search_wine(
+    query: str,
+    client: httpx.AsyncClient,
+    delay: float = 0.3,
+) -> Optional[Dict[str, Any]]:
     """Search Vivino by name; return the top hit with a slug-similarity score.
 
     Returns {"wine_id", "href", "slug", "year", "score"} or None if the
     search page yields no wine links.
+
+    delay: seconds to sleep before the HTTP request (rate-limiting).
     """
+    if delay:
+        await asyncio.sleep(delay)
     url = BASE + "/search/wines?q=" + urllib.parse.quote(query)
-    html = _get(url)
+    html = await _get(url, client)
     if not html:
         return None
     best = None
@@ -136,21 +148,26 @@ def search_wine(query: str) -> Optional[Dict[str, Any]]:
             "year": int(year_m.group(1)) if year_m else None,
             "score": match_score(query, slug),
         }
-        # Vivino's own ranking puts the right wine near the top, but not
-        # always first — score every hit on the page and keep the best.
         if best is None or candidate["score"] > best["score"]:
             best = candidate
     return best
 
 
 def parse_wine_stats(page: str, wine_id: int) -> Optional[Dict[str, Any]]:
-    """Extract wine-level (all-vintages) ratings from a wine page's embedded JSON.
+    """Extract wine-level ratings and bottle image from a wine page's embedded JSON.
 
-    Anchors on the wine object ("id":{wine_id}) and reads the first
-    statistics pair after it — that is the wine-level scope, distinct from
-    the vintage-level stats and from recommended-wine carousels elsewhere
-    on the page.
+    Anchors on the wine object ("id":{wine_id}) for ratings. The bottle image
+    sits at the vintage level (before the wine id in the JSON), so it's read
+    from the first "bottle_medium" occurrence on the page — which is always the
+    hero wine on a /w/{id} detail page, not a carousel recommendation.
+
+    Returns {"ratings_count", "ratings_average", "image_url"} or None if no
+    ratings found for wine_id.
     """
+    # Image: first bottle_medium on page (vintage wraps the wine — appears before wine id)
+    img_m = _BOTTLE_MEDIUM_RE.search(page)
+    image_url = ("https:" + img_m.group(1)) if img_m else None
+
     anchor = page.find('"id":%d' % wine_id)
     while anchor != -1:
         stats_idx = page.find('"statistics"', anchor)
@@ -160,14 +177,23 @@ def parse_wine_stats(page: str, wine_id: int) -> Optional[Dict[str, Any]]:
                 count = int(m.group(1))
                 avg = float(m.group(2))
                 if count > 0 and avg > 0:
-                    return {"ratings_count": count, "ratings_average": avg}
+                    return {"ratings_count": count, "ratings_average": avg, "image_url": image_url}
         anchor = page.find('"id":%d' % wine_id, anchor + 1)
     return None
 
 
-def fetch_ratings(match: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Fetch the wine page for a search match and parse wine-level ratings."""
-    page = _get(BASE + match["href"])
+async def fetch_ratings(
+    match: Dict[str, Any],
+    client: httpx.AsyncClient,
+    delay: float = 0.3,
+) -> Optional[Dict[str, Any]]:
+    """Fetch the wine page for a search match and parse wine-level ratings.
+
+    delay: seconds to sleep before the HTTP request (rate-limiting).
+    """
+    if delay:
+        await asyncio.sleep(delay)
+    page = await _get(BASE + match["href"], client)
     if not page:
         return None
     return parse_wine_stats(page, match["wine_id"])
