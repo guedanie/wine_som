@@ -12,6 +12,7 @@ from enrichment.extraction.reference import (
 )
 
 MODEL = "claude-haiku-4-5-20251001"
+_anthropic_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 _BODY_VALUES = {"light", "medium", "full"}
 
 _TOOL = {
@@ -98,7 +99,6 @@ def _post_process(rec: Dict[str, Any]) -> Dict[str, Any]:
 
 def extract_facts(wines: List[Dict[str, Any]], batch_size: int = 15) -> List[Dict[str, Any]]:
     """Extract structured facts for a list of wine rows. Returns post-processed records."""
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     system = _system_prompt()
     results = []
     for i in range(0, len(wines), batch_size):
@@ -109,7 +109,7 @@ def extract_facts(wines: List[Dict[str, Any]], batch_size: int = 15) -> List[Dic
             for w in batch
         )
         try:
-            resp = client.messages.create(
+            resp = _anthropic_client.messages.create(
                 model=MODEL,
                 max_tokens=2048,
                 system=system,

@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
+from unittest.mock import patch, MagicMock
 from scrapers.geraldines import (
     _parse_product, _parse_vintage, _first_paragraph, _strip_html, GeraldinesScraper,
 )
@@ -92,3 +93,16 @@ def test_inventory_item_carries_image_url():
     product = _parse_product(_raw_product())
     items = scraper._shopify_products_to_inventory_items([product])
     assert items[0].image_url == "https://cdn.shopify.com/img.jpg"
+
+
+def test_inventory_item_varietal_is_none_not_product_type():
+    """varietal must never be set to the Shopify product_type string ('Red Wine' etc.). (B3)"""
+    scraper = GeraldinesScraper.__new__(GeraldinesScraper)
+    for pt in ("Red Wine", "White Wine", "Sparkling Wine", "Rosé Wine", "Orange Wine"):
+        product = _parse_product(_raw_product(product_type=pt))
+        if product is None:
+            continue
+        items = scraper._shopify_products_to_inventory_items([product])
+        assert items[0].varietal is None, (
+            f"varietal should be None for product_type={pt!r}, got {items[0].varietal!r}"
+        )

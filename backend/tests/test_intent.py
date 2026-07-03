@@ -49,9 +49,8 @@ def test_parse_message_returns_structured_intent():
                    "grapes": ["Syrah"], "region": "Rhône", "max_price": 25.0, "avoid": []}
     resp = MagicMock()
     resp.content = [block]
-    mock_cls = MagicMock()
-    mock_cls.return_value.messages.create.return_value = resp
-    with patch("recommendation.intent.anthropic.Anthropic", mock_cls):
+    with patch("recommendation.intent._anthropic_client") as mock_client:
+        mock_client.messages.create.return_value = resp
         out = parse_message("a bold earthy red for steak around $25")
     assert out["wine_type"] == "red"
     assert out["body"] == "full"
@@ -62,8 +61,7 @@ def test_parse_message_returns_structured_intent():
 def test_parse_message_fails_soft_on_no_tool_block():
     resp = MagicMock()
     resp.content = []   # no tool_use block
-    mock_cls = MagicMock()
-    mock_cls.return_value.messages.create.return_value = resp
-    with patch("recommendation.intent.anthropic.Anthropic", mock_cls):
+    with patch("recommendation.intent._anthropic_client") as mock_client:
+        mock_client.messages.create.return_value = resp
         out = parse_message("gibberish")
     assert out is None

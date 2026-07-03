@@ -1,10 +1,12 @@
 import json
+import logging
 import anthropic
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from api.schemas import SommRequest
 from config import settings
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/somm", tags=["somm"])
 
 anthropic_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
@@ -67,7 +69,8 @@ async def ask_somm(req: SommRequest):
                     ):
                         yield "data: " + json.dumps({"type": "token", "text": event.delta.text}) + "\n\n"
         except Exception as e:
-            yield "data: " + json.dumps({"type": "error", "message": str(e)}) + "\n\n"
+            logger.exception("somm streaming error: %s", e)
+            yield "data: " + json.dumps({"type": "error", "message": "Something went wrong"}) + "\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(

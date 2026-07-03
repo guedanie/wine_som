@@ -52,7 +52,8 @@ def test_extract_facts_returns_postprocessed_records():
     model_out = [{"wine_id": "w1", "region": "France", "sub_region": "Saint-Émilion",
                   "country": "France", "vintage_year": 2019, "varietal": "Merlot",
                   "grapes": ["Merlot"], "abv": None, "body": "full"}]
-    with patch("enrichment.extraction.extractor.anthropic.Anthropic", _mock_anthropic(model_out)):
+    cls = _mock_anthropic(model_out)
+    with patch("enrichment.extraction.extractor._anthropic_client", cls.return_value):
         out = extract_facts(wines, batch_size=15)
     assert len(out) == 1
     assert out[0]["region"] == "Bordeaux"
@@ -62,7 +63,7 @@ def test_extract_facts_batches_calls():
     wines = [{"id": f"w{i}", "name": f"Wine {i}", "brand": "", "wine_type": "red",
               "description": ""} for i in range(32)]
     cls = _mock_anthropic([])   # each call returns no wines; we only count calls
-    with patch("enrichment.extraction.extractor.anthropic.Anthropic", cls):
+    with patch("enrichment.extraction.extractor._anthropic_client", cls.return_value):
         extract_facts(wines, batch_size=15)
     # 32 wines / 15 per batch = 3 calls
     assert cls.return_value.messages.create.call_count == 3

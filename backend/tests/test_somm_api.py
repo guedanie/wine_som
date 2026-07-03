@@ -74,6 +74,30 @@ async def test_somm_missing_wine_name_422():
 
 
 @pytest.mark.asyncio
+async def test_somm_error_does_not_expose_exception_detail():
+    """When Claude raises, the SSE error event must not contain raw exception text. (E4)"""
+    import json as _json
+
+    with patch("api.routers.somm.anthropic_client") as mock_client:
+        mock_client.messages.stream.side_effect = Exception(
+            "credit_balance_too_low api_key=sk-ant-SECRET-XYZ"
+        )
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            resp = await ac.post("/api/somm", json={"wine": _WINE, "message": "Tell me about this."})
+
+    assert resp.status_code == 200
+    error_events = []
+    for line in resp.text.splitlines():
+        if line.startswith("data: ") and line[6:] != "[DONE]":
+            event = _json.loads(line[6:])
+            if event.get("type") == "error":
+                error_events.append(event)
+    assert len(error_events) == 1
+    assert "sk-ant" not in error_events[0]["message"]
+    assert "credit_balance" not in error_events[0]["message"]
+
+
+@pytest.mark.asyncio
 async def test_somm_with_history():
     with patch("api.routers.somm.anthropic_client") as mock_client:
         mock_client.messages.stream.return_value = _mock_stream(["Yes, decant it."])

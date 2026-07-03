@@ -3,6 +3,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
 from unittest.mock import MagicMock
+import utils.geo as geo_module
 from utils.geo import zip_to_centroid, haversine, find_nearby_store_ids
 
 
@@ -66,6 +67,8 @@ def test_find_nearby_store_ids_sa_zip_returns_nearby_store():
 
 def test_find_nearby_store_ids_distant_zip_returns_empty():
     # Austin store is ~80 miles from SA zip — should be excluded at 10-mile radius
+    geo_module._store_cache = None  # reset TTL cache so mock DB is queried
+    geo_module._store_cache_ts = 0.0
     atx_centroid = zip_to_centroid("78701")
     assert atx_centroid is not None
     stores = [{"id": "store-atx", "latitude": atx_centroid[0], "longitude": atx_centroid[1]}]
@@ -81,6 +84,8 @@ def test_find_nearby_store_ids_unknown_zip_returns_empty():
 
 
 def test_find_nearby_store_ids_store_missing_coords_is_skipped():
+    geo_module._store_cache = None  # reset TTL cache so mock DB is queried
+    geo_module._store_cache_ts = 0.0
     stores = [{"id": "no-coords", "latitude": None, "longitude": None}]
     db = _make_db(stores)
     result = find_nearby_store_ids("78209", db)

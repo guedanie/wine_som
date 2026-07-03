@@ -88,6 +88,12 @@ def main():
                         "vivino_enriched_at": datetime.now(timezone.utc).isoformat(),
                     }).eq("id", w["id"]).execute()
 
+        # Mark all attempted wines so re-runs skip them (rating cols stay null for no-match)
+        if not args.dry_run and not status.startswith("OK"):
+            db.table("wines").update({
+                "vivino_enriched_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", w["id"]).execute()
+
         rows.append((w["name"][:55], query[:50], status))
         print(f"  [{i}/{total}] {w['name'][:50]!r} → {status}", flush=True)
         time.sleep(SLEEP_BETWEEN_WINES)

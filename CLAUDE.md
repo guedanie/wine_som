@@ -3,12 +3,13 @@
 ## What This Is
 Full-stack wine recommendation app. Users enter zip code + budget + style preferences and get Claude-powered sommelier recommendations for wines available at local retailers near them.
 
-## Current Build Status (as of 2026-07-01)
+## Current Build Status (as of 2026-07-02)
 
 ### Done
 | Component | Location | Notes |
 |---|---|---|
-| Supabase schema | `supabase/migrations/` | 11 migrations live in cloud DB |
+| Supabase schema | `supabase/migrations/` | 13 migrations live in cloud DB |
+| Vivino enrichment | `backend/enrichment/vivino.py`, `backend/scripts/run_vivino_sample.py` | HTML name search + slug-validated match + wine-level ratings parse; 5 new columns on `wines`; dry run: 14% match on cold sample (well-known brands match well; obscure/truncated Spec's names are the miss) |
 | FastAPI app | `backend/api/` | `/health`, `/api/wines/search`, `/api/wines/:id` |
 | Enrichment endpoints | `backend/api/routers/enrichment.py` | `/api/enrich/:id`, `/api/enrich/batch/pending` |
 | GrapeMinds client | `backend/enrichment/grapeminds.py` | curl subprocess (Cloudflare bypass) |
@@ -129,6 +130,15 @@ System Python is **3.9.6**. Use `Optional[str]` from `typing`, NOT `str | None` 
 - Prices are NOT deduplicated — they live in `retail_inventory` per (wine × store). Merging wines re-points all inventory rows, preserving every retailer's price.
 - One-time merge already run (2026-06-21): `backend/scripts/merge_duplicate_wines.py` collapsed 910 duplicate wine rows (9321 → 8411), 0 inventory loss. Script is idempotent + has `--dry-run`. Re-run it after adding a new barcode retailer if needed.
 - Geraldine's (and other natural-wine shops) can't UPC-dedup — that's a future fuzzy name/producer/vintage matching problem (GrapeMinds matching subsystem).
+
+### Vivino Enrichment (HTML scrape — no API key)
+- **Name search**: `GET https://www.vivino.com/search/wines?q={url-encoded name}` — true relevance-ranked HTML search (the JSON `/api/wines/search` endpoint 404s)
+- **Match validation**: first `/w/{wine_id}` link in results carries a slug (`/en/{producer}-{wine}/w/{id}`) — slug-similarity score (overlap coefficient) against our wine name; threshold = 0.6; varietal-only overlap is explicitly rejected (must have ≥1 distinctive shared token)
+- **Ratings parse**: wine page at `/w/{id}` embeds full JSON — parse `statistics.ratings_count` + `statistics.ratings_average` anchored on `"id":{wine_id}` → first nearby `"statistics"` block (wine-level, all-vintages)
+- **Rate**: 0.6s between search+page fetch; 1.0s between wines; ~1 req/s effective
+- **Match rate**: ~14% on a cold random sample (well-known brands match; obscure/truncated Spec's names miss); real-world rate for GrapeMinds-enriched wines expected much higher
+- **Runner**: `python3 scripts/run_vivino_sample.py --limit N [--dry-run]` from `backend/`; filters `vivino_enriched_at IS NULL` so re-runs are incremental
+- **Columns**: `wines.vivino_wine_id`, `vivino_rating`, `vivino_ratings_count`, `vivino_match_score`, `vivino_enriched_at` (migration 13)
 
 ### Zip→Store Radius Lookup
 - `/api/recommend` uses `find_nearby_store_ids(zip_code, db, radius_miles=10.0)` — not a hardcoded zip filter
@@ -267,6 +277,7 @@ backend/
   enrichment/
     grapeminds.py              — GrapeMinds API client (curl subprocess)
     pipeline.py                — Enrichment orchestrator + two-step warm-up
+    vivino.py                  — Vivino enrichment client: HTML name search + slug-similarity match + wine-page ratings parse (no API key; 2 HTML reqs/wine)
     extraction/
       extractor.py             — Haiku fact extractor (region/varietal/grapes/abv/body)
       reference.py             — Appellation→region cheat sheet + core grapes + few-shot
@@ -290,6 +301,7 @@ backend/
   scripts/
     backfill_store_coords.py   — One-time lat/lon backfill for existing stores
     merge_duplicate_wines.py   — One-time canonical-UPC dedup merge (idempotent, --dry-run)
+    run_vivino_sample.py       — Vivino enrichment runner: `--limit N --dry-run`; MATCH_THRESHOLD=0.6; writes vivino_* columns
   tests/                       — 175 tests (172 unit + 3 integration vs live schema)
   conftest.py                  — registers the `integration` pytest marker
   config.py                    — Pydantic settings (reads from ../.env)
@@ -312,6 +324,7 @@ supabase/
     20260620000002_wine_upc_canonical.sql   — wines.upc_canonical column
     20260620000003_wines_upc_canonical_index.sql — partial UNIQUE index on upc_canonical
     20260630000001_feedback_table.sql           — feedback table (type/entity_id/vote/session_id/user_id/zip); RLS + service_role grant
+    20260701000001_wine_vivino_fields.sql       — wines.vivino_wine_id/rating/ratings_count/match_score/enriched_at
 
 frontend/
   src/
@@ -350,6 +363,8 @@ data/
     costco_findings.md         — Blocked (Akamai), no TX online wine
     traderjoes_findings.md     — Blocked (Akamai), no inventory API
     publix_findings.md         — Blocked (Akamai), wrong geography
+    vivino_probe.py            — Vivino API probe script
+    vivino_findings.md         — Vivino findings: JSON API 404s; HTML search (/search/wines?q=) is the only working name-lookup; wine page embeds full JSON stats
 
 docs/
   superpowers/
@@ -395,7 +410,7 @@ docs/
 6. **User accounts** — Supabase Auth (already in stack); enables saved favorites, recommendation history, and ties feedback to a user identity; prerequisite for price alerts
 7. **Price alerts + promo scraping** — notify when a saved wine drops in price; scrape sale/promo prices where available (Spec's `unitPricePromoDiscount` already captured; HEB ONLINE vs CURBSIDE delta already stored)
 8. **Analytics** — PostHog free tier; track region clicks, style popularity, recommendation → dossier conversion, drop-off points
-9. **Ratings integration** — pull Vivino or Wine Spectator scores to add credibility to picks; Vivino has an unofficial API, WS requires a license
+9. **Ratings integration** — Vivino pipeline built and validated (dry run 2026-07-02: 14% match on cold catalog sample; well-known brands match cleanly, obscure/truncated Spec's names are the miss). Next: run `python3 scripts/run_vivino_sample.py --limit 500` from `backend/` to get real match-rate stats, then wire `vivino_rating`/`vivino_ratings_count` into WineCard + RegionDossier as a credibility badge ("4.1 ★ · 26k on Vivino")
 10. Local MCP server for Claude Desktop (parked) — read-only tools over the catalog, anon key, narrow tools; see memory `mcp-desktop-parked`
 11. Add more Shopify local wine shops (same scraper pattern as Geraldine's, zero new code)
 12. Spec's Austin stores (same scraper pattern, just add Austin store IDs)

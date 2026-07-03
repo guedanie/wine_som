@@ -5,6 +5,8 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
+_anthropic_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+
 
 _TOOL = {
     "name": "recommend_wines",
@@ -217,37 +219,30 @@ def _build_user_message(
     )
 
 
-def stream_recommendations(
-    candidates: List[Dict[str, Any]],
-    intent: Dict[str, Any],
-    conversation_history: Optional[List[Dict[str, Any]]] = None,
-):
+def _parse_narrative_fragments(fragments):
+    """Parse a sequence of input_json_delta fragment strings from the streaming tool call.
+
+    Yields (type, value) tuples:
+      ("token", str)   — decoded narrative characters
+      ("picks", list)  — picks array, as soon as its closing ] is seen
+
+    Extracted from _gen() so it can be unit-tested without any Anthropic API calls.
+    Handles standard JSON escape sequences including \\uXXXX (B2 fix).
     """
-    Returns a generator that yields (type, data) tuples:
-      ("token", str)   — narrative character(s) extracted from input_json_delta
-      ("picks", list)  — raw model picks (unenriched)
+    _JSON_ESCAPES = {"n": "\n", "t": "\t", "r": "\r", "\\": "\\", '"': '"', "/": "/"}
 
-    With forced tool use the model writes everything inside the tool JSON.
-    We extract the narrative string by watching input_json_delta fragments
-    for the '"narrative":"' marker, then streaming chars until the closing quote.
+    json_buf = ""
+    in_narrative = False
+    narrative_done = False
+    escape_next = False
+    # None = not in a \\uXXXX sequence; str = accumulating hex digits
+    unicode_buf = None
+    MARKERS = ['"narrative":"', '"narrative": "']
 
-    Raises on init failure so the router can return 500 before streaming starts.
-    """
-    client_inst = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-    user_msg = _build_user_message(candidates, intent, conversation_history)
-    user_message = intent.get("message") or ""
+    post_buf = ""
+    picks_yielded = False
 
-    logger.info(
-        "CLAUDE | streaming | message=%r history_turns=%d candidates=%d",
-        user_message[:60], len(conversation_history or []), len(candidates),
-    )
-
-    def _try_extract_picks(buf: str) -> Optional[list]:
-        """
-        Parse the picks array from a partial JSON buffer as soon as it closes.
-        Returns the parsed list or None if the array isn't complete yet.
-        Tracks string context so brackets inside quoted values don't confuse the depth counter.
-        """
+    def _try_extract_picks(buf):
         import json as _json
         marker = '"picks":'
         pos = buf.find(marker)
@@ -281,27 +276,134 @@ def stream_recommendations(
                             return None
         return None
 
-    def _gen():
-        # State machine for extracting the "narrative" string from streaming JSON.
-        # input_json_delta fragments arrive as raw JSON text, e.g.:
-        #   '{"narrative": "Here are'  →  ' three wines'  →  '...","picks":[...]}'
-        # JSON escape sequence map — only the sequences Claude emits in narratives.
-        _JSON_ESCAPES = {"n": "\n", "t": "\t", "r": "\r", "\\": "\\", '"': '"', "/": "/"}
+    def _process_char(ch, chunk, escape_next, unicode_buf):
+        """Process one character inside the narrative string.
 
-        json_buf = ""
-        in_narrative = False
+        Returns (escape_next, unicode_buf, narrative_done).
+        Appends decoded characters to chunk in-place.
+        """
         narrative_done = False
-        escape_next = False
-        # Both '"narrative":"' and '"narrative": "' (with space) are valid.
-        MARKERS = ['"narrative":"', '"narrative": "']
+        if unicode_buf is not None:
+            # Accumulating hex digits for \\uXXXX
+            unicode_buf += ch
+            if len(unicode_buf) == 4:
+                try:
+                    chunk.append(chr(int(unicode_buf, 16)))
+                except ValueError:
+                    chunk.append("u" + unicode_buf)
+                unicode_buf = None
+            return escape_next, unicode_buf, narrative_done
 
-        # Post-narrative buffer: accumulate fragments after narrative ends so we can
-        # parse picks as soon as the array closes, before followup_suggestions arrive.
-        post_buf = ""
+        if escape_next:
+            if ch == "u":
+                unicode_buf = ""  # start collecting 4 hex digits
+            else:
+                chunk.append(_JSON_ESCAPES.get(ch, ch))
+            return False, unicode_buf, narrative_done
+
+        if ch == "\\":
+            return True, unicode_buf, narrative_done
+        if ch == '"':
+            narrative_done = True
+            return escape_next, unicode_buf, narrative_done
+        chunk.append(ch)
+        return escape_next, unicode_buf, narrative_done
+
+    for fragment in fragments:
+        if narrative_done:
+            if not picks_yielded:
+                post_buf += fragment
+                early_picks = _try_extract_picks(post_buf)
+                if early_picks is not None:
+                    picks_yielded = True
+                    yield ("picks", early_picks)
+            continue
+
+        if not in_narrative:
+            json_buf += fragment
+            start_idx = -1
+            for marker in MARKERS:
+                pos = json_buf.find(marker)
+                if pos != -1:
+                    start_idx = pos + len(marker)
+                    break
+            if start_idx == -1:
+                continue
+            in_narrative = True
+            chars = json_buf[start_idx:]
+            post_start = None
+            chunk = []
+            for idx, ch in enumerate(chars):
+                escape_next, unicode_buf, done = _process_char(ch, chunk, escape_next, unicode_buf)
+                if done:
+                    narrative_done = True
+                    post_start = idx + 1
+                    break
+            if chunk:
+                yield ("token", "".join(chunk))
+            if narrative_done and post_start is not None:
+                remaining = chars[post_start:]
+                if remaining and not picks_yielded:
+                    post_buf += remaining
+                    early_picks = _try_extract_picks(post_buf)
+                    if early_picks is not None:
+                        picks_yielded = True
+                        yield ("picks", early_picks)
+        else:
+            chunk = []
+            post_start = None
+            for idx, ch in enumerate(fragment):
+                escape_next, unicode_buf, done = _process_char(ch, chunk, escape_next, unicode_buf)
+                if done:
+                    narrative_done = True
+                    post_start = idx + 1
+                    break
+            if chunk:
+                yield ("token", "".join(chunk))
+            if narrative_done and post_start is not None:
+                remaining = fragment[post_start:]
+                if remaining and not picks_yielded:
+                    post_buf += remaining
+                    early_picks = _try_extract_picks(post_buf)
+                    if early_picks is not None:
+                        picks_yielded = True
+                        yield ("picks", early_picks)
+
+    # Yield empty picks if we never found a closing bracket (degenerate case)
+    if not picks_yielded:
+        picks = _try_extract_picks(post_buf)
+        if picks is not None:
+            yield ("picks", picks)
+
+
+def stream_recommendations(
+    candidates: List[Dict[str, Any]],
+    intent: Dict[str, Any],
+    conversation_history: Optional[List[Dict[str, Any]]] = None,
+):
+    """
+    Returns a generator that yields (type, data) tuples:
+      ("token", str)   — narrative character(s) extracted from input_json_delta
+      ("picks", list)  — raw model picks (unenriched)
+
+    With forced tool use the model writes everything inside the tool JSON.
+    We extract the narrative string by watching input_json_delta fragments
+    for the '"narrative":"' marker, then streaming chars until the closing quote.
+
+    Raises on init failure so the router can return 500 before streaming starts.
+    """
+    user_msg = _build_user_message(candidates, intent, conversation_history)
+    user_message = intent.get("message") or ""
+
+    logger.info(
+        "CLAUDE | streaming | message=%r history_turns=%d candidates=%d",
+        user_message[:60], len(conversation_history or []), len(candidates),
+    )
+
+    def _gen():
         picks_yielded = False
-
         try:
-            with client_inst.messages.stream(
+            with _anthropic_client.messages.stream(
                 model="claude-sonnet-4-6",
                 max_tokens=800,
                 system=_SYSTEM_PROMPT,
@@ -309,78 +411,25 @@ def stream_recommendations(
                 tools=[_TOOL],
                 tool_choice={"type": "tool", "name": "recommend_wines"},
             ) as stream:
-                for event in stream:
-                    # Only care about tool-input JSON deltas
-                    if (getattr(event, "type", None) != "content_block_delta"):
-                        continue
-                    delta = getattr(event, "delta", None)
-                    if delta is None or getattr(delta, "type", None) != "input_json_delta":
-                        continue
-
-                    fragment = delta.partial_json or ""
-
-                    if narrative_done:
-                        # Accumulate post-narrative JSON and try to parse picks early.
-                        # This yields picks the moment the array closes, without waiting
-                        # for followup_suggestions or get_final_message().
-                        if not picks_yielded:
-                            post_buf += fragment
-                            early_picks = _try_extract_picks(post_buf)
-                            if early_picks is not None:
-                                picks_yielded = True
-                                yield ("picks", early_picks)
-                        continue
-
-                    if not in_narrative:
-                        json_buf += fragment
-                        # Scan for the narrative value start
-                        start_idx = -1
-                        for marker in MARKERS:
-                            pos = json_buf.find(marker)
-                            if pos != -1:
-                                start_idx = pos + len(marker)
-                                break
-                        if start_idx == -1:
+                def _fragments():
+                    for event in stream:
+                        if getattr(event, "type", None) != "content_block_delta":
                             continue
-                        in_narrative = True
-                        chars = json_buf[start_idx:]
-                        chunk = []
-                        for ch in chars:
-                            if escape_next:
-                                chunk.append(_JSON_ESCAPES.get(ch, ch))
-                                escape_next = False
-                            elif ch == "\\":
-                                escape_next = True
-                            elif ch == '"':
-                                narrative_done = True
-                                break
-                            else:
-                                chunk.append(ch)
-                        if chunk:
-                            yield ("token", "".join(chunk))
-                    else:
-                        # Already inside the narrative string — stream chars directly
-                        chunk = []
-                        for ch in fragment:
-                            if escape_next:
-                                chunk.append(_JSON_ESCAPES.get(ch, ch))
-                                escape_next = False
-                            elif ch == "\\":
-                                escape_next = True
-                            elif ch == '"':
-                                narrative_done = True
-                                break
-                            else:
-                                chunk.append(ch)
-                        if chunk:
-                            yield ("token", "".join(chunk))
+                        delta = getattr(event, "delta", None)
+                        if delta is None or getattr(delta, "type", None) != "input_json_delta":
+                            continue
+                        yield delta.partial_json or ""
+
+                for typ, val in _parse_narrative_fragments(_fragments()):
+                    if typ == "picks":
+                        picks_yielded = True
+                    yield (typ, val)
 
                 final = stream.get_final_message()
 
             tool_block = next((b for b in final.content if b.type == "tool_use"), None)
             if tool_block is None:
                 raise ValueError("Claude did not return tool picks")
-            # Fall back to final message picks only if streaming extraction missed them.
             if not picks_yielded:
                 yield ("picks", tool_block.input.get("picks", []))
             suggestions = tool_block.input.get("followup_suggestions") or []
@@ -388,7 +437,7 @@ def stream_recommendations(
                 yield ("suggestions", suggestions)
         except Exception as e:
             logger.exception("CLAUDE | streaming error: %s", e)
-            yield ("error", str(e))
+            yield ("error", "Recommendation service unavailable")
 
     return _gen()
 
@@ -399,10 +448,9 @@ def get_recommendations(
     conversation_history: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[str, List[Dict[str, Any]]]:
     """Non-streaming variant kept for tests that mock anthropic.Anthropic directly."""
-    client_inst = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     user_msg = _build_user_message(candidates, intent, conversation_history)
 
-    response = client_inst.messages.create(
+    response = _anthropic_client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=800,
         system=_SYSTEM_PROMPT,

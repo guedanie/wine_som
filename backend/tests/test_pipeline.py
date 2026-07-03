@@ -6,7 +6,7 @@ import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
 from enrichment.pipeline import (
     enrich_wine, enrich_wine_with_refetch,
-    _result_from_wine_data, EnrichmentResult,
+    _result_from_wine_data, EnrichmentResult, persist_candidates,
 )
 from enrichment.grapeminds import GrapeMindsWine, DrinkingPeriod
 
@@ -276,3 +276,20 @@ async def test_enrich_wine_with_refetch_does_second_pass():
 
     assert result.description == "Sun-drenched Napa Valley fruit."
     assert mock_client.get_wine.call_count == 2
+
+
+def test_persist_candidates_uses_upsert_not_delete_insert():
+    """persist_candidates must use upsert (atomic), not delete-then-insert. (B4)"""
+    db = MagicMock()
+    db.table.return_value = db
+    db.upsert.return_value = db
+    db.execute.return_value = MagicMock()
+
+    candidates = [{"grapeminds_id": "123", "display_name": "Wine A", "producer_name": "Prod",
+                   "color": "red", "confidence": 0.9, "rank": 1, "is_primary": True}]
+
+    with patch("enrichment.pipeline.get_service_client", return_value=db):
+        persist_candidates("wine-1", candidates)
+
+    assert db.delete.call_count == 0, "persist_candidates must not call delete"
+    assert db.upsert.call_count == 1, "persist_candidates must call upsert"

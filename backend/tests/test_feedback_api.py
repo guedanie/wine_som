@@ -68,3 +68,20 @@ async def test_post_feedback_invalid_type_422():
             "session_id": "sess-1",
         })
     assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_post_feedback_supabase_error_returns_ok_false():
+    """Supabase failure must return {"ok": False}, not a 500. (E1)"""
+    db = MagicMock()
+    db.table.return_value.upsert.return_value.execute.side_effect = RuntimeError("connection lost")
+    with patch("api.routers.feedback.get_service_client", return_value=db):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            resp = await ac.post("/api/feedback", json={
+                "type": "wine_card",
+                "entity_id": "wine-uuid-1",
+                "vote": "up",
+                "session_id": "sess-1",
+            })
+    assert resp.status_code == 200
+    assert resp.json()["ok"] is False

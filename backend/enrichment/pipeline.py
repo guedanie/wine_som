@@ -123,12 +123,11 @@ def _persist(result: EnrichmentResult, final: bool = False):
 
 
 def persist_candidates(wine_id: str, candidates: list):
-    """Replace this wine's GrapeMinds candidate rows with a fresh top-N set."""
+    """Upsert this wine's GrapeMinds candidate rows (atomic — no DELETE+INSERT)."""
     if not candidates:
         return
     client = get_service_client()
     now = datetime.now(timezone.utc).isoformat()
-    client.table("wine_grapeminds_matches").delete().eq("wine_id", wine_id).execute()
     records = [{
         "wine_id": wine_id,
         "grapeminds_id": c["grapeminds_id"],
@@ -140,7 +139,9 @@ def persist_candidates(wine_id: str, candidates: list):
         "is_primary": c.get("is_primary", False),
         "matched_at": now,
     } for c in candidates]
-    client.table("wine_grapeminds_matches").insert(records).execute()
+    client.table("wine_grapeminds_matches").upsert(
+        records, on_conflict="wine_id,grapeminds_id"
+    ).execute()
 
 
 def is_already_enriched(wine_id: str) -> bool:

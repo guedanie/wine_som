@@ -212,7 +212,7 @@ class GeraldinesScraper(BaseScraper):
                 city="San Antonio",
                 state="TX",
                 in_stock=p.available,
-                varietal=p.product_type,
+                varietal=None,
                 brand=p.vendor,
                 image_url=p.image_url,
             )

@@ -7,6 +7,7 @@ from typing import Optional, List, Dict, Any
 from config import settings
 
 MODEL = "claude-haiku-4-5-20251001"
+_anthropic_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
 # Keep `flavors` aligned with recommendation.flavor_profiles.FLAVOR_VOCAB.
 _FLAVOR_VOCAB = (
@@ -37,8 +38,7 @@ _TOOL = {
 def parse_message(message: str) -> Optional[Dict[str, Any]]:
     """Parse a free-text request into structured intent. Returns None on failure."""
     try:
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-        resp = client.messages.create(
+        resp = _anthropic_client.messages.create(
             model=MODEL,
             max_tokens=512,
             system=(

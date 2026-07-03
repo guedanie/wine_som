@@ -1,5 +1,5 @@
 from typing import List, Optional
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from api.schemas import WineSearchResult
 from db import get_supabase_client
 
@@ -40,10 +40,12 @@ async def get_wine(
             "drinking_window_young,drinking_window_ripe,source,grapeminds_enriched_at)"
         )
         .eq("id", wine_id)
-        .single()
+        .maybe_single()
         .execute()
     )
-    data = wine_result.data or {}
+    data = wine_result.data
+    if data is None:
+        raise HTTPException(status_code=404, detail="Wine not found")
 
     inv_q = (
         client.table("retail_inventory")

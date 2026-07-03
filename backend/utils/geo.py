@@ -1,8 +1,13 @@
 import math
+import time
 from typing import Optional, Tuple, List
 import pgeocode
 
 _nomi: Optional[pgeocode.Nominatim] = None
+
+_store_cache: Optional[List[dict]] = None
+_store_cache_ts: float = 0.0
+_STORE_CACHE_TTL = 60.0  # seconds
 
 
 def _get_nomi() -> pgeocode.Nominatim:
@@ -47,10 +52,14 @@ def find_nearby_store_ids(
         centroid = zip_to_centroid(zip_code)
     if centroid is None:
         return []
+    global _store_cache, _store_cache_ts
     lat, lon = centroid
-    stores = db.table("stores").select("id,latitude,longitude").execute()
+    now = time.monotonic()
+    if _store_cache is None or now - _store_cache_ts > _STORE_CACHE_TTL:
+        _store_cache = db.table("stores").select("id,latitude,longitude").execute().data
+        _store_cache_ts = now
     result = []
-    for s in stores.data:
+    for s in _store_cache:
         slat, slon = s.get("latitude"), s.get("longitude")
         if slat is None or slon is None:
             continue
