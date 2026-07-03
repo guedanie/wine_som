@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import Eyebrow from '../components/Eyebrow.jsx';
 import Btn from '../components/Btn.jsx';
-import Poster from '../components/Poster.jsx';
 import Contours from '../components/Contours.jsx';
 import Tag from '../components/Tag.jsx';
 import StructureBars from '../components/StructureBars.jsx';
 import SommOverlay from '../components/SommOverlay.jsx';
+import { REGION_POSTERS, REGION_META } from '../lib/regions.js';
 import { getWine } from '../lib/api.js';
 
 function structureToBars(sp) {
@@ -17,6 +17,113 @@ function structureToBars(sp) {
     ['Acidity', 'Acidity', (sp.acidity ?? 0) / 10],
     ['Finish',  'Finish',  (sp.finish  ?? 0) / 10],
   ].filter(([,, v]) => v > 0);
+}
+
+function BottleFrame({ src, alt }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const showImage = src && !imgFailed;
+
+  return (
+    <div style={{
+      background: 'var(--cream-raised)',
+      padding: 10,
+      border: '1.5px solid var(--ink)',
+      boxShadow: '0 18px 40px -22px rgba(0,0,0,0.50)',
+    }}>
+      <div style={{ border: '0.75px solid var(--brass)' }}>
+        <div style={{
+          aspectRatio: '372/494',
+          background: 'repeating-linear-gradient(135deg, #EFE6D4, #EFE6D4 11px, #E6DAC2 11px, #E6DAC2 22px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden',
+          position: 'relative',
+        }}>
+          {showImage && (
+            <img
+              src={src}
+              alt={alt}
+              onError={() => setImgFailed(true)}
+              style={{
+                display: 'block',
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+                position: 'relative',
+                zIndex: 1,
+              }}
+            />
+          )}
+          {!showImage && (
+            <div style={{
+              fontFamily: 'var(--font-sans)',
+              fontSize: 10,
+              letterSpacing: '0.18em',
+              textTransform: 'uppercase',
+              color: 'var(--faded)',
+              textAlign: 'center',
+              lineHeight: 1.7,
+            }}>
+              Wine bottle<br />image
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RegionThumbnail({ region, meta, posterSrc, onExplore }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginTop: 14 }}>
+      {/* Mini poster frame */}
+      <div style={{ flex: 'none', width: 88 }}>
+        <div style={{ padding: 6, border: '1.5px solid var(--ink)' }}>
+          <div style={{ border: '0.75px solid var(--brass)' }}>
+            {posterSrc ? (
+              <img
+                src={posterSrc}
+                alt={region}
+                style={{ display: 'block', width: '100%', aspectRatio: '88/118', objectFit: 'cover' }}
+              />
+            ) : (
+              <div style={{
+                aspectRatio: '88/118',
+                background: 'repeating-linear-gradient(135deg, #EFE6D4, #EFE6D4 11px, #E6DAC2 11px, #E6DAC2 22px)',
+              }} />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Region text */}
+      <div style={{ paddingTop: 4 }}>
+        <div style={{ fontFamily: 'var(--font-sans)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--faded)', marginBottom: 4 }}>
+          Region
+        </div>
+        <div style={{ fontFamily: 'var(--font-serif)', fontSize: 17, color: 'var(--ink)', lineHeight: 1.1 }}>
+          {region}
+        </div>
+        {meta?.country && (
+          <div style={{ fontFamily: 'var(--font-sans)', fontSize: 10, letterSpacing: '0.16em', textTransform: 'uppercase', color: 'var(--faded)', marginTop: 4 }}>
+            {meta.country}
+          </div>
+        )}
+        {meta?.coord && (
+          <div style={{ fontFamily: 'var(--font-sans)', fontSize: 10, letterSpacing: '0.12em', color: 'var(--faded)', marginTop: 6 }}>
+            {meta.coord}
+          </div>
+        )}
+        <button
+          onClick={onExplore}
+          style={{ marginTop: 10, fontFamily: 'var(--font-sans)', fontSize: 11, letterSpacing: '0.06em', color: 'var(--bordeaux)', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+        >
+          Explore region →
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function RegionDossier() {
@@ -42,6 +149,8 @@ export default function RegionDossier() {
   const bars    = structureToBars(details.structure_profile);
   const region  = wine.region ?? pick.region;
   const subtitle = [wine.brand, wine.vintage_year, pick.retailer].filter(Boolean).join(' · ');
+  const meta     = REGION_META[region] ?? null;
+  const posterSrc = REGION_POSTERS[region] ?? null;
 
   const sommWine = {
     wine_name: wine.name ?? pick.name,
@@ -55,27 +164,44 @@ export default function RegionDossier() {
   };
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '28px 32px 72px' }}>
-      <button onClick={() => {
-        if (chatState) {
-          navigate('/recommend', {
-            state: {
-              prefs:     chatState.prefs,
-              apiReq:    chatState.apiReq,
-              _restored: chatState,
-            },
-          });
-        } else {
-          navigate(-1);
-        }
-      }}
-        style={{ cursor: 'pointer', background: 'none', border: 'none', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--faded)', padding: 0, marginBottom: 22 }}>
+    <div style={{ maxWidth: 1060, margin: '0 auto', padding: '32px 36px 100px' }}>
+      <button
+        onClick={() => {
+          if (chatState) {
+            navigate('/recommend', {
+              state: {
+                prefs:     chatState.prefs,
+                apiReq:    chatState.apiReq,
+                _restored: chatState,
+              },
+            });
+          } else {
+            navigate(-1);
+          }
+        }}
+        style={{ cursor: 'pointer', background: 'none', border: 'none', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--faded)', padding: 0, marginBottom: 26 }}
+      >
         ← Back to recommendations
       </button>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 44, alignItems: 'start' }}>
-        <Poster region={region} />
+      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 48, alignItems: 'start' }}>
+        {/* Left column — bottle image + region thumbnail */}
+        <div>
+          <BottleFrame
+            src={wine.image_url ?? null}
+            alt={[wine.name ?? pick.name, wine.vintage_year].filter(Boolean).join(' ')}
+          />
+          {region && (
+            <RegionThumbnail
+              region={region}
+              meta={meta}
+              posterSrc={posterSrc}
+              onExplore={() => navigate('/discover')}
+            />
+          )}
+        </div>
 
+        {/* Right column — wine detail */}
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <Eyebrow style={{ whiteSpace: 'nowrap' }}>{region}</Eyebrow>
@@ -83,13 +209,13 @@ export default function RegionDossier() {
             {pick.coord && <span className="t-coord" style={{ whiteSpace: 'nowrap' }}>{pick.coord}</span>}
           </div>
 
-          <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 46, lineHeight: 1.0, color: 'var(--ink)', margin: '12px 0 0' }}>
+          <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 48, lineHeight: 1.0, color: 'var(--ink)', margin: '12px 0 0' }}>
             {wine.name ?? pick.name}
           </h1>
 
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginTop: 10 }}>
             {subtitle && <span style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--ink-2)' }}>{subtitle}</span>}
-            <span style={{ fontFamily: 'var(--font-serif)', fontSize: 24, color: 'var(--bordeaux)' }}>${pick.price}</span>
+            <span style={{ fontFamily: 'var(--font-serif)', fontSize: 26, color: 'var(--bordeaux)' }}>${pick.price}</span>
           </div>
 
           {details.tasting_notes && (
@@ -109,7 +235,7 @@ export default function RegionDossier() {
           )}
 
           {bars.length > 0 && (
-            <div style={{ marginTop: 26, maxWidth: 540 }}>
+            <div style={{ marginTop: 26, maxWidth: 520 }}>
               <Eyebrow style={{ display: 'block', marginBottom: 12 }}>Structure</Eyebrow>
               <StructureBars items={bars} />
             </div>
@@ -117,45 +243,62 @@ export default function RegionDossier() {
 
           {detail && (
             <>
-              {/* Contour divider — only on the dossier page */}
-              <div style={{ position: 'relative', height: 40, margin: '26px 0 8px', overflow: 'hidden' }}>
-                <Contours w={540} h={40} color="var(--brass)"
-                  cfg={{ cx: 270, cy: 20, r0: 5, step: 5, count: 7, wob: 4, seed: 1.4, sx: 5 }} />
+              <div style={{ position: 'relative', height: 36, margin: '28px 0 10px', maxWidth: 520, overflow: 'hidden' }}>
+                <Contours w={520} h={36} color="var(--brass)"
+                  cfg={{ cx: 260, cy: 18, r0: 5, step: 5, count: 7, wob: 4, seed: 1.4, sx: 5 }} />
               </div>
 
               <Eyebrow style={{ display: 'block', marginBottom: 10 }}>Available near you</Eyebrow>
-              <div style={{ border: '1.5px solid var(--ink)', background: 'var(--cream)', maxWidth: 540 }}>
-                {(wine.availability?.length > 0 ? wine.availability : pick.retailer ? [{ retailer: pick.retailer, address: pick.store_address, price: pick.price }] : []).map((loc, i) => (
+              <div style={{ border: '1.5px solid var(--ink)', background: 'var(--cream)', maxWidth: 520 }}>
+                {(wine.availability?.length > 0
+                  ? wine.availability
+                  : pick.retailer
+                    ? [{ retailer: pick.retailer, address: pick.store_address, price: pick.price }]
+                    : []
+                ).map((loc, i) => (
                   <div key={i} style={{
                     display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px',
                     borderTop: i > 0 ? '1px solid var(--border)' : 'none',
                   }}>
-                    <div style={{ width: 26, height: 26, borderRadius: '50%', border: '1px solid var(--brass)', position: 'relative', overflow: 'hidden', flex: 'none' }}>
-                      <Contours w={26} h={26} color="var(--brass)"
-                        cfg={{ cx: 13, cy: 13, r0: 3, step: 3, count: 4, wob: 2, seed: i + 1, sx: 1.4 }} />
+                    <div style={{
+                      width: 26, height: 26, borderRadius: '50%',
+                      border: i === 0 ? '1px solid var(--brass)' : '1px solid var(--brass)',
+                      background: i === 0 ? 'var(--bordeaux-tint)' : 'var(--paper)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none',
+                    }}>
+                      <svg width="10" height="10" viewBox="0 0 10 10">
+                        <circle cx="5" cy="5" r="2" fill={i === 0 ? 'var(--bordeaux)' : 'var(--brass)'} />
+                      </svg>
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>
                         {loc.retailer}
+                        {i === 0 && (
+                          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', color: 'var(--sage)', marginLeft: 6 }}>
+                            BEST PRICE
+                          </span>
+                        )}
                       </div>
                       {loc.address && (
-                        <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--faded)', marginTop: 2 }}>
+                        <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11.5, color: 'var(--faded)', marginTop: 2 }}>
                           {loc.address}
                         </div>
                       )}
                     </div>
-                    <div style={{ fontFamily: 'var(--font-serif)', fontSize: 19, color: 'var(--bordeaux)' }}>${loc.price}</div>
+                    <div style={{ fontFamily: 'var(--font-serif)', fontSize: 20, color: 'var(--bordeaux)' }}>${loc.price}</div>
                   </div>
                 ))}
               </div>
             </>
           )}
 
-          <div style={{ marginTop: 18 }}>
-            <Btn variant="ghost" onClick={() => navigate('/discover')}>More from this region</Btn>
+          <div style={{ display: 'flex', gap: 12, marginTop: 18 }}>
+            <Btn onClick={() => navigate('/discover')}>More from this region</Btn>
+            <Btn variant="ghost" onClick={() => navigate('/discover')}>Save to cellar</Btn>
           </div>
         </div>
       </div>
+
       <SommOverlay wine={sommWine} />
     </div>
   );

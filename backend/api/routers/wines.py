@@ -34,7 +34,8 @@ async def get_wine(
         client.table("wines")
         .select(
             "id,name,brand,varietal,region,sub_region,country,vintage_year,"
-            "bottle_size,wine_type,avg_price,"
+            "bottle_size,wine_type,avg_price,image_url,"
+            "vivino_rating,vivino_ratings_count,"
             "wine_details(description,tasting_notes,flavor_profile,"
             "structure_profile,drinking_window_start,drinking_window_end,"
             "drinking_window_young,drinking_window_ripe,source,grapeminds_enriched_at)"
