@@ -6,6 +6,7 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 import asyncio
 import inspect
 from enrichment.vivino import (
+    VivinoFetchError,
     build_query,
     clean_wine_name,
     match_score,
@@ -13,7 +14,9 @@ from enrichment.vivino import (
     search_wine,
     fetch_ratings,
 )
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch, AsyncMock, MagicMock
+
+import pytest
 
 
 # ── clean_wine_name ──────────────────────────────────────────────
@@ -115,9 +118,53 @@ def test_search_wine_returns_top_hit():
 
 
 def test_search_wine_empty_page_returns_none():
+    """A fetched page with no wine links is a genuine no-result — returns None."""
     mock_client = AsyncMock()
     with patch("enrichment.vivino._get", new=AsyncMock(return_value="")):
         assert asyncio.run(search_wine("anything", mock_client, delay=0)) is None
+
+
+# ── rate-limit / fetch-failure handling ──────────────────────────
+
+def test_get_returns_none_on_429():
+    """_get must return None on a non-200 status so callers can tell a block
+    from a genuine empty result. (429 pages contain no wine links and were
+    being misread as 'no search hits'.)"""
+    from enrichment.vivino import _get
+    resp = MagicMock()
+    resp.status_code = 429
+    resp.text = "<html>too many requests</html>"
+    client = AsyncMock()
+    client.get = AsyncMock(return_value=resp)
+    assert asyncio.run(_get("https://x", client)) is None
+
+
+def test_get_returns_text_on_200():
+    from enrichment.vivino import _get
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.text = "<html>ok</html>"
+    client = AsyncMock()
+    client.get = AsyncMock(return_value=resp)
+    assert asyncio.run(_get("https://x", client)) == "<html>ok</html>"
+
+
+def test_search_wine_raises_on_fetch_failure():
+    """When the fetch itself fails (block/network), search_wine must raise
+    VivinoFetchError — NOT return None — so the runner can skip stamping."""
+    mock_client = AsyncMock()
+    with patch("enrichment.vivino._get", new=AsyncMock(return_value=None)):
+        with pytest.raises(VivinoFetchError):
+            asyncio.run(search_wine("anything", mock_client, delay=0))
+
+
+def test_fetch_ratings_raises_on_fetch_failure():
+    mock_client = AsyncMock()
+    with patch("enrichment.vivino._get", new=AsyncMock(return_value=None)):
+        with pytest.raises(VivinoFetchError):
+            asyncio.run(fetch_ratings(
+                {"wine_id": 1, "href": "/en/x/w/1"}, mock_client, delay=0,
+            ))
 
 
 def test_fetch_ratings_returns_stats():

@@ -57,12 +57,24 @@ _QUERY_NOISE = {"white", "red", "rose", "rosé", "sparkling", "wine", "still",
                 "california", "blend"}
 
 
-async def _get(url: str, client: httpx.AsyncClient, timeout: int = 25) -> str:
+class VivinoFetchError(Exception):
+    """The HTTP fetch itself failed (rate-limit, network) — distinct from a
+    successful fetch with no results. Callers must NOT record 'no match'."""
+
+
+async def _get(url: str, client: httpx.AsyncClient, timeout: int = 25) -> Optional[str]:
+    """Return the page text, or None when the fetch failed (non-200 / network).
+
+    A 429 block page parses as 'no wine links' — indistinguishable from a
+    genuine empty result — so status must be checked here, not downstream.
+    """
     try:
         resp = await client.get(url, headers=_HEADERS, timeout=timeout)
-        return resp.text
     except Exception:
-        return ""
+        return None
+    if resp.status_code != 200:
+        return None
+    return resp.text
 
 
 def clean_wine_name(name: str) -> str:
@@ -120,7 +132,8 @@ async def search_wine(
     """Search Vivino by name; return the top hit with a slug-similarity score.
 
     Returns {"wine_id", "href", "slug", "year", "score"} or None if the
-    search page yields no wine links.
+    search page yields no wine links. Raises VivinoFetchError when the fetch
+    itself fails (rate-limit/network) — the caller must not treat that as a miss.
 
     delay: seconds to sleep before the HTTP request (rate-limiting).
     """
@@ -128,8 +141,8 @@ async def search_wine(
         await asyncio.sleep(delay)
     url = BASE + "/search/wines?q=" + urllib.parse.quote(query)
     html = await _get(url, client)
-    if not html:
-        return None
+    if html is None:
+        raise VivinoFetchError(f"search fetch failed: {query!r}")
     best = None
     seen = set()
     for href, wid in _WINE_LINK_RE.findall(html):
@@ -189,11 +202,13 @@ async def fetch_ratings(
 ) -> Optional[Dict[str, Any]]:
     """Fetch the wine page for a search match and parse wine-level ratings.
 
+    Raises VivinoFetchError when the fetch fails (rate-limit/network).
+
     delay: seconds to sleep before the HTTP request (rate-limiting).
     """
     if delay:
         await asyncio.sleep(delay)
     page = await _get(BASE + match["href"], client)
-    if not page:
-        return None
+    if page is None:
+        raise VivinoFetchError(f"wine page fetch failed: {match['href']}")
     return parse_wine_stats(page, match["wine_id"])
