@@ -6,7 +6,7 @@ import Contours from '../components/Contours.jsx';
 import Tag from '../components/Tag.jsx';
 import StructureBars from '../components/StructureBars.jsx';
 import SommOverlay from '../components/SommOverlay.jsx';
-import { REGION_POSTERS, REGION_META } from '../lib/regions.js';
+import { REGION_POSTERS, REGION_META, REGION_DETAILS, regionSlug } from '../lib/regions.js';
 import { getWine } from '../lib/api.js';
 
 function structureToBars(sp) {
@@ -211,7 +211,9 @@ export default function RegionDossier() {
               region={region}
               meta={meta}
               posterSrc={posterSrc}
-              onExplore={() => navigate('/discover')}
+              onExplore={() => REGION_DETAILS[region]
+                ? navigate(`/regions/${regionSlug(region)}`)
+                : navigate('/discover')}
             />
           )}
         </div>

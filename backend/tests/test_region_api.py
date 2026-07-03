@@ -113,3 +113,44 @@ async def test_region_alias_rhone_valley():
     assert resp.json()["region"] == "Rhône Valley"
 
 
+
+
+# ── sub-region counts ────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_subregion_counts():
+    """GET /api/region/{name}/subregions returns wine counts grouped by sub_region."""
+    db = MagicMock()
+    resp_mock = MagicMock()
+    resp_mock.data = [
+        {"sub_region": "Chianti Classico"},
+        {"sub_region": "Chianti Classico"},
+        {"sub_region": "Montalcino"},
+        {"sub_region": None},
+    ]
+    (db.table.return_value.select.return_value.eq.return_value
+     .limit.return_value.execute.return_value) = resp_mock
+    with patch("api.routers.region.get_supabase_client", return_value=db):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            resp = await ac.get("/api/region/Tuscany/subregions")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["region"] == "Tuscany"
+    assert body["counts"]["Chianti Classico"] == 2
+    assert body["counts"]["Montalcino"] == 1
+    assert None not in body["counts"]
+
+
+@pytest.mark.asyncio
+async def test_subregion_counts_uses_region_alias():
+    """Rhône Valley must query the DB under its alias 'Rhône'."""
+    db = MagicMock()
+    resp_mock = MagicMock()
+    resp_mock.data = []
+    eq_mock = db.table.return_value.select.return_value.eq
+    eq_mock.return_value.limit.return_value.execute.return_value = resp_mock
+    with patch("api.routers.region.get_supabase_client", return_value=db):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            resp = await ac.get("/api/region/Rh%C3%B4ne%20Valley/subregions")
+    assert resp.status_code == 200
+    eq_mock.assert_called_with("region", "Rhône")

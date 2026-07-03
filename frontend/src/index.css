@@ -15,3 +15,6 @@ body {
 }
 
 input[type="range"] { accent-color: var(--bordeaux); }
+
+/* Warm matte filter on Leaflet map tiles (RegionMap) */
+.leaflet-tile { filter: sepia(0.2) saturate(0.75) brightness(1.03); }

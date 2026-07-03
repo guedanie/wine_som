@@ -28,8 +28,8 @@ it('renders a "More regions" section divider between tiers', () => {
   expect(screen.getByText(/more regions/i)).toBeInTheDocument();
 });
 
-it('navigates to /region/:slug when a region card is clicked', async () => {
+it('navigates to the region detail page when a region card is clicked', async () => {
   renderScreen();
   await userEvent.click(screen.getAllByText('Tuscany')[0]);
-  expect(mockNavigate).toHaveBeenCalledWith('/region/Tuscany');
+  expect(mockNavigate).toHaveBeenCalledWith('/regions/tuscany');
 });

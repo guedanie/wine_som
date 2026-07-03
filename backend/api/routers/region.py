@@ -49,6 +49,30 @@ def _row_to_wine_item(row: Dict[str, Any], retailer: str, address: Optional[str]
     )
 
 
+@router.get("/region/{region_name}/subregions")
+async def get_subregion_counts(region_name: str):
+    """Catalog-level wine counts grouped by sub_region for a region.
+
+    Not stock-aware — counts reflect the full catalog so the Region Detail
+    page can show stable sub-region weights without a zip.
+    """
+    db = get_supabase_client()
+    db_region = _db_region_name(region_name)
+    rows = (
+        db.table("wines")
+        .select("sub_region")
+        .eq("region", db_region)
+        .limit(10000)
+        .execute()
+    )
+    counts: Dict[str, int] = {}
+    for row in (rows.data or []):
+        sub = row.get("sub_region")
+        if sub:
+            counts[sub] = counts.get(sub, 0) + 1
+    return {"region": region_name, "counts": counts}
+
+
 @router.get("/region/{region_name}", response_model=RegionResponse)
 async def get_region_wines(
     region_name: str,

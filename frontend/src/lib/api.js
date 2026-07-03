@@ -47,6 +47,25 @@ export async function getRegionWines(region, zip) {
   return res.json();
 }
 
+export async function getSubregionCounts(region) {
+  const res = await fetch(`${BASE}/api/region/${encodeURIComponent(region)}/subregions`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export async function searchWines({ q, zip, maxPrice, retailers, varietals }) {
+  const params = new URLSearchParams({ q, zip });
+  if (maxPrice) params.set('max_price', maxPrice);
+  if (retailers?.length) params.set('retailers', retailers.join(','));
+  if (varietals?.length) params.set('varietals', varietals.join(','));
+  const res = await fetch(`${BASE}/api/search?${params}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail ?? `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
 export function postFeedback(payload) {
   fetch(`${BASE}/api/feedback`, {
     method: 'POST',

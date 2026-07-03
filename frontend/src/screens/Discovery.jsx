@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import Eyebrow from '../components/Eyebrow.jsx';
 import Poster from '../components/Poster.jsx';
-import { DISCOVERY_REGIONS } from '../lib/regions.js';
+import { DISCOVERY_REGIONS, regionSlug } from '../lib/regions.js';
 
 function RegionCard({ region, onClick }) {
   return (
@@ -21,7 +21,7 @@ export default function Discovery() {
   const tier2    = DISCOVERY_REGIONS.filter(r => r.tier === 2);
 
   function openRegion(r) {
-    navigate(`/region/${encodeURIComponent(r.name)}`);
+    navigate(`/regions/${regionSlug(r.name)}`);
   }
 
   return (

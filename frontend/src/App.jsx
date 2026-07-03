@@ -5,6 +5,8 @@ import ChatRecommend from './screens/ChatRecommend.jsx';
 import RegionDossier from './screens/RegionDossier.jsx';
 import Discovery from './screens/Discovery.jsx';
 import RegionBrowse from './screens/RegionBrowse.jsx';
+import RegionDetail from './screens/RegionDetail.jsx';
+import SearchScreen from './screens/SearchScreen.jsx';
 
 export default function App() {
   return (
@@ -16,6 +18,8 @@ export default function App() {
         <Route path="/wine/:id" element={<RegionDossier />} />
         <Route path="/discover" element={<Discovery />} />
         <Route path="/region/:slug" element={<RegionBrowse />} />
+        <Route path="/regions/:slug" element={<RegionDetail />} />
+        <Route path="/search" element={<SearchScreen />} />
       </Routes>
     </div>
   );
