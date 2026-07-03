@@ -104,10 +104,5 @@ jobs:
         continue-on-error: true
         run: python3 -m enrichment.extraction.run_extraction --null-only
 
-      # ── vivino enrichment ────────────────────────────────────────────────
-      # Incremental: only wines with vivino_enriched_at IS NULL. Rate-safe
-      # (2 workers, ~2 req/s, aborts on consecutive 429s without stamping).
-      # 500 wines ≈ 15 min; the un-enriched backlog drains over a few weeks.
-      - name: Vivino enrichment (ratings, images, facts)
-        continue-on-error: true
-        run: python3 scripts/run_vivino_sample.py --limit 500
+      # Vivino enrichment runs in its own workflow (daily-vivino.yml, twice
+      # daily) — kept out of this job so two enrichments never overlap.
