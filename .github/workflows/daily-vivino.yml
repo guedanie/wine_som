@@ -53,4 +53,35 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Vivino enrichment (ratings, images, facts)
-        run: python3 scripts/run_vivino_sample.py --limit 500
+        run: python3 scripts/run_vivino_sample.py --limit 500 2>&1 | tee vivino-run.log
+
+      # No-op until the SLACK_WEBHOOK_URL secret is configured.
+      - name: Notify Slack
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          [ -z "$SLACK_WEBHOOK_URL" ] && echo "no webhook configured, skipping" && exit 0
+          python3 - <<'PYEOF'
+          import json, os, re, urllib.request
+          try:
+              log = open("vivino-run.log").read()
+          except FileNotFoundError:
+              log = ""
+          lines = [l.strip() for l in log.splitlines()
+                   if re.search(r"Matched \+ written|Below threshold|No search hit|"
+                                r"Fetch failures|Skipped \(abort\)|aborting run", l)]
+          summary = "\n".join(lines) if lines else "(no run summary found)"
+          status = os.environ["JOB_STATUS"]
+          text = (f"Vivino enrichment — {status}\n"
+                  f"{summary}\n"
+                  f"<{os.environ['RUN_URL']}|View run>")
+          req = urllib.request.Request(
+              os.environ["SLACK_WEBHOOK_URL"],
+              data=json.dumps({"text": text}).encode(),
+              headers={"Content-Type": "application/json"},
+          )
+          urllib.request.urlopen(req, timeout=15)
+          PYEOF
