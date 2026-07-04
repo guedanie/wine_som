@@ -29,7 +29,31 @@ MATCH_THRESHOLD = 0.6   # ratings + image: cosmetic, tolerate borderline matches
 FACTS_THRESHOLD = 0.7   # grapes/region/abv/structure: canonical facts need a stronger match
 CONCURRENCY = 2      # parallel workers — 5 workers @ 0.3s tripped Vivino's 429 limiter
 REQ_DELAY = 1.0      # seconds between each HTTP request within a worker (~2 req/s total)
-ABORT_AFTER = 10     # consecutive fetch failures → assume we're blocked, stop the run
+ABORT_AFTER = 10     # consecutive fetch failures → pause (or abort once pauses are spent)
+PAUSE_SECONDS = 90   # rate-limit windows are usually short — wait one out and resume
+MAX_PAUSES = 3       # after this many failed pause cycles, the block is real: abort
+
+
+async def handle_fetch_failure(state, abort):
+    """Failure-streak policy: pause and resume up to MAX_PAUSES times, then abort.
+
+    GitHub runner IPs get intermittently throttled by Vivino; a hard abort at
+    the first streak wasted the rest of the run. Single-threaded event loop —
+    the increment/check below is atomic between awaits.
+    """
+    state["consecutive_fails"] += 1
+    if state["consecutive_fails"] < ABORT_AFTER:
+        return
+    if state["pauses"] >= MAX_PAUSES:
+        if not abort.is_set():
+            print(f"  !! still rate-limited after {MAX_PAUSES} pauses — aborting run", flush=True)
+        abort.set()
+        return
+    state["pauses"] += 1
+    state["consecutive_fails"] = 0
+    print(f"  .. {ABORT_AFTER} consecutive fetch failures — pausing {PAUSE_SECONDS}s "
+          f"(pause {state['pauses']}/{MAX_PAUSES})", flush=True)
+    await asyncio.sleep(PAUSE_SECONDS)
 
 
 def fetch_sample(db, limit, missing_images_only=False):
@@ -173,12 +197,7 @@ async def enrich_one(w, db, client, sem, args, results, state, abort):
                             if filled:
                                 status += f" +facts({','.join(filled)})"
         except VivinoFetchError:
-            state["consecutive_fails"] += 1
-            if state["consecutive_fails"] >= ABORT_AFTER:
-                if not abort.is_set():
-                    print(f"  !! {ABORT_AFTER} consecutive fetch failures — "
-                          "assuming rate-limited, aborting run", flush=True)
-                abort.set()
+            await handle_fetch_failure(state, abort)
             results.append((w["name"][:55], query[:50], "FETCH_FAIL"))
             return
 
@@ -207,12 +226,7 @@ async def backfill_one(w, db, client, sem, args, results, state, abort):
         try:
             stats = await fetch_ratings(match, client, delay=REQ_DELAY)
         except VivinoFetchError:
-            state["consecutive_fails"] += 1
-            if state["consecutive_fails"] >= ABORT_AFTER:
-                if not abort.is_set():
-                    print(f"  !! {ABORT_AFTER} consecutive fetch failures — "
-                          "assuming rate-limited, aborting run", flush=True)
-                abort.set()
+            await handle_fetch_failure(state, abort)
             results.append((w["name"][:55], "", "FETCH_FAIL"))
             return
 
@@ -246,7 +260,7 @@ async def main_async(args):
 
     results = []
     sem = asyncio.Semaphore(CONCURRENCY)
-    state = {"consecutive_fails": 0}
+    state = {"consecutive_fails": 0, "pauses": 0}
     abort = asyncio.Event()
 
     worker = backfill_one if args.backfill_facts else enrich_one

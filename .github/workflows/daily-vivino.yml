@@ -1,19 +1,21 @@
 name: Daily Vivino Enrichment
 
-# Drains the Vivino backlog at 1,000 wines/run (~35 min at the rate-safe
-# 2 req/s). Incremental: only wines with vivino_enriched_at IS NULL, so
-# new wines from the weekly scrape are picked up automatically. Writes
-# ratings/images to wines.vivino_* and facts (grapes/region/abv/structure/
-# pairing) to wines + wine_details on high-confidence matches.
+# Drains the Vivino backlog. Incremental: only wines with
+# vivino_enriched_at IS NULL, so new wines from the weekly scrape are
+# picked up automatically. Writes ratings/images to wines.vivino_* and
+# facts (grapes/region/abv/structure/pairing) on high-confidence matches.
 #
-# Rate safety: the runner aborts after 10 consecutive fetch failures
-# without stamping, so a 429-blocked run exits clean and retries next cron.
-# Schedule avoids the Sunday 08:00-11:00 UTC weekly-scrape window.
+# Rate safety: Vivino intermittently throttles GitHub runner IPs, so the
+# runner pauses 90s (up to 3x) on failure streaks before aborting, and
+# never stamps on fetch failure. Four smaller runs/day beat two large
+# ones: each run gets a fresh runner IP from the GH pool.
 
 on:
   schedule:
-    - cron: '0 3 * * *'    # daily 03:00 UTC = 21:00 CT
-    - cron: '0 15 * * *'   # daily 15:00 UTC = 09:00 CT
+    - cron: '0 3 * * *'    # 03:00 UTC = 21:00 CT
+    - cron: '0 9 * * *'    # 09:00 UTC = 03:00 CT
+    - cron: '0 15 * * *'   # 15:00 UTC = 09:00 CT
+    - cron: '0 21 * * *'   # 21:00 UTC = 15:00 CT
   workflow_dispatch:        # allow manual trigger from GitHub UI
 
 concurrency:
@@ -51,4 +53,4 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Vivino enrichment (ratings, images, facts)
-        run: python3 scripts/run_vivino_sample.py --limit 1000
+        run: python3 scripts/run_vivino_sample.py --limit 500
