@@ -22,6 +22,7 @@ Rate limit: 10,000 calls/day (public tier). Nashville = 4 stores × ~17 terms
 """
 import base64
 import json
+import socket
 import time
 import urllib.request
 import urllib.parse
@@ -128,7 +129,9 @@ class KrogerClient:
                     time.sleep(5 * (attempt + 1))
                     continue
                 raise
-            except urllib.error.URLError:      # transient network blip
+            except (urllib.error.URLError, socket.timeout, TimeoutError):
+                # transient network blip / read timeout (bare socket.timeout
+                # is NOT a URLError, so it must be named explicitly)
                 if attempt < retries - 1:
                     time.sleep(3 * (attempt + 1))
                     continue
@@ -271,9 +274,9 @@ class KrogerScraper(BaseScraper):
             "id": run_id, "retailer_name": RETAILER_NAME, "status": "running",
         }).execute()
 
-        total = 0
-        try:
-            for store in stores:
+        total, failed = 0, []
+        for store in stores:
+            try:
                 products = self._fetch_store_wines(store["id"])
                 if products:
                     items = self._to_inventory_items(products, store)
@@ -281,16 +284,17 @@ class KrogerScraper(BaseScraper):
                     self._upsert_inventory(items, upc_to_id)
                     total += len(products)
                     print(f"   {store['name']}: {len(products)} wines committed (total: {total})")
+            except Exception as e:
+                # A transient API/network failure on one store shouldn't sink
+                # the rest — record it and move on (the store retries next run).
+                failed.append(store["name"])
+                print(f"   {store['name']}: FAILED — {e}")
 
-            self.supabase.table("scraper_runs").update({
-                "status": "success", "records_updated": total,
-                "completed_at": datetime.now(timezone.utc).isoformat(),
-            }).eq("id", run_id).execute()
-            return {"wines_fetched": total, "stores": len(stores), "retailer": RETAILER_NAME}
-
-        except Exception as e:
-            self.supabase.table("scraper_runs").update({
-                "status": "failed", "error_message": str(e),
-                "completed_at": datetime.now(timezone.utc).isoformat(),
-            }).eq("id", run_id).execute()
-            raise
+        status = "success" if not failed else "partial"
+        self.supabase.table("scraper_runs").update({
+            "status": status, "records_updated": total,
+            "error_message": ("stores failed: " + ", ".join(failed)) if failed else None,
+            "completed_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("id", run_id).execute()
+        return {"wines_fetched": total, "stores": len(stores) - len(failed),
+                "failed": failed, "retailer": RETAILER_NAME}
