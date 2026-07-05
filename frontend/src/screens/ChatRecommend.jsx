@@ -9,6 +9,7 @@ import WineCard from '../components/WineCard.jsx';
 import WineGlassLoader from '../components/WineGlassLoader.jsx';
 import { streamRecommend, postFeedback } from '../lib/api.js';
 import { deriveWineCardMeta } from '../lib/regions.js';
+import useIsMobile from '../lib/useIsMobile.js';
 
 const DEFAULT_FOLLOWUPS = ["Anything from Burgundy?", "What about under $30?", "Something to cellar"];
 
@@ -66,6 +67,7 @@ function UserBubble({ children }) {
 export default function ChatRecommend() {
   const { state }  = useLocation();
   const navigate   = useNavigate();
+  const isMobile   = useIsMobile();
   const { prefs, apiReq, _restored } = state ?? {};
 
   const [sessionId]    = useState(() => _restored?.sessionId    ?? crypto.randomUUID());
@@ -78,6 +80,7 @@ export default function ChatRecommend() {
   const [streaming,  setStreaming] = useState(false);
   const [error,      setError]     = useState(null);
   const [input,      setInput]     = useState('');
+  const [sheetOpen,  setSheetOpen] = useState(false);
 
   // All hooks must be called before any early return
   useEffect(() => {
@@ -160,6 +163,135 @@ export default function ChatRecommend() {
     setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text }]);
     callRecommend({ ...apiReq, message: text, conversation_history: history });
   };
+
+  const messageList = messages.map((m, i) =>
+    m.role === 'user'
+      ? <UserBubble key={m.id ?? i}>{m.text}</UserBubble>
+      : <SommelierBubble
+          key={m.id ?? i}
+          vote={messageVotes[m.id] ?? null}
+          onVote={m.noFeedback ? undefined : dir => handleMessageVote(m.id, dir)}
+        >
+          {m.text.split('\n\n').map((para, j) => (
+            <p key={j} style={{ margin: j > 0 ? '10px 0 0' : 0 }}>
+              {para.split(/\*\*([^*]+)\*\*/g).map((part, k) =>
+                k % 2 === 1
+                  ? <strong key={k} style={{ color: 'var(--bordeaux)' }}>{part}</strong>
+                  : part
+              )}
+              {streaming && i === messages.length - 1 && j === m.text.split('\n\n').length - 1 && (
+                <span style={{ display: 'inline-block', width: 2, height: 14, background: 'var(--bordeaux)', marginLeft: 2, verticalAlign: 'middle', animation: 'blink 0.9s step-end infinite' }} />
+              )}
+            </p>
+          ))}
+        </SommelierBubble>
+  );
+
+  if (isMobile) {
+    return (
+      <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Chat scroll */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 8px', WebkitOverflowScrolling: 'touch' }}>
+          {messageList}
+          {loading && (
+            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 16 }}>
+              <Stamp size={32} />
+              <WineGlassLoader />
+            </div>
+          )}
+          {error && (
+            <SommelierBubble>
+              <div>{error}</div>
+              <div style={{ marginTop: 10 }}>
+                <Btn variant="ghost" onClick={() => navigate(-1)}>Try different preferences</Btn>
+              </div>
+            </SommelierBubble>
+          )}
+        </div>
+
+        {/* Composer */}
+        <div style={{ borderTop: '1px solid var(--border)', padding: '10px 14px 12px', background: 'var(--cream)', flexShrink: 0, zIndex: 1, position: 'relative' }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+            {followups.map(f => (
+              <button key={f} onClick={() => setInput(f)} disabled={loading || streaming}
+                style={{ cursor: (loading || streaming) ? 'default' : 'pointer', opacity: (loading || streaming) ? 0.4 : 1, fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--bordeaux)', background: 'var(--bordeaux-tint)', border: 'none', borderRadius: 999, padding: '7px 13px', minHeight: 34 }}>
+                {f}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', border: '1.5px solid var(--ink)', background: 'var(--cream-raised)' }}>
+            <input
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && input.trim()) { handleFollowup(input.trim()); setInput(''); } }}
+              placeholder="Ask a follow-up…"
+              style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--ink)', padding: '11px 12px', minWidth: 0 }}
+            />
+            <button
+              onClick={() => { if (input.trim()) { handleFollowup(input.trim()); setInput(''); } }}
+              disabled={loading || streaming}
+              aria-label="Send"
+              style={{ border: 'none', background: 'var(--bordeaux)', color: 'var(--cream)', padding: '0 16px', cursor: (loading || streaming) ? 'default' : 'pointer', opacity: (loading || streaming) ? 0.4 : 1, fontSize: 18, minWidth: 48, borderRadius: 0 }}>
+              →
+            </button>
+          </div>
+        </div>
+
+        {/* Spacer anchors the sheet peek below the composer */}
+        {picks.length > 0 && <div style={{ height: 76, flexShrink: 0 }} />}
+
+        {/* Dim overlay */}
+        {picks.length > 0 && (
+          <div onClick={() => setSheetOpen(false)} style={{
+            position: 'absolute', inset: 0, background: 'rgba(26,26,26,0.45)',
+            zIndex: 8, opacity: sheetOpen ? 1 : 0,
+            pointerEvents: sheetOpen ? 'auto' : 'none',
+            transition: 'opacity 0.28s',
+          }} />
+        )}
+
+        {/* Wine cards bottom sheet */}
+        {picks.length > 0 && (
+          <div data-testid="wine-sheet" style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 9,
+            height: '68%', background: 'var(--cream)', borderTop: '1.5px solid var(--ink)',
+            transform: sheetOpen ? 'translateY(0)' : 'translateY(calc(100% - 76px))',
+            transition: 'transform 0.32s cubic-bezier(0.2, 0.7, 0.3, 1)',
+            display: 'flex', flexDirection: 'column',
+          }}>
+            <div onClick={() => setSheetOpen(p => !p)} role="button" aria-expanded={sheetOpen}
+              style={{ padding: '10px 16px 12px', cursor: 'pointer', flexShrink: 0, borderBottom: sheetOpen ? '1px solid var(--border)' : 'none' }}>
+              <div style={{ width: 36, height: 3, background: 'var(--border)', borderRadius: 2, margin: '0 auto 10px' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+                  <span className="t-eyebrow">{picks.length} wine{picks.length !== 1 ? 's' : ''} for you</span>
+                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--sage)' }}>in stock near you</span>
+                </div>
+                <span style={{ fontSize: 13, color: 'var(--faded)', transform: sheetOpen ? 'scaleY(-1)' : 'none', display: 'inline-block', transition: 'transform 0.28s' }}>∧</span>
+              </div>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 16px', display: 'flex', flexDirection: 'column', gap: 14, WebkitOverflowScrolling: 'touch' }}>
+              {picks.map(pick => (
+                <WineCard
+                  key={pick.wine_id}
+                  wine={pick}
+                  voteSize={44}
+                  vote={wineVotes[pick.wine_id] ?? null}
+                  onVote={direction => handleWineVote(pick.wine_id, direction)}
+                  onClick={() => { setSheetOpen(false); navigate('/wine/' + pick.wine_id, {
+                    state: {
+                      pick,
+                      chatState: { messages, picks, prefs, apiReq, sessionId, wineVotes, messageVotes },
+                    },
+                  }); }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', height: 'calc(100vh - 56px)' }}>

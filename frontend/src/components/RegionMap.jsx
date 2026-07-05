@@ -11,7 +11,7 @@ export function parseCoord(coord) {
   return [lat, lng];
 }
 
-export default function RegionMap({ latlng, zoom = 8, subregions = [] }) {
+export default function RegionMap({ latlng, zoom = 8, subregions = [], height = 260 }) {
   const el = useRef(null);
   const mapRef = useRef(null);
 
@@ -59,7 +59,7 @@ export default function RegionMap({ latlng, zoom = 8, subregions = [] }) {
   return (
     <div style={{ border: '1.5px solid var(--ink)', boxShadow: '0 8px 24px -12px rgba(0,0,0,.4)' }}>
       <div style={{ border: '0.75px solid var(--brass)' }}>
-        <div ref={el} style={{ height: 260, width: '100%' }} />
+        <div ref={el} style={{ height, width: '100%' }} />
       </div>
     </div>
   );

@@ -3,7 +3,7 @@ import Tag from './Tag.jsx';
 
 const _THUMB_EASE = 'all 140ms cubic-bezier(.25,.46,.45,.94)';
 
-function ThumbBtn({ direction, voted, onClick }) {
+function ThumbBtn({ direction, voted, onClick, size = 26 }) {
   const title = direction === 'up' ? 'Good pick' : 'Not for me';
   const Icon  = direction === 'up' ? ThumbsUp : ThumbsDown;
   return (
@@ -13,7 +13,7 @@ function ThumbBtn({ direction, voted, onClick }) {
       onClick={e => { e.stopPropagation(); onClick(direction); }}
       style={{
         cursor: 'pointer',
-        width: 26, height: 26,
+        width: size, height: size,
         borderRadius: 2,
         border: voted ? '1px solid var(--brass)' : '1px solid var(--border)',
         background: voted ? 'var(--brass)' : 'transparent',
@@ -23,7 +23,7 @@ function ThumbBtn({ direction, voted, onClick }) {
         padding: 0,
       }}
     >
-      <Icon size={12} strokeWidth={1.75} />
+      <Icon size={size >= 40 ? 16 : 12} strokeWidth={1.75} />
     </button>
   );
 }
@@ -84,7 +84,7 @@ function LandscapeCard({ wine, onClick, vote, onVote }) {
   );
 }
 
-export default function WineCard({ wine, onClick, vote, onVote, variant }) {
+export default function WineCard({ wine, onClick, vote, onVote, variant, voteSize = 26 }) {
   if (variant === 'landscape') {
     return <LandscapeCard wine={wine} onClick={onClick} vote={vote} onVote={onVote} />;
   }
@@ -118,9 +118,9 @@ export default function WineCard({ wine, onClick, vote, onVote, variant }) {
         )}
       </div>
       {onVote && (
-        <div style={{ padding: '7px 12px 10px', borderTop: '0.75px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
-          <ThumbBtn direction="up"   voted={vote === 'up'}   onClick={onVote} />
-          <ThumbBtn direction="down" voted={vote === 'down'} onClick={onVote} />
+        <div style={{ padding: '7px 12px 10px', borderTop: '0.75px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
+          <ThumbBtn direction="up"   voted={vote === 'up'}   onClick={onVote} size={voteSize} />
+          <ThumbBtn direction="down" voted={vote === 'down'} onClick={onVote} size={voteSize} />
         </div>
       )}
     </div>

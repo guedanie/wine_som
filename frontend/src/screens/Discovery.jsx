@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import Eyebrow from '../components/Eyebrow.jsx';
 import Poster from '../components/Poster.jsx';
 import { DISCOVERY_REGIONS, regionSlug } from '../lib/regions.js';
+import useIsMobile from '../lib/useIsMobile.js';
 
 function RegionCard({ region, onClick }) {
   return (
@@ -17,11 +18,35 @@ function RegionCard({ region, onClick }) {
 
 export default function Discovery() {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const tier1    = DISCOVERY_REGIONS.filter(r => r.tier === 1);
   const tier2    = DISCOVERY_REGIONS.filter(r => r.tier === 2);
 
   function openRegion(r) {
     navigate(`/regions/${regionSlug(r.name)}`);
+  }
+
+  if (isMobile) {
+    return (
+      <div style={{ overflowY: 'auto', height: '100%', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ padding: '22px 16px 40px' }}>
+          <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 34, lineHeight: 1.05, color: 'var(--ink)', margin: '0 0 6px' }}>Browse by place</h1>
+          <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, lineHeight: 1.6, color: 'var(--ink-2)', margin: '0 0 22px' }}>
+            Every region is a poster. Start somewhere.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+            {tier1.map(r => <RegionCard key={r.name} region={r} onClick={() => openRegion(r)} />)}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '32px 0 18px' }}>
+            <span style={{ fontFamily: 'var(--font-serif)', fontSize: 20, color: 'var(--ink)', whiteSpace: 'nowrap' }}>More regions</span>
+            <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+            {tier2.map(r => <RegionCard key={r.name} region={r} onClick={() => openRegion(r)} />)}
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

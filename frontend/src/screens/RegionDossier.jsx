@@ -7,6 +7,7 @@ import Tag from '../components/Tag.jsx';
 import StructureBars from '../components/StructureBars.jsx';
 import SommOverlay from '../components/SommOverlay.jsx';
 import { REGION_POSTERS, REGION_META, REGION_DETAILS, regionSlug } from '../lib/regions.js';
+import useIsMobile from '../lib/useIsMobile.js';
 import { getWine } from '../lib/api.js';
 
 function structureToBars(sp) {
@@ -143,6 +144,7 @@ export default function RegionDossier() {
   const { id }     = useParams();
   const { state }  = useLocation();
   const navigate   = useNavigate();
+  const isMobile   = useIsMobile();
   const pick      = state?.pick ?? {};
   const chatState = state?.pick?.chatState ?? state?.chatState ?? null;
   const zip       = state?.zip ?? chatState?.prefs?.zip ?? pick?.chatState?.prefs?.zip ?? null;
@@ -177,6 +179,160 @@ export default function RegionDossier() {
     vivino_rating:         wine.vivino_rating         ?? null,
     vivino_ratings_count:  wine.vivino_ratings_count  ?? null,
   };
+
+  if (isMobile) {
+    const exploreRegion = () => REGION_DETAILS[region]
+      ? navigate(`/regions/${regionSlug(region)}`)
+      : navigate('/discover');
+    const availRows = wine.availability?.length > 0
+      ? wine.availability
+      : pick.retailer ? [{ retailer: pick.retailer, address: pick.store_address, price: pick.price }] : [];
+    return (
+      <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          {/* Region eyebrow banner */}
+          {region && (
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--cream-raised)' }}>
+              <Eyebrow>{region}</Eyebrow>
+              <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+              {(pick.coord || meta?.coord) && (
+                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, letterSpacing: '0.14em', color: 'var(--sage)' }}>{pick.coord ?? meta.coord}</span>
+              )}
+            </div>
+          )}
+
+          <div style={{ padding: '20px 18px 100px' }}>
+            {/* Bottle frame — 220px centered */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 22 }}>
+              <div style={{ width: 220 }}>
+                <BottleFrame
+                  src={wine.image_url ?? null}
+                  alt={[wine.name ?? pick.name, wine.vintage_year].filter(Boolean).join(' ')}
+                />
+              </div>
+            </div>
+
+            {/* Region thumbnail panel */}
+            {region && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 22, padding: '12px 14px', background: 'var(--paper)', border: '1px solid var(--border)' }}>
+                <div style={{ width: 64, flexShrink: 0 }}>
+                  <div style={{ background: 'var(--cream)', padding: 5, border: '1.5px solid var(--ink)' }}>
+                    <div style={{ border: '0.75px solid var(--brass)' }}>
+                      {posterSrc ? (
+                        <img src={posterSrc} alt={region} style={{ display: 'block', width: '100%', aspectRatio: '3/4', objectFit: 'cover' }} />
+                      ) : (
+                        <div style={{ aspectRatio: '3/4', background: 'repeating-linear-gradient(135deg, #EFE6D4, #EFE6D4 10px, #E6DAC2 10px, #E6DAC2 20px)' }} />
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ paddingTop: 2 }}>
+                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--faded)', marginBottom: 3 }}>Region</div>
+                  <div style={{ fontFamily: 'var(--font-serif)', fontSize: 16, color: 'var(--ink)', lineHeight: 1.1 }}>{region}</div>
+                  {meta?.country && (
+                    <div style={{ fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--faded)', marginTop: 3 }}>{meta.country}</div>
+                  )}
+                  <button onClick={exploreRegion} style={{ marginTop: 8, fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--bordeaux)', background: 'none', border: 'none', padding: 0, cursor: 'pointer', minHeight: 36, display: 'flex', alignItems: 'center' }}>
+                    Explore region →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Wine identity */}
+            <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 34, lineHeight: 1.05, color: 'var(--ink)', margin: '0 0 8px' }}>
+              {wine.name ?? pick.name}
+            </h1>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+              {subtitle && <span style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink-2)' }}>{subtitle}</span>}
+              <span style={{ fontFamily: 'var(--font-serif)', fontSize: 28, color: 'var(--bordeaux)' }}>${pick.price}</span>
+              {wine.vivino_rating && wine.vivino_ratings_count > 0 && (
+                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10.5, color: 'var(--sage)', letterSpacing: '0.04em' }}>
+                  {wine.vivino_rating.toFixed(1)} ★ · {wine.vivino_ratings_count >= 1000 ? `${Math.round(wine.vivino_ratings_count / 1000)}k` : wine.vivino_ratings_count} on Vivino
+                </span>
+              )}
+            </div>
+
+            {details.tasting_notes && (
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, lineHeight: 1.65, color: 'var(--ink-2)', margin: '0 0 14px' }}>{details.tasting_notes}</p>
+            )}
+            {details.description && (
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, lineHeight: 1.65, color: 'var(--ink-2)', margin: '0 0 14px' }}>{details.description}</p>
+            )}
+
+            {flavors.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 24 }}>
+                {flavors.map(t => <Tag key={t}>{t}</Tag>)}
+              </div>
+            )}
+
+            {/* Structure — stacked bars */}
+            {bars.length > 0 && (
+              <>
+                <Eyebrow style={{ display: 'block', marginBottom: 12 }}>Structure</Eyebrow>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 8 }}>
+                  {bars.map(([k, label, v]) => (
+                    <div key={k}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--faded)', marginBottom: 5 }}>
+                        <span>{k}</span><span style={{ color: 'var(--ink-2)' }}>{label}</span>
+                      </div>
+                      <div style={{ height: 5, background: 'var(--paper)', borderRadius: 3 }}>
+                        <div style={{ width: `${v * 100}%`, height: '100%', background: 'var(--brass)', borderRadius: 3 }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Contour divider — full bleed */}
+            {detail && (
+              <div style={{ position: 'relative', height: 36, margin: '24px -18px', overflow: 'hidden' }}>
+                <Contours w={390} h={36} color="var(--brass)"
+                  cfg={{ cx: 195, cy: 18, r0: 5, step: 5, count: 7, wob: 4, seed: 1.8, sx: 5 }} />
+              </div>
+            )}
+
+            {/* Store list */}
+            {availRows.length > 0 && (
+              <>
+                <Eyebrow style={{ display: 'block', marginBottom: 10 }}>Available near you</Eyebrow>
+                <div style={{ border: '1.5px solid var(--ink)', background: 'var(--cream)', marginBottom: 18 }}>
+                  {availRows.map((loc, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderTop: i ? '1px solid var(--border)' : 'none' }}>
+                      <div style={{
+                        width: 26, height: 26, borderRadius: '50%', border: '1px solid var(--brass)',
+                        background: i === 0 ? 'var(--bordeaux-tint)' : 'var(--paper)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                      }}>
+                        <svg width="10" height="10" viewBox="0 0 10 10">
+                          <circle cx="5" cy="5" r="2" fill={i === 0 ? 'var(--bordeaux)' : 'var(--brass)'} />
+                        </svg>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          {loc.retailer}
+                          {i === 0 && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--sage)' }}>BEST PRICE</span>}
+                        </div>
+                        {loc.address && <div style={{ fontSize: 11, color: 'var(--faded)', marginTop: 1 }}>{loc.address}</div>}
+                      </div>
+                      <div style={{ fontFamily: 'var(--font-serif)', fontSize: 20, color: 'var(--bordeaux)', flexShrink: 0 }}>${loc.price}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <Btn onClick={() => navigate('/discover')} style={{ flex: 1, justifyContent: 'center' }}>More from this region</Btn>
+              <Btn variant="ghost" onClick={() => navigate('/discover')} style={{ flex: 1, justifyContent: 'center' }}>Save to cellar</Btn>
+            </div>
+          </div>
+        </div>
+        <SommOverlay wine={sommWine} />
+      </div>
+    );
+  }
 
   return (
     <div style={{ maxWidth: 1060, margin: '0 auto', padding: '32px 36px 100px' }}>

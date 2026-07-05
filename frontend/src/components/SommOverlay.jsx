@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
 import Stamp from './Stamp.jsx';
 import WineGlassLoader from './WineGlassLoader.jsx';
+import useIsMobile from '../lib/useIsMobile.js';
 import Tag from './Tag.jsx';
 import { streamSomm, postFeedback } from '../lib/api.js';
 
@@ -90,6 +91,7 @@ function UserBubble({ children }) {
 }
 
 export default function SommOverlay({ wine }) {
+  const isMobile = useIsMobile();
   const [open,         setOpen]         = useState(false);
   const [messages,     setMessages]     = useState([]);
   const [messageVotes, setMessageVotes] = useState({});
@@ -186,7 +188,7 @@ export default function SommOverlay({ wine }) {
           aria-label="Ask Somm"
           onClick={() => setOpen(true)}
           style={{
-            position: 'fixed', bottom: 32, right: 36, zIndex: 200,
+            position: 'fixed', bottom: isMobile ? 'calc(76px + env(safe-area-inset-bottom, 0px))' : 32, right: isMobile ? 18 : 36, zIndex: 200,
             display: 'flex', alignItems: 'center', gap: 8,
             background: 'var(--bordeaux)', color: 'var(--cream)',
             border: 'none', borderRadius: 0, cursor: 'pointer',
@@ -209,7 +211,11 @@ export default function SommOverlay({ wine }) {
       )}
 
       {/* Panel */}
-      {open && <div style={{
+      {open && <div style={isMobile ? {
+        position: 'fixed', bottom: 0, left: 0, right: 0, height: '62%',
+        background: 'var(--cream)', borderTop: '1.5px solid var(--ink)',
+        display: 'flex', flexDirection: 'column', zIndex: 199,
+      } : {
         position: 'fixed', top: 0, right: 0, bottom: 0, width: 400,
         background: 'var(--cream)', borderLeft: '1.5px solid var(--ink)',
         display: 'flex', flexDirection: 'column', zIndex: 199,

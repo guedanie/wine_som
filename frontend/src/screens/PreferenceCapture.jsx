@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Eyebrow from '../components/Eyebrow.jsx';
 import Btn from '../components/Btn.jsx';
 import { buildApiReq, VARIETAL_OPTS } from '../lib/regions.js';
+import useIsMobile, { loadZip, saveZip } from '../lib/useIsMobile.js';
 
 const STYLE_OPTS = [
   ['Bold & Tannic',   'dark fruit · grip · structure'],
@@ -15,7 +16,8 @@ const WINE_TYPES = ['Red', 'White', 'Rosé', 'Sparkling'];
 
 export default function PreferenceCapture() {
   const navigate = useNavigate();
-  const [zip,      setZip]      = useState('78209');
+  const isMobile = useIsMobile();
+  const [zip,      setZip]      = useState(loadZip);
   const [budget,   setBudget]   = useState(60);
   const [styles,   setStyles]   = useState(['Bold & Tannic']);
   const [occasion, setOccasion] = useState('Tonight');
@@ -33,10 +35,129 @@ export default function PreferenceCapture() {
   const valid  = zip.length === 5 && (styles.length > 0 || freeText.trim().length > 0);
 
   const handleSubmit = () => {
+    saveZip(zip);
     const prefs  = { zip, budget, styles, occasion, wineTypes, grapes, freeText };
     const apiReq = buildApiReq(prefs);
     navigate('/recommend', { state: { prefs, apiReq } });
   };
+
+  if (isMobile) {
+    return (
+      <div style={{ overflowY: 'auto', height: '100%', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ padding: '28px 20px 40px' }}>
+          <div style={{ marginBottom: 28 }}>
+            <Eyebrow>The sommelier</Eyebrow>
+            <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 34, lineHeight: 1.05, color: 'var(--ink)', margin: '8px 0 0' }}>Tonight's brief</h1>
+            <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, lineHeight: 1.6, color: 'var(--ink-2)', margin: '10px 0 0' }}>
+              Tell me what you're after. I'll find what's near you.
+            </p>
+          </div>
+
+          {/* Style grid 2×2 */}
+          <div style={{ marginBottom: 28 }}>
+            <Eyebrow style={{ display: 'block', marginBottom: 12 }}>What you're in the mood for</Eyebrow>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {STYLE_OPTS.map(([s, sub]) => {
+                const on = styles.includes(s);
+                return (
+                  <button key={s} onClick={() => toggle(s)} style={{
+                    cursor: 'pointer', padding: '14px 12px', textAlign: 'left', borderRadius: 0,
+                    border: on ? '1.5px solid var(--bordeaux)' : '1.5px solid var(--border)',
+                    background: on ? 'var(--bordeaux-tint)' : 'var(--cream-raised)',
+                    transition: 'all .15s',
+                  }}>
+                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 600, color: on ? 'var(--bordeaux)' : 'var(--ink)', lineHeight: 1.2 }}>{s}</div>
+                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: 10.5, color: 'var(--faded)', marginTop: 4, lineHeight: 1.3 }}>{sub}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Budget */}
+          <div style={{ marginBottom: 28 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 }}>
+              <Eyebrow>Budget per bottle</Eyebrow>
+              <span style={{ fontFamily: 'var(--font-serif)', fontSize: 26, color: 'var(--bordeaux)' }}>up to ${budget}</span>
+            </div>
+            <input type="range" min={15} max={200} step={5} value={budget}
+              onChange={e => setBudget(+e.target.value)}
+              style={{ width: '100%', height: 4 }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--faded)', marginTop: 6 }}>
+              <span>$15</span><span>$200</span>
+            </div>
+          </div>
+
+          {/* Wine type */}
+          <div style={{ marginBottom: 28 }}>
+            <Eyebrow style={{ display: 'block', marginBottom: 12 }}>Wine type</Eyebrow>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {WINE_TYPES.map(t => {
+                const on = wineTypes.includes(t.toLowerCase());
+                return (
+                  <button key={t} onClick={() => toggleType(t.toLowerCase())} style={{
+                    cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 13,
+                    padding: '9px 16px', border: '1.5px solid', borderRadius: 999, minHeight: 44,
+                    borderColor: on ? 'var(--bordeaux)' : 'var(--border)',
+                    background: on ? 'var(--bordeaux)' : 'none',
+                    color: on ? 'var(--cream)' : 'var(--ink-2)',
+                    transition: 'all .15s',
+                  }}>{t}</button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Occasion pills */}
+          <div style={{ marginBottom: 28 }}>
+            <Eyebrow style={{ display: 'block', marginBottom: 12 }}>Occasion</Eyebrow>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {OCCASIONS.map(o => (
+                <button key={o} onClick={() => setOccasion(o)} style={{
+                  cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 13,
+                  padding: '9px 16px', border: '1.5px solid', borderRadius: 999, minHeight: 44,
+                  borderColor: occasion === o ? 'var(--bordeaux)' : 'var(--border)',
+                  background: occasion === o ? 'var(--bordeaux)' : 'none',
+                  color: occasion === o ? 'var(--cream)' : 'var(--ink-2)',
+                  transition: 'all .15s',
+                }}>{o}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Free text */}
+          <div style={{ marginBottom: 28 }}>
+            <Eyebrow style={{ display: 'block', marginBottom: 10 }}>Anything specific?</Eyebrow>
+            <input
+              value={freeText}
+              onChange={e => setFreeText(e.target.value)}
+              placeholder="A store, region, grape, or occasion…"
+              style={{ fontFamily: 'var(--font-sans)', fontSize: 16, color: 'var(--ink)', background: 'var(--cream-raised)', border: '1.5px solid var(--ink)', padding: '12px 13px', width: '100%', boxSizing: 'border-box', borderRadius: 0, outline: 'none' }}
+            />
+          </div>
+
+          {/* ZIP */}
+          <div style={{ marginBottom: 32 }}>
+            <Eyebrow style={{ display: 'block', marginBottom: 10 }}>Your zip code</Eyebrow>
+            <div style={{ display: 'flex', border: '1.5px solid var(--ink)', background: 'var(--cream-raised)' }}>
+              <span style={{ padding: '12px 14px', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--faded)' }}>◎</span>
+              <input
+                value={zip}
+                onChange={e => setZip(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                placeholder="ZIP code" maxLength={5} inputMode="numeric"
+                style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: 16, color: 'var(--ink)', padding: '12px 8px 12px 0' }}
+              />
+            </div>
+          </div>
+
+          <Btn onClick={handleSubmit} disabled={!valid}
+            style={{ width: '100%', justifyContent: 'center', opacity: valid ? 1 : 0.5 }}>
+            Find my wines →
+          </Btn>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: '56px 32px 80px' }}>
