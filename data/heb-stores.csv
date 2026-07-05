@@ -55,3 +55,10 @@ store_id,name,address,zip,city,state,active
 793,Fair Oaks H-E-B,29388 I-10 West,78006,Boerne,TX,false
 799,College Park H-E-B,7330 N Loop 1604,78249,San Antonio,TX,false
 807,Culebra and 211 H-E-B,15489 Culebra Rd.,78253,San Antonio,TX,false
+789,H-E-B Frisco Main St,4800 Main Street,75033,Frisco,TX,true
+802,H-E-B Frisco Hwy 380,899 University Dr,75033,Frisco,TX,true
+790,H-E-B Plano,6001 Preston Road Suite 100,75093,Plano,TX,true
+794,H-E-B McKinney,8700 Eldorado Parkway,75070,McKinney,TX,true
+796,H-E-B Allen,575 E Exchange Pkwy,75002,Allen,TX,true
+808,H-E-B Melissa,1230 Central Expressway,75454,Melissa,TX,true
+809,H-E-B Prosper,2145 W Frontier Pkwy,75078,Prosper,TX,true
