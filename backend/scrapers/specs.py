@@ -21,9 +21,15 @@ STORE_API_URL = "https://specsonline.com/api/store/number/{}/"
 RETAILER_NAME = "Spec's"
 PAGE_SIZE = 96
 
-# SA store numbers discovered via probe (see data/exploration/specs_findings.md)
-# Excludes Kerrville (74) and Boerne (207) — Hill Country, not SA proper
+# Store numbers discovered via probe (see data/exploration/specs_findings.md).
+# Spec's is statewide (188 stores); we scrape curated per-metro sets near
+# tester zips. Store address (city/zip) is fetched per store from the API,
+# so no code change is needed to add a store — just its number here.
 SA_STORE_NUMBERS = [69, 72, 98, 100, 110, 113, 114, 117, 169, 171, 194, 197]
+# Central Austin (near 78701) — Highland, 35th St, North Lamar, Arbor Walk
+AUSTIN_STORE_NUMBERS = [60, 224, 11, 62]
+# Central Dallas (near 75201) — Northwest Hwy, Superstore, Preston Ctr, Marsh Ln
+DALLAS_STORE_NUMBERS = [115, 150, 152, 156]
 
 _CURL_HEADERS = [
     "-H", "Content-Type: application/json",
@@ -92,6 +98,16 @@ def _parse_product(raw: dict) -> Optional[SpecsProduct]:
     )
 
 
+def _parse_store_detail(data: dict, store_number: int) -> dict:
+    """Extract {name, city, zip} from a /api/store/number/N/ response."""
+    addr = data.get("address") or {}
+    return {
+        "name": data.get("name") or f"Spec's Store {store_number}",
+        "city": addr.get("city") or "San Antonio",
+        "zip": addr.get("postcode") or "78209",
+    }
+
+
 def _fetch_wine_page(store_number: int, page: int, page_size: int = PAGE_SIZE) -> dict:
     """POST to /api/search/ for one page of wines at a given store. Returns raw API response dict."""
     body = json.dumps({
@@ -123,6 +139,8 @@ class SpecsScraper(BaseScraper):
         products: List[SpecsProduct],
         store_number: int,
         store_name: str,
+        store_zip: str = "78209",
+        store_city: str = "San Antonio",
     ) -> List[RetailInventoryItem]:
         items = []
         for p in products:
@@ -139,8 +157,8 @@ class SpecsScraper(BaseScraper):
                 varietal=p.category_group,
                 brand=p.brand,
                 image_url=p.image_url,
-                zip_code="78209",   # San Antonio; geocoded by BaseScraper._upsert_stores
-                city="San Antonio",
+                zip_code=store_zip,   # per-store; geocoded by BaseScraper._upsert_stores
+                city=store_city,
                 state="TX",
             ))
         return items
@@ -163,8 +181,8 @@ class SpecsScraper(BaseScraper):
                 records, on_conflict="wine_id"
             ).execute()
 
-    def _fetch_store_name(self, store_number: int) -> str:
-        """GET /api/store/number/N/ → store name string."""
+    def _fetch_store_detail(self, store_number: int) -> dict:
+        """GET /api/store/number/N/ → {name, city, zip}. Falls back to SA on error."""
         cmd = [
             "curl", "-s", "--max-time", "10",
             "-H", "User-Agent: Mozilla/5.0",
@@ -173,17 +191,19 @@ class SpecsScraper(BaseScraper):
         ]
         result = subprocess.run(cmd, capture_output=True, text=True)
         try:
-            data = json.loads(result.stdout)
-            return data.get("name") or f"Spec's Store {store_number}"
+            return _parse_store_detail(json.loads(result.stdout), store_number)
         except Exception:
-            return f"Spec's Store {store_number}"
+            return {"name": f"Spec's Store {store_number}", "city": "San Antonio", "zip": "78209"}
 
-    async def run_full(self) -> dict:
+    async def run_full(self, store_numbers: Optional[List[int]] = None) -> dict:
         """
-        Full scrape: iterate all 12 SA stores × all pages.
-        Commits each page immediately so progress is never lost on failure.
+        Full scrape: iterate the given store numbers × all pages (default SA).
+        Per-store address is fetched from the API so Austin/Dallas stores
+        geocode correctly. Commits each page immediately.
         """
         import time
+
+        stores = store_numbers if store_numbers is not None else SA_STORE_NUMBERS
 
         run_id = str(uuid.uuid4())
         self.supabase.table("scraper_runs").insert({
@@ -195,9 +215,10 @@ class SpecsScraper(BaseScraper):
         total_committed = 0
 
         try:
-            for store_number in SA_STORE_NUMBERS:
-                store_name = self._fetch_store_name(store_number)
-                print(f"\n  Store {store_number} — {store_name}")
+            for store_number in stores:
+                detail = self._fetch_store_detail(store_number)
+                store_name, store_zip, store_city = detail["name"], detail["zip"], detail["city"]
+                print(f"\n  Store {store_number} — {store_name} ({store_city} {store_zip})")
 
                 page = 1
                 total_pages = None
@@ -220,7 +241,8 @@ class SpecsScraper(BaseScraper):
 
                     if products:
                         items = self._products_to_inventory_items(
-                            products, store_number=store_number, store_name=store_name
+                            products, store_number=store_number, store_name=store_name,
+                            store_zip=store_zip, store_city=store_city,
                         )
                         upc_to_id = self._upsert_wines(items)
                         self._upsert_inventory(items, upc_to_id)
@@ -237,7 +259,7 @@ class SpecsScraper(BaseScraper):
                 "completed_at": datetime.now(timezone.utc).isoformat(),
             }).eq("id", run_id).execute()
 
-            return {"wines_committed": total_committed, "stores": len(SA_STORE_NUMBERS)}
+            return {"wines_committed": total_committed, "stores": len(stores)}
 
         except Exception as e:
             self.supabase.table("scraper_runs").update({

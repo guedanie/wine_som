@@ -118,14 +118,14 @@ jobs:
           asyncio.run(KrogerScraper().run_full())
           "
 
-      - name: Scrape Spec's (12 SA stores — ~30 min)
+      - name: Scrape Spec's (SA + Austin + Dallas)
         id: specs
         continue-on-error: true
         run: |
           python3 -c "
           import asyncio
-          from scrapers.specs import SpecsScraper
-          asyncio.run(SpecsScraper().run_full())
+          from scrapers.specs import SpecsScraper, SA_STORE_NUMBERS, AUSTIN_STORE_NUMBERS, DALLAS_STORE_NUMBERS
+          asyncio.run(SpecsScraper().run_full(SA_STORE_NUMBERS + AUSTIN_STORE_NUMBERS + DALLAS_STORE_NUMBERS))
           "
 
       # ── extraction ───────────────────────────────────────────────────────

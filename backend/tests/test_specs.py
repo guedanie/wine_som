@@ -219,3 +219,42 @@ def test_upsert_wine_details_skips_when_all_empty():
     upc_to_id = {"081883800770": "wine-uuid-1"}
     scraper._upsert_wine_details([product], upc_to_id)
     scraper.supabase.table.assert_not_called()
+
+
+# ── multi-metro store expansion ──────────────────────────────────
+
+def test_parse_store_detail_extracts_city_zip():
+    from scrapers.specs import _parse_store_detail
+    data = {"name": "Northwest Highway",
+            "address": {"city": "Dallas", "postcode": "75220", "provinceCode": "US-TX"}}
+    d = _parse_store_detail(data, 115)
+    assert d == {"name": "Northwest Highway", "city": "Dallas", "zip": "75220"}
+
+
+def test_parse_store_detail_falls_back_on_missing_address():
+    from scrapers.specs import _parse_store_detail
+    d = _parse_store_detail({"name": "X"}, 999)
+    assert d["city"] == "San Antonio" and d["zip"] == "78209"
+
+
+def test_inventory_item_uses_per_store_city_zip():
+    """Austin/Dallas stores must carry their own zip/city, not SA's — else
+    they geocode to San Antonio and a local tester's radius misses them."""
+    from scrapers.specs import SpecsScraper
+    scraper = SpecsScraper.__new__(SpecsScraper)
+    product = _parse_product(_raw_product())
+    items = SpecsScraper._products_to_inventory_items(
+        scraper, [product], store_number=115, store_name="Northwest Highway",
+        store_zip="75220", store_city="Dallas")
+    assert items[0].zip_code == "75220"
+    assert items[0].city == "Dallas"
+    assert items[0].state == "TX"
+
+
+def test_inventory_item_defaults_to_sa():
+    from scrapers.specs import SpecsScraper
+    scraper = SpecsScraper.__new__(SpecsScraper)
+    product = _parse_product(_raw_product())
+    items = SpecsScraper._products_to_inventory_items(
+        scraper, [product], store_number=100, store_name="De Zavala")
+    assert items[0].zip_code == "78209" and items[0].city == "San Antonio"
