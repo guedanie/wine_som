@@ -5,8 +5,7 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 import time
 from unittest.mock import MagicMock, patch
 from scrapers.kroger import (
-    parse_product, _front_image, KrogerClient, KrogerScraper,
-    RETAILER_NAME, CITY, STATE,
+    parse_product, _front_image, KrogerClient, KrogerScraper, MARKETS,
 )
 
 
@@ -97,19 +96,36 @@ def test_client_refetches_after_expiry():
 
 # ── scraper inventory mapping ────────────────────────────────────
 
-def test_inventory_item_uses_real_upc_and_nashville_meta():
+def test_inventory_item_uses_real_upc_and_market_meta():
     scraper = KrogerScraper.__new__(KrogerScraper)
     p = parse_product(_product())
-    store = {"id": "02600567", "name": "Kroger - Hillsboro Village", "address": "2201 21st Ave S", "zip": "37212"}
-    items = KrogerScraper._to_inventory_items(scraper, [p], store)
+    market = MARKETS["nashville"]
+    store = market["stores"][0]
+    items = KrogerScraper._to_inventory_items(scraper, [p], store, market)
     it = items[0]
-    assert it.retailer_name == RETAILER_NAME
-    assert it.city == CITY == "Nashville"
-    assert it.state == STATE == "TN"
+    assert it.retailer_name == "Kroger"
+    assert it.city == "Nashville"
+    assert it.state == "TN"
     assert it.upc == "0008500001668"      # real barcode, not synthetic
-    assert it.store_id == "02600567"
+    assert it.store_id == store["id"]
     assert it.price == 14.99
     assert it.brand == "Kim Crawford"
+
+
+def test_harris_teeter_market_uses_banner_name():
+    """NC markets display as 'Harris Teeter', not 'Kroger'."""
+    scraper = KrogerScraper.__new__(KrogerScraper)
+    p = parse_product(_product())
+    market = MARKETS["charlotte"]
+    items = KrogerScraper._to_inventory_items(scraper, [p], market["stores"][0], market)
+    assert items[0].retailer_name == "Harris Teeter"
+    assert items[0].state == "NC"
+
+
+def test_markets_registry_shape():
+    for key, m in MARKETS.items():
+        assert {"city", "state", "retailer", "stores"} <= set(m)
+        assert m["stores"] and all("id" in s and "zip" in s for s in m["stores"])
 
 
 def test_fetch_store_wines_dedups_by_upc():

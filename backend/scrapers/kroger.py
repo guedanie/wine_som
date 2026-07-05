@@ -36,18 +36,55 @@ from utils.upc import canonical_upc
 from config import settings
 
 API_BASE = "https://api.kroger.com/v1"
-RETAILER_NAME = "Kroger"
 
-# Nashville grocery stores near the beta tester (zip 37210). locationId, name,
-# address, zip — BaseScraper auto-geocodes on seed.
-NASHVILLE_STORES = [
-    {"id": "02600511", "name": "Kroger - Melrose",          "address": "2615 8th Ave S",   "zip": "37204"},
-    {"id": "02600542", "name": "Kroger - Briley Pkwy",      "address": "61 E Thompson Ln",  "zip": "37211"},
-    {"id": "02600880", "name": "Kroger - East Nashville",   "address": "711 Gallatin Ave",  "zip": "37206"},
-    {"id": "02600567", "name": "Kroger - Hillsboro Village", "address": "2201 21st Ave S",   "zip": "37212"},
-]
-CITY = "Nashville"
-STATE = "TN"
+# The Kroger Developer API covers ALL Kroger-owned banners (Kroger, Harris
+# Teeter, Ralphs, Fred Meyer, King Soopers, …) — same Products API + pricing,
+# the banner is just cosmetic. Markets are config: to add a city, list its
+# store IDs from
+#   GET /locations?filter.zipCode.near={zip}&filter.chain={code}
+# 'retailer' is the display banner; store locationIds are all the API needs.
+# BaseScraper auto-geocodes stores from address/zip on seed.
+MARKETS: Dict[str, Dict[str, Any]] = {
+    "nashville": {
+        "city": "Nashville", "state": "TN", "retailer": "Kroger",
+        "stores": [
+            {"id": "02600511", "name": "Kroger - Melrose",           "address": "2615 8th Ave S",   "zip": "37204"},
+            {"id": "02600542", "name": "Kroger - Briley Pkwy",       "address": "61 E Thompson Ln", "zip": "37211"},
+            {"id": "02600880", "name": "Kroger - East Nashville",    "address": "711 Gallatin Ave", "zip": "37206"},
+            {"id": "02600567", "name": "Kroger - Hillsboro Village", "address": "2201 21st Ave S",   "zip": "37212"},
+        ],
+    },
+    "charlotte": {
+        "city": "Charlotte", "state": "NC", "retailer": "Harris Teeter",
+        "stores": [
+            {"id": "09700205", "name": "Harris Teeter - Fifth and Poplar",   "address": "325 W 6th St",    "zip": "28202"},
+            {"id": "09700061", "name": "Harris Teeter - Kenilworth Commons", "address": "1227 East Blvd",  "zip": "28203"},
+            {"id": "09700401", "name": "Harris Teeter - Central Avenue",     "address": "1704 Central Ave", "zip": "28205"},
+            {"id": "09700305", "name": "Harris Teeter - Sedgefield",         "address": "2717 South Blvd", "zip": "28209"},
+            {"id": "09700412", "name": "Harris Teeter - Myers Park Center",  "address": "1015 Providence Rd", "zip": "28207"},
+        ],
+    },
+    "winston-salem": {
+        "city": "Winston-Salem", "state": "NC", "retailer": "Harris Teeter",
+        "stores": [
+            {"id": "09700216", "name": "Harris Teeter - Cloverdale Plaza",  "address": "2281 Cloverdale Ave",  "zip": "27103"},
+            {"id": "09700155", "name": "Harris Teeter - Thruway Center",    "address": "420 S Stratford Rd",   "zip": "27103"},
+            {"id": "09700127", "name": "Harris Teeter - Whitaker Square",   "address": "1955 N Peace Haven Rd", "zip": "27106"},
+            {"id": "09700346", "name": "Harris Teeter - Pine Ridge Plaza",  "address": "2835 Reynolda Rd",     "zip": "27106"},
+            {"id": "09700037", "name": "Harris Teeter - Harper Hill Common", "address": "150 Grant Hill Ln",   "zip": "27104"},
+        ],
+    },
+    "dallas": {
+        "city": "Dallas", "state": "TX", "retailer": "Kroger",
+        "stores": [
+            {"id": "03500529", "name": "Kroger Fresh Fare - Capitol Ave",   "address": "4241 Capitol Ave",      "zip": "75204"},
+            {"id": "03500528", "name": "Kroger Fresh Fare - Cedar Springs", "address": "4142 Cedar Springs Rd", "zip": "75219"},
+            {"id": "03500509", "name": "Kroger Fresh Fare - Maple Ave",     "address": "4901 Maple Ave",        "zip": "75235"},
+            {"id": "03500518", "name": "Kroger - Mockingbird",             "address": "5665 E Mockingbird Ln", "zip": "75206"},
+            {"id": "03500511", "name": "Kroger - Northview Plaza",          "address": "10677 E Northwest Hwy", "zip": "75238"},
+        ],
+    },
+}
 
 # Wine-specific search terms (broad types + common varietals). Dedup by UPC
 # collapses the overlap. Covers the store far better than one "wine" query.
@@ -200,7 +237,8 @@ def parse_product(product: dict) -> Optional[KrogerProduct]:
 
 
 class KrogerScraper(BaseScraper):
-    """Kroger official-API scraper. Nashville stores by default."""
+    """Kroger official-API scraper across all configured MARKETS (Kroger +
+    Harris Teeter banners). run_full(markets=[...]) to scope to specific cities."""
 
     def __init__(self, *args, client: KrogerClient = None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -231,21 +269,22 @@ class KrogerScraper(BaseScraper):
             time.sleep(0.3)
         return list(by_canon.values())
 
-    def _to_inventory_items(self, products: List[KrogerProduct], store: dict) -> List[RetailInventoryItem]:
+    def _to_inventory_items(self, products: List[KrogerProduct], store: dict,
+                            market: dict) -> List[RetailInventoryItem]:
         return [
             RetailInventoryItem(
                 wine_name=p.name,
-                retailer_name=RETAILER_NAME,
+                retailer_name=market["retailer"],   # banner: Kroger / Harris Teeter / …
                 zip_code=store["zip"],
-                upc=p.upc,                       # real barcode → cross-retailer dedup
+                upc=p.upc,                           # real barcode → cross-retailer dedup
                 price=p.price,
                 store_name=store["name"],
                 store_id=store["id"],
                 address=store["address"],
-                city=CITY,
-                state=STATE,
+                city=market["city"],
+                state=market["state"],
                 in_stock=p.in_stock,
-                varietal=None,                   # extractor/Vivino fill varietal
+                varietal=None,                       # extractor/Vivino fill varietal
                 brand=p.brand,
                 image_url=p.image_url,
             )
@@ -254,41 +293,46 @@ class KrogerScraper(BaseScraper):
 
     async def search_by_zip(self, zip_code: str) -> List[RetailInventoryItem]:
         items: List[RetailInventoryItem] = []
-        for store in NASHVILLE_STORES:
-            items.extend(self._to_inventory_items(self._fetch_store_wines(store["id"]), store))
+        for market in MARKETS.values():
+            for store in market["stores"]:
+                items.extend(self._to_inventory_items(
+                    self._fetch_store_wines(store["id"]), store, market))
         return items
 
     async def search_by_wine(self, wine_name: str, zip_code: str) -> List[RetailInventoryItem]:
-        store = NASHVILLE_STORES[0]
+        market = MARKETS["nashville"]
+        store = market["stores"][0]
         raw = self.client.search(wine_name, store["id"])
         products = [p for p in (parse_product(r) for r in raw) if p]
-        return self._to_inventory_items(products, store)
+        return self._to_inventory_items(products, store, market)
 
-    async def run_full(self, store_ids: Optional[List[str]] = None) -> dict:
-        """Scrape wine from each Nashville Kroger store; commit per store."""
-        stores = ([s for s in NASHVILLE_STORES if s["id"] in store_ids]
-                  if store_ids else NASHVILLE_STORES)
+    async def run_full(self, markets: Optional[List[str]] = None) -> dict:
+        """Scrape wine per store across the given markets (all by default);
+        commit per store. `markets` is a list of MARKETS keys, e.g. ['charlotte']."""
+        keys = markets or list(MARKETS.keys())
 
         run_id = str(uuid.uuid4())
         self.supabase.table("scraper_runs").insert({
-            "id": run_id, "retailer_name": RETAILER_NAME, "status": "running",
+            "id": run_id, "retailer_name": "Kroger (multi-banner)", "status": "running",
         }).execute()
 
         total, failed = 0, []
-        for store in stores:
-            try:
-                products = self._fetch_store_wines(store["id"])
-                if products:
-                    items = self._to_inventory_items(products, store)
-                    upc_to_id = self._upsert_wines(items)
-                    self._upsert_inventory(items, upc_to_id)
-                    total += len(products)
-                    print(f"   {store['name']}: {len(products)} wines committed (total: {total})")
-            except Exception as e:
-                # A transient API/network failure on one store shouldn't sink
-                # the rest — record it and move on (the store retries next run).
-                failed.append(store["name"])
-                print(f"   {store['name']}: FAILED — {e}")
+        for key in keys:
+            market = MARKETS[key]
+            for store in market["stores"]:
+                try:
+                    products = self._fetch_store_wines(store["id"])
+                    if products:
+                        items = self._to_inventory_items(products, store, market)
+                        upc_to_id = self._upsert_wines(items)
+                        self._upsert_inventory(items, upc_to_id)
+                        total += len(products)
+                        print(f"   [{market['city']}] {store['name']}: "
+                              f"{len(products)} wines (total: {total})")
+                except Exception as e:
+                    # One store's transient failure shouldn't sink the rest.
+                    failed.append(f"{market['city']}/{store['name']}")
+                    print(f"   [{market['city']}] {store['name']}: FAILED — {e}")
 
         status = "success" if not failed else "partial"
         self.supabase.table("scraper_runs").update({
@@ -296,5 +340,4 @@ class KrogerScraper(BaseScraper):
             "error_message": ("stores failed: " + ", ".join(failed)) if failed else None,
             "completed_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", run_id).execute()
-        return {"wines_fetched": total, "stores": len(stores) - len(failed),
-                "failed": failed, "retailer": RETAILER_NAME}
+        return {"wines_fetched": total, "markets": keys, "failed": failed}
