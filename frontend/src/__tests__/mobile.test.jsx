@@ -27,6 +27,7 @@ vi.mock('../components/RegionMap.jsx', () => ({
 
 import App from '../App.jsx';
 import ChatRecommend from '../screens/ChatRecommend.jsx';
+import { TopBar } from '../components/MobileChrome.jsx';
 
 test('mobile chrome: TopBar brand + bottom tabs render', () => {
   render(
@@ -80,4 +81,33 @@ test('mobile chat: sheet absent when there are no picks', () => {
     </MemoryRouter>
   );
   expect(screen.queryByTestId('wine-sheet')).not.toBeInTheDocument();
+});
+
+
+test('mobile dossier back restores the chat session (no re-run)', async () => {
+  const { useLocation } = await import('react-router-dom');
+  let restoredState = null;
+  function RecommendProbe() {
+    const loc = useLocation();
+    restoredState = loc.state;
+    return <div>recommend-screen</div>;
+  }
+  const chatState = {
+    prefs: { zip: '78209' }, apiReq: { zip_code: '78209' },
+    messages: [{ id: 'm1', role: 'user', text: 'bold red' }],
+    picks: [{ wine_id: 'w1', name: 'X' }], sessionId: 's1',
+    wineVotes: {}, messageVotes: {},
+  };
+  render(
+    <MemoryRouter initialEntries={[{ pathname: '/wine/w1', state: { pick: { name: 'Brunello' }, chatState } }]}>
+      <TopBar />
+      <Routes>
+        <Route path="/wine/:id" element={<div>dossier</div>} />
+        <Route path="/recommend" element={<RecommendProbe />} />
+      </Routes>
+    </MemoryRouter>
+  );
+  await userEvent.click(screen.getByLabelText('Back'));
+  expect(screen.getByText('recommend-screen')).toBeInTheDocument();
+  expect(restoredState._restored).toEqual(chatState);
 });

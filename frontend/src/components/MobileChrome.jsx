@@ -20,7 +20,14 @@ export function TopBar() {
     const name = state?.pick?.name ?? 'Wine';
     title = name.split(' ').slice(0, 3).join(' ');
     sub = null;
-    back = () => navigate(-1);
+    // Restore the chat session on back — navigate(-1) returns to the ORIGINAL
+    // /recommend history entry (no _restored), which re-runs the recommendation.
+    const chatState = state?.chatState ?? state?.pick?.chatState ?? null;
+    back = chatState
+      ? () => navigate('/recommend', {
+          state: { prefs: chatState.prefs, apiReq: chatState.apiReq, _restored: chatState },
+        })
+      : () => navigate(-1);
   } else if (pathname === '/discover') {
     title = 'Discover';
     sub = null;
