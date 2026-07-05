@@ -438,4 +438,4 @@ docs/
 13. Target scraper — Playwright probe needed first
 14. WFM prices — Amazon Product Advertising API is the cleanest path (affiliate account needed); see `data/exploration/wholefoodsmarket_price_probe.md`
 15. Local LLM for fact extraction — benchmark a local model (Ollama + Llama 3 / Mistral) against the Haiku extractor on region/varietal/grapes accuracy; goal is zero per-call cost for the extraction pipeline so re-enrichment on new scraper runs is free
-16. Deploy — Railway (backend) + Vercel (frontend); add CORS origin, set env vars in Railway dashboard
+16. ~~Deploy~~ ✅ Done 2026-07-05 — Vercel (`wine-som-pkwz-chi.vercel.app`) + Railway (`winesom-production.up.railway.app`); rate limits (recommend 15/hr/IP, somm 40/hr/IP), ADMIN_TOKEN gate on /api/enrich, ALLOWED_ORIGINS CORS; private beta with 4-5 testers
