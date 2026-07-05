@@ -61,10 +61,14 @@ def _parse_product(raw: dict) -> Optional[SpecsProduct]:
 
     pricing = raw.get("pricing") or {}
     unit_cents = pricing.get("unitPrice")
-    promo_cents = pricing.get("unitPricePromoDiscount")
+    promo_cents = pricing.get("unitPricePromoDiscount")   # DISCOUNT AMOUNT (cents off), not the sale price
 
     shelf = unit_cents / 100 if unit_cents is not None else None
-    sale = promo_cents / 100 if promo_cents is not None else None
+    # sale = shelf - discount. promo_cents is how much is taken OFF, not the
+    # final price (a $15.78 wine with a 318 promo sells for $12.60, not $3.18).
+    sale = None
+    if unit_cents is not None and promo_cents:
+        sale = max(0, unit_cents - promo_cents) / 100
     effective = sale if sale is not None else shelf
 
     raw_desc = details.get("description", "")

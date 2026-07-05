@@ -29,8 +29,8 @@ def _raw_product(**overrides):
         },
         "url": "/shop/wine/stonegate-sauvignon-blanc/",
         "pricing": {
-            "unitPrice": 1262,
-            "unitPricePromoDiscount": 965,
+            "unitPrice": 1578,
+            "unitPricePromoDiscount": 318,   # DISCOUNT AMOUNT ($3.18 off), not the sale price
             "casePrice": None,
             "caseQuantity": None,
             "casePricePromoDiscount": None,
@@ -57,9 +57,10 @@ def test_parse_product_full():
     assert p.size == "750ML"
     assert p.category_group == "Sauvignon Blanc"
     assert p.description == "Crisp and dry with notes of green apple and citrus."
-    assert p.price == 9.65           # promo price used when available
-    assert p.sale_price == 9.65
-    assert p.shelf_price == 12.62
+    # sale = shelf - discount = (1578 - 318)/100 = 12.60 (NOT the 3.18 discount amount)
+    assert p.price == 12.60
+    assert p.sale_price == 12.60
+    assert p.shelf_price == 15.78
     assert p.in_stock is True
     assert p.image_url == "https://cdn.specsonline.com/images/products/081883800770.jpg"
 
@@ -68,9 +69,20 @@ def test_parse_product_no_promo_uses_shelf_price():
     raw = _raw_product()
     raw["pricing"]["unitPricePromoDiscount"] = None
     p = _parse_product(raw)
-    assert p.price == 12.62
+    assert p.price == 15.78
     assert p.sale_price is None
-    assert p.shelf_price == 12.62
+    assert p.shelf_price == 15.78
+
+
+def test_parse_product_promo_is_discount_amount_not_price():
+    """Regression: unitPricePromoDiscount is $ OFF, not the sale price.
+    A $15.78 wine with a $3.18 discount must show $12.60, never $3.18."""
+    raw = _raw_product()
+    raw["pricing"]["unitPrice"] = 1578
+    raw["pricing"]["unitPricePromoDiscount"] = 318
+    p = _parse_product(raw)
+    assert p.price == 12.60
+    assert p.price > 5      # never the bare discount amount
 
 
 def test_parse_product_empty_description_returns_none():
@@ -157,7 +169,7 @@ def test_products_to_inventory_items_maps_correctly():
     assert isinstance(item, RetailInventoryItem)
     assert item.wine_name == "Stonegate Sauvignon Blanc"
     assert item.upc == "081883800770"
-    assert item.price == 9.65
+    assert item.price == 12.60      # shelf 15.78 − 3.18 discount
     assert item.retailer_name == "Spec's"
     assert item.store_id == "100"
     assert item.store_name == "San Antonio - De Zavala"
