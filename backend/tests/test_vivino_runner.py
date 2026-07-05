@@ -43,3 +43,27 @@ def test_failure_streak_aborts_after_max_pauses():
                                       pauses=runner.MAX_PAUSES)
     assert aborted
     mock_sleep.assert_not_called()
+
+
+def test_ci_profile_is_conservative():
+    """GITHUB_ACTIONS=true must select the crawl profile — datacenter runner
+    IPs get throttled by Vivino far harder than residential ones."""
+    import importlib, os
+    from unittest.mock import patch as env_patch
+    with env_patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}):
+        mod = importlib.reload(runner)
+        assert mod.CONCURRENCY == 1
+        assert mod.REQ_DELAY >= 2.0
+        assert mod.PAUSE_SECONDS >= 300
+        assert mod.MAX_PAUSES >= 5
+    importlib.reload(runner)  # restore local profile for other tests
+
+
+def test_local_profile_unchanged():
+    import importlib, os
+    assert os.environ.get("GITHUB_ACTIONS") != "true"
+    mod = importlib.reload(runner)
+    assert mod.CONCURRENCY == 2
+    assert mod.REQ_DELAY == 1.0
+    assert mod.PAUSE_SECONDS == 90
+    assert mod.MAX_PAUSES == 3

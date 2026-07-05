@@ -12,6 +12,7 @@ Run from backend/:  python3 scripts/run_vivino_sample.py [--limit 100] [--dry-ru
 
 import argparse
 import asyncio
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -27,11 +28,17 @@ from enrichment.vivino import (VivinoFetchError, build_query, fetch_ratings,
 
 MATCH_THRESHOLD = 0.6   # ratings + image: cosmetic, tolerate borderline matches
 FACTS_THRESHOLD = 0.7   # grapes/region/abv/structure: canonical facts need a stronger match
-CONCURRENCY = 2      # parallel workers — 5 workers @ 0.3s tripped Vivino's 429 limiter
-REQ_DELAY = 1.0      # seconds between each HTTP request within a worker (~2 req/s total)
-ABORT_AFTER = 10     # consecutive fetch failures → pause (or abort once pauses are spent)
-PAUSE_SECONDS = 90   # rate-limit windows are usually short — wait one out and resume
-MAX_PAUSES = 3       # after this many failed pause cycles, the block is real: abort
+
+# Rate profile. GitHub runner IPs are datacenter addresses that Vivino
+# throttles far harder than residential ones — pause-and-resume at 2 req/s
+# still aborted after ~34 wines/run. In CI we crawl: 1 worker, ~0.4 req/s,
+# long pauses. Locally the faster profile has proven safe.
+_IN_CI = os.environ.get("GITHUB_ACTIONS") == "true"
+CONCURRENCY   = 1 if _IN_CI else 2      # parallel workers
+REQ_DELAY     = 2.5 if _IN_CI else 1.0  # seconds before each HTTP request per worker
+ABORT_AFTER   = 10                      # consecutive fetch failures → pause / abort
+PAUSE_SECONDS = 300 if _IN_CI else 90   # wait out the throttle window
+MAX_PAUSES    = 5 if _IN_CI else 3      # pause cycles before conceding the block is real
 
 
 async def handle_fetch_failure(state, abort):
