@@ -3,20 +3,26 @@
 ## What This Is
 Full-stack wine recommendation app. Users enter zip code + budget + style preferences and get Claude-powered sommelier recommendations for wines available at local retailers near them.
 
-## Current Build Status (as of 2026-07-02)
+**LIVE (private beta since 2026-07-05):** frontend `wine-som-pkwz-chi.vercel.app` (Vercel) + backend `winesom-production.up.railway.app` (Railway) + Supabase. Installable as a PWA. Testers in San Antonio, Nashville; second wave in Charlotte + Winston-Salem NC; Dallas focus coming.
+
+## Current Build Status (as of 2026-07-05)
 
 ### Done
 | Component | Location | Notes |
 |---|---|---|
 | Supabase schema | `supabase/migrations/` | 13 migrations live in cloud DB |
-| Vivino enrichment | `backend/enrichment/vivino.py`, `backend/scripts/run_vivino_sample.py` | Async httpx (2 workers, ~2 req/s); ratings + bottle image + canonical facts (grapes/region/abv/structure/pairing) from 2 HTML requests/wine; 429-safe (VivinoFetchError, no false stamps, abort breaker); `--missing-images` + `--backfill-facts` modes; ~937 matched so far |
-| Daily Vivino workflow | `.github/workflows/daily-vivino.yml` | Twice daily (03:00 + 15:00 UTC), 1,000 wines/run, concurrency group prevents overlap; drains backlog ~2k/day then keeps pace with weekly scrapes |
+| Vivino enrichment | `backend/enrichment/vivino.py`, `backend/scripts/run_vivino_sample.py` | Async httpx; ratings + bottle image + canonical facts (grapes/region/abv/structure/pairing) from 2 HTML requests/wine; 429-safe (VivinoFetchError, no false stamps, pause-and-resume); `--missing-images` + `--backfill-facts` modes; ~1,027 matched |
+| Daily Vivino workflow | `.github/workflows/daily-vivino.yml` | **PAUSED 2026-07-05** — GitHub runner datacenter IPs are IP-blocklisted by Vivino (~23 wines/day even on crawl profile). `workflow_dispatch` only; enrichment moving to a local residential-IP job |
+| Deployment | Vercel + Railway | Frontend Vercel (root `vercel.json` pins Vite build), backend Railway (`Procfile`, $PORT bind); env-driven CORS (`ALLOWED_ORIGINS`), per-IP rate limits, ADMIN_TOKEN gate on `/api/enrich/*` |
+| Mobile / PWA | `frontend/src/components/MobileChrome.jsx`, `lib/useIsMobile.js` | Responsive ≤640px branch on every screen (shared logic, conditional layout); TopBar + BottomTabs chrome; chat cards in a bottom sheet; filter drawer; `manifest.json` + vine-mark icons; 16px inputs (no iOS zoom); session-restore on dossier back |
 | FastAPI app | `backend/api/` | `/health`, `/api/wines/search`, `/api/wines/:id` |
 | Enrichment endpoints | `backend/api/routers/enrichment.py` | `/api/enrich/:id`, `/api/enrich/batch/pending` |
 | GrapeMinds client | `backend/enrichment/grapeminds.py` | curl subprocess (Cloudflare bypass) |
 | Enrichment pipeline | `backend/enrichment/pipeline.py` | Two-step warm-up, cache check, batch mode |
 | Geraldine's scraper | `backend/scrapers/geraldines.py` | Shopify API, ~200 wines, no bot protection |
-| HEB scraper | `backend/scrapers/heb.py` | Pure-curl GraphQL, 18 stores (6 SA + 12 Austin), dual (in-store/curbside) pricing |
+| HEB scraper | `backend/scrapers/heb.py` | Pure-curl GraphQL, 25 active stores (6 SA + 12 Austin + 7 DFW: Frisco/Plano/McKinney/Allen/Melissa/Prosper — all ~2,200-2,300 wines), dual (in-store/curbside) pricing |
+| Kroger scraper | `backend/scrapers/kroger.py` | **Official Developer API** (OAuth2, not a scrape) — per-location pricing + real UPCs. `MARKETS` registry covers all Kroger banners: Nashville (Kroger, 3,645 wines), Charlotte + Winston-Salem (Harris Teeter, 10,433 rows), Dallas (Kroger). 17-term search deduped by canonical UPC |
+| Harvest Wine Market scraper | `backend/scrapers/harvest_wine.py` | Shopify API, Nashville TN (1,032 wines), first TN retailer; inconsistent product_type casing normalized |
 | Central Market scraper | `backend/scrapers/central_market.py` | Same HEB GraphQL, `central-market` client header, 2 Austin stores (61, 420); SA store 191 not e-commerce-enabled |
 | AOC Selections scraper | `backend/scrapers/aoc_selections.py` | Shopify API, SA-only (Location_SanAntonio tag filter), ~fine wine catalog, page-param pagination |
 | US Natural Wine scraper | `backend/scrapers/us_natural_wine.py` | Shopify API, Austin (~560 natural wines), normalizes inconsistent product_types |
@@ -33,8 +39,8 @@ Full-stack wine recommendation app. Users enter zip code + budget + style prefer
 | Wine images | `wines.image_url` (scrapers + Vivino) | All 5 Shopify/Spec's scrapers capture CDN URLs; HEB/CM gap filled by Vivino `bottle_medium` (`https:` + protocol-relative URL) on any match ≥0.6 |
 | Cross-retailer dedup | `backend/utils/upc.py`, `scripts/merge_duplicate_wines.py` | canonical-UPC normalization; 910 dup wine rows merged (9321→8411), 0 inventory loss; full UNIQUE CONSTRAINT (migration 11) |
 | Recommendation engine v2.1 | `backend/recommendation/` | Tiered pool (GrapeMinds + extractor), knowledge-based scorer (`flavor_profiles.py`), optional NL intent (`intent.py`); Vivino rating boost (max +1.5, ≥25 ratings), structure-profile body matching, ratings shown to Claude, full-pool scoring with seeded ±0.4 jitter (no pre-score truncation) |
-| HEB store registry | `data/heb-stores.csv` | CSV-driven active flag; 18 active stores + 37 SA/suburb staged (active=false); flip flag to add a store, no code change |
-| Weekly scrape workflow | `.github/workflows/weekly-scrape.yml` | GitHub Actions cron Sunday 02:00 CT — all 7 scrapers + `--null-only` extraction; each step independent (`continue-on-error`) |
+| HEB store registry | `data/heb-stores.csv` | CSV-driven active flag; 25 active (SA + Austin + DFW); flip flag to add a store, no code change |
+| Weekly scrape workflow | `.github/workflows/weekly-scrape.yml` | GitHub Actions cron Sunday 02:00 CT — all 9 scrapers (7 SA/Austin + Harvest + Kroger) + `--null-only` extraction; Slack notify per-scraper; each step `continue-on-error` |
 | requirements.txt | `backend/requirements.txt` | 17 pinned deps for reproducible CI installs |
 | Feedback loop | `backend/api/routers/feedback.py`, `supabase/migrations/20260630000001_feedback_table.sql` | `POST /api/feedback` + `feedback` Supabase table; Pattern A (wine card thumbs) + Pattern B (sommelier message thumbs + follow-up bubble); session-scoped votes with toggle support |
 | Somm overlay | `frontend/src/components/SommOverlay.jsx`, `backend/api/routers/somm.py` | FAB + 400px slide-in chat panel; wine-context Claude Haiku system prompt; suggestion chips (red vs white set); Pattern B feedback; chat history persists across close/reopen |
@@ -42,25 +48,34 @@ Full-stack wine recommendation app. Users enter zip code + budget + style prefer
 | Poster Option B | `frontend/src/components/Poster.jsx` | Above-frame header (country · rule · coord mono); below-frame footer (serif 32px name + compass rose SVG + subregion); `REGION_META` lookup added to `regions.js` |
 | Ask Somm endpoint | `backend/api/routers/somm.py` | `POST /api/somm` — streaming SSE, Haiku, wine-context system prompt, history support; empty message → opening statement |
 | Dossier bottle layout | `frontend/src/screens/RegionDossier.jsx` | Design handoff v2: bottle image primary (matted frame, stripe placeholder, Shopify `_1200x` hi-res rewrite), region poster demoted to 88px thumbnail; Vivino rating badge below price; BEST PRICE store badge |
-| Test suite | `backend/tests/` | 242 passing (+ 3 integration-schema vs live DB) |
-| Frontend | `frontend/` | Vite + React 19 + Tailwind v3 — 4 screens, 116 tests passing; `npm run dev` at localhost:5173 |
+| Search + Region Detail | `backend/api/routers/search.py`, `frontend/src/screens/{SearchScreen,RegionDetail}.jsx` | `/api/search` (name/brand/varietal/region + nearby price + distance); Region Detail page (facts grid, sub-region counts, Leaflet map); nav search button |
+| Test suite | `backend/tests/` | 286 passing (+ 3 integration-schema vs live DB) |
+| Frontend | `frontend/` | Vite + React 19 + Tailwind v3 — desktop + mobile/PWA, 134 tests passing; `npm run dev` at localhost:5173 |
 
 ### In Progress / Blocked
 | Item | Status |
 |---|---|
+| Vivino local job | TODO — cron paused (GitHub IPs blocked); set up local `launchd` residential-IP run |
 | Total Wine scraper | Blocked — Imperva Enterprise, 403 on everything |
 | Wine-Searcher API | Blocked — denied, use case too similar to their product |
-| Whole Foods scraper | Blocked — confirmed twice (probe2 2026-07-02): price hard-gated behind Amazon auth, pagination capped at 60 results, Austin store IDs unreachable, Instacart paths all dead; see `data/exploration/wholefoodsmarket_probe2.md` |
+| Whole Foods scraper | Blocked — price hard-gated behind Amazon auth; see `data/exploration/wholefoodsmarket_probe2.md` |
+| Publix | Blocked — Akamai Bot Manager; re-confirmed 2026-07-05 (now geo-relevant for TN but tech-blocked) |
+| Food Lion | Blocked — Cloudflare 403 (Ahold Delhaize platform) |
+| Tom Thumb / Albertsons | Blocked — Incapsula; store-resolver works w/ subscription key but product-search endpoint hangs; needs headless browser |
+| Corkdorks / Frugal MacDoogal (Nashville) | Blocked — City Hive, product endpoints auth-gated |
 
 ### Not Started
 - Spec's Austin stores (same scraper pattern, just add Austin store IDs)
+- Feedback-as-scoring-signal (thumbs data collecting in `feedback` table, nothing reads it yet)
+- User accounts (Supabase Auth — enables saved favorites, price alerts)
 
 ---
 
 ## Tech Stack
 - **Database + Auth**: Supabase (cloud project: `knpldhksfsetujbcfrsj`)
 - **Backend**: Python 3.9, FastAPI, supabase-py
-- **Scraping**: urllib (Geraldine's), curl subprocess (GrapeMinds, Spec's, HEB) — no Playwright needed yet
+- **Scraping**: urllib (Shopify shops), curl subprocess (GrapeMinds, Spec's, HEB GraphQL), OAuth REST (Kroger official API) — no Playwright needed yet
+- **Hosting**: Vercel (frontend) + Railway (backend) + Supabase (DB) — live private beta
 - **AI**: Anthropic Claude API (Haiku for recommendations + fact extraction) — key set in `.env`
 - **Geo**: `pgeocode` (offline US zip centroid dataset, no API key)
 
@@ -124,6 +139,20 @@ System Python is **3.9.6**. Use `Optional[str]` from `typing`, NOT `str | None` 
 - SA stores hardcoded: `SA_STORE_NUMBERS = [69, 72, 98, 100, 110, 113, 114, 117, 169, 171, 194, 197]`
 - ~77% of wines have descriptions; 23% fall back to Haiku extraction from name + categoryGroup
 - See `data/exploration/specs_findings.md` for full API reference
+
+### Kroger (official Developer API — NOT a scrape)
+- **Sanctioned free API** with per-location pricing + real UPCs — the pricing Wine-Searcher/WFM denied us. Register a free app at developer.kroger.com → `KROGER_CLIENT_ID` / `KROGER_CLIENT_SECRET`
+- **Auth**: OAuth2 client_credentials, **`scope=product.compact` is REQUIRED** for the products endpoint (scopeless token → 403). Token TTL 30 min, cached + lazy-refreshed on 401
+- **Endpoints**: `POST /v1/connect/oauth2/token`; `GET /v1/locations?filter.zipCode.near={zip}&filter.chain={code}`; `GET /v1/products?filter.term={t}&filter.locationId={id}&filter.limit=50&filter.start={n}`
+- **Covers ALL Kroger banners** (one API): Kroger, **Harris Teeter=`HART`**, Ralphs, Fred Meyer=`FRED`, King Soopers=`KINGSOOPERS`, Fry's, Smith's, QFC, Mariano's, Dillons, Food4Less, City Market, Pick n Save, Baker's. `filter.chain` codes differ from display names — query without the filter to read the real `chain` value
+- **Config-driven `MARKETS` registry** in `kroger.py` (city → {city, state, retailer, stores}). `retailer` is the display banner (so NC shows "Harris Teeter"). Expansion is config-only: add store IDs from the Locations API. `run_full(markets=[...])` scopes to cities
+- **Pagination caps ~250 offset** — one "wine" term can't cover a store, so search 17 wine terms + varietals and **dedup by CANONICAL upc** (two raw UPCs can normalize to one core → upsert constraint violation if deduped by raw UPC only)
+- **Resilience**: retries 429 + 5xx + `socket.timeout`/URLError with backoff; per-store failure isolation (one store's blip → run status "partial", others still commit)
+- **Kroger geography**: NOT in San Antonio/Austin (HEB territory). Present: Nashville, Memphis, Dallas, Houston. Harris Teeter: NC/VA/DC/SE. Rate limit 10k calls/day (public tier)
+
+### Harvest Wine Market (Nashville — Shopify)
+- Same public `/products.json` pattern as Geraldine's/AOC/USNW; 6043 TN-100 Belle Meade (37205); ~1,032 wines
+- Inconsistent product_type casing (`Rosé`/`Rose wine`/`rose`) normalized via `_normalize_type()`; non-wine types (Bourbon/Gin/Event) dropped; synthetic UPCs (`shopify-harvest-{handle}`)
 
 ### Cross-Retailer UPC Dedup (canonical UPC)
 - The same wine is encoded differently per retailer: **HEB** stores full 12-digit UPC-A (11-digit core + check digit); **Spec's** stores the 11-digit core with a leading zero. Both normalize to the same 11-digit core.
@@ -317,6 +346,8 @@ backend/
     aoc_selections.py          — AOC Selections Shopify scraper (SA, Location_SanAntonio tag filter)
     us_natural_wine.py         — US Natural Wine Shopify scraper (Austin, ~560 natural wines)
     antonellis.py              — Antonelli's Cheese Shop Shopify scraper (Austin, 391 wines)
+    harvest_wine.py            — Harvest Wine Market Shopify scraper (Nashville TN, 1,032 wines)
+    kroger.py                  — Kroger official Developer API (OAuth) — MARKETS registry, all banners (Kroger + Harris Teeter), per-location pricing
     specs.py                   — Spec's REST scraper (pure curl, 12 SA stores, wine-only)
   scripts/
     backfill_store_coords.py   — One-time lat/lon backfill for existing stores
@@ -414,7 +445,11 @@ docs/
 | `SUPABASE_ANON_KEY` | ✅ Set |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ Set |
 | `GRAPEMINDS_API_KEY` | ✅ Set (~17/250 calls used) |
-| `ANTHROPIC_API_KEY` | ✅ Set |
+| `ANTHROPIC_API_KEY` | ✅ Set (monthly spend cap set in console) |
+| `KROGER_CLIENT_ID` / `KROGER_CLIENT_SECRET` | ✅ Set — official Developer API (covers Kroger + Harris Teeter banners) |
+| `ADMIN_TOKEN` | ✅ Set — gates `/api/enrich/*` in prod |
+| `SLACK_WEBHOOK_URL` | ✅ Set — scrape/enrich completion notifications |
+| `ALLOWED_ORIGINS` | ✅ Set on Railway — prod CORS origin |
 | `WINE_SEARCHER_API_KEY` | ❌ Denied — use case too similar to their offering |
 | `VINERADAR_API_KEY` | ⏳ API unreleased, on waitlist |
 | `APIFY_API_TOKEN` | ⬜ Not set up |
@@ -428,14 +463,17 @@ docs/
 3. ~~HEB store expansion (CSV-driven)~~ ✅ Done — 37 SA/suburb stores staged in `data/heb-stores.csv`; flip `active=true` to enable any
 4. ~~Feedback loop~~ ✅ Done — Pattern A (wine card thumbs) + Pattern B (sommelier message thumbs + follow-up bubble); `POST /api/feedback` + `feedback` table live; session-scoped votes persist across dossier round-trip
 5. ~~Somm overlay + design refresh~~ ✅ Done — `SommOverlay` FAB + slide-in chat panel on dossier; `POST /api/somm` streaming; StructureBars ruler/segmented variants; Poster Option B with compass rose
-6. **User accounts** — Supabase Auth (already in stack); enables saved favorites, recommendation history, and ties feedback to a user identity; prerequisite for price alerts
-7. **Price alerts + promo scraping** — notify when a saved wine drops in price; scrape sale/promo prices where available (Spec's `unitPricePromoDiscount` already captured; HEB ONLINE vs CURBSIDE delta already stored)
-8. **Analytics** — PostHog free tier; track region clicks, style popularity, recommendation → dossier conversion, drop-off points
-9. **Ratings integration** — ~90% done. Backend fully wired: scorer boost, Claude listings, picks payload, dossier badge, Somm context. Daily workflow drains the backlog (~937 matched of 11,544; realistic ceiling 40–60% — natural wines have no Vivino presence). Remaining: WineCard rating badge + bottle thumbnail in ChatRecommend (picks already carry `image_url`/`vivino_rating`/`vivino_ratings_count`)
-10. Local MCP server for Claude Desktop (parked) — read-only tools over the catalog, anon key, narrow tools; see memory `mcp-desktop-parked`
-11. Add more Shopify local wine shops (same scraper pattern as Geraldine's, zero new code)
-12. Spec's Austin stores (same scraper pattern, just add Austin store IDs)
-13. Target scraper — Playwright probe needed first
-14. WFM prices — Amazon Product Advertising API is the cleanest path (affiliate account needed); see `data/exploration/wholefoodsmarket_price_probe.md`
-15. Local LLM for fact extraction — benchmark a local model (Ollama + Llama 3 / Mistral) against the Haiku extractor on region/varietal/grapes accuracy; goal is zero per-call cost for the extraction pipeline so re-enrichment on new scraper runs is free
-16. ~~Deploy~~ ✅ Done 2026-07-05 — Vercel (`wine-som-pkwz-chi.vercel.app`) + Railway (`winesom-production.up.railway.app`); rate limits (recommend 15/hr/IP, somm 40/hr/IP), ADMIN_TOKEN gate on /api/enrich, ALLOWED_ORIGINS CORS; private beta with 4-5 testers
+6. ~~Deploy~~ ✅ Done 2026-07-05 — Vercel + Railway; rate limits, ADMIN_TOKEN gate, ALLOWED_ORIGINS CORS; live private beta
+7. ~~Mobile / PWA~~ ✅ Done — responsive ≤640px on all screens, bottom-sheet cards, filter drawer, installable PWA
+8. **Vivino local job** — cron PAUSED (GitHub datacenter IPs blocklisted by Vivino). Set up a local `launchd` residential-IP run to drain the backlog (~1,027 matched of ~13k; ceiling 40-60%)
+9. **Extraction pass on new Nashville/NC/Dallas wines** — Harvest + Kroger + Harris Teeter + DFW HEB wines need `--null-only` extraction to become recommendable
+10. **User accounts** — Supabase Auth (already in stack); saved favorites, history, feedback identity; prerequisite for price alerts
+11. **Feedback-as-scoring-signal** — thumbs data accumulating in `feedback` table; nothing reads it yet. Fold votes into the scorer once enough accrue
+12. **Price alerts + promo scraping** — Spec's `unitPricePromoDiscount`, Kroger promo price, HEB ONLINE/CURBSIDE delta all already captured
+13. **Ratings badge in WineCard + ChatRecommend** — picks already carry `image_url`/`vivino_rating`/`vivino_ratings_count`; dossier badge done, chat cards remaining
+14. **Analytics** — PostHog free tier; region clicks, style popularity, conversion, drop-off
+15. Kroger banner expansion — Memphis/Houston (Kroger), other NC/VA cities (Harris Teeter); config-only via `MARKETS`
+16. Local MCP server for Claude Desktop (parked) — see memory `mcp-desktop-parked`
+17. Add more Shopify local wine shops (same scraper pattern, zero new code)
+18. Local LLM for fact extraction — benchmark Ollama (Llama 3 / Mistral) vs the Haiku extractor; goal is zero per-call cost
+19. Blocked probes not worth revisiting without headless browser: Total Wine, WFM, Publix, Food Lion, Tom Thumb/Albertsons
