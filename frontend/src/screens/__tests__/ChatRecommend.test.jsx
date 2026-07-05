@@ -49,6 +49,18 @@ it('shows the wine glass loader while streamRecommend is pending', () => {
   expect(screen.getByTestId('wine-glass-loader')).toBeInTheDocument();
 });
 
+it('shows a "pouring your picks" placeholder while the narrative streams before picks arrive', async () => {
+  // Narrative tokens stream, then the generator hangs before emitting picks —
+  // mirrors the real gap where picks land only after the narrative completes.
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'Here are ' };
+    yield { type: 'token', text: 'three bottles.' };
+    await new Promise(() => {}); // no picks yet
+  });
+  renderScreen();
+  await waitFor(() => expect(screen.getByText(/Pouring your picks/i)).toBeInTheDocument());
+});
+
 it('shows error message when streamRecommend throws', async () => {
   streamRecommend.mockImplementation(async function* () {
     throw new Error('No stores found near your zip code.');

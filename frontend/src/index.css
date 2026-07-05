@@ -29,3 +29,6 @@ input[type="range"] { accent-color: var(--bordeaux); }
 
 /* Streaming cursor (mobile chat) */
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+/* Recommendation skeleton pulse (WineCardSkeleton) */
+@keyframes skeleton-pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.9; } }
