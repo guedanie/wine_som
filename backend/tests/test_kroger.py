@@ -123,3 +123,21 @@ def test_fetch_store_wines_dedups_by_upc():
     out = scraper._fetch_store_wines("02600567")
     assert len(out) == 1
     assert out[0].upc == "0008500001668"
+
+
+def test_fetch_store_wines_dedups_by_canonical_upc():
+    """Two distinct raw UPCs that normalize to the same canonical UPC must
+    collapse to one — else the upsert batch violates the unique constraint
+    ('ON CONFLICT DO UPDATE cannot affect row a second time')."""
+    scraper = KrogerScraper.__new__(KrogerScraper)
+    # both normalize to canonical core 08500001668
+    a = _product(upc="0008500001668", description="Same Wine A 750ml")
+    b = _product(upc="008500001668",  description="Same Wine B 750ml")
+    client = MagicMock()
+    client.search.side_effect = lambda term, loc, start=0, limit=50: ([a, b] if start == 0 else [])
+    scraper.client = client
+    out = scraper._fetch_store_wines("02600567")
+    from utils.upc import canonical_upc
+    canons = {canonical_upc(p.upc) for p in out}
+    assert len(canons) == len(out)
+    assert len(out) == 1

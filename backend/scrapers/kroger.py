@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from scrapers.base import BaseScraper, RetailInventoryItem
+from utils.upc import canonical_upc
 from config import settings
 
 API_BASE = "https://api.kroger.com/v1"
@@ -203,8 +204,11 @@ class KrogerScraper(BaseScraper):
         self.client = client or KrogerClient()
 
     def _fetch_store_wines(self, location_id: str) -> List[KrogerProduct]:
-        """All wine products at one store: multi-term search, deduped by UPC."""
-        by_upc: Dict[str, KrogerProduct] = {}
+        """All wine products at one store: multi-term search, deduped by
+        CANONICAL upc. Two distinct raw Kroger UPCs can normalize to the same
+        canonical core (barcode variants of one wine); keying on canonical
+        keeps the upsert batch free of duplicate constrained values."""
+        by_canon: Dict[str, KrogerProduct] = {}
         for term in WINE_TERMS:
             start = 0
             while True:
@@ -213,14 +217,16 @@ class KrogerScraper(BaseScraper):
                     break
                 for r in raw:
                     p = parse_product(r)
-                    if p and p.upc not in by_upc:
-                        by_upc[p.upc] = p
+                    if p:
+                        key = canonical_upc(p.upc)
+                        if key not in by_canon:
+                            by_canon[key] = p
                 if len(raw) < 50 or start >= 200:   # public API caps ~250 offset
                     break
                 start += 50
                 time.sleep(0.3)
             time.sleep(0.3)
-        return list(by_upc.values())
+        return list(by_canon.values())
 
     def _to_inventory_items(self, products: List[KrogerProduct], store: dict) -> List[RetailInventoryItem]:
         return [
