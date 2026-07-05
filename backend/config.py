@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     grapeminds_api_key: str = ""
     wine_searcher_api_key: str = ""
     apify_api_token: str = ""
+    kroger_client_id: str = ""
+    kroger_client_secret: str = ""
     environment: str = "development"
 
     class Config:

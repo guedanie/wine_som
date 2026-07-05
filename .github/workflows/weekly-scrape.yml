@@ -20,6 +20,8 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       ANTHROPIC_API_KEY:         ${{ secrets.ANTHROPIC_API_KEY }}
       GRAPEMINDS_API_KEY:        ${{ secrets.GRAPEMINDS_API_KEY }}
+      KROGER_CLIENT_ID:          ${{ secrets.KROGER_CLIENT_ID }}
+      KROGER_CLIENT_SECRET:      ${{ secrets.KROGER_CLIENT_SECRET }}
 
     steps:
       - name: Checkout
@@ -106,6 +108,16 @@ jobs:
           asyncio.run(HarvestWineScraper().run_full())
           "
 
+      - name: Scrape Kroger (Nashville — official API)
+        id: kroger
+        continue-on-error: true
+        run: |
+          python3 -c "
+          import asyncio
+          from scrapers.kroger import KrogerScraper
+          asyncio.run(KrogerScraper().run_full())
+          "
+
       - name: Scrape Spec's (12 SA stores — ~30 min)
         id: specs
         continue-on-error: true
@@ -139,6 +151,7 @@ jobs:
             usnw=${{ steps.usnw.outcome }}
             antonellis=${{ steps.antonellis.outcome }}
             harvest=${{ steps.harvest.outcome }}
+            kroger=${{ steps.kroger.outcome }}
             specs=${{ steps.specs.outcome }}
             extraction=${{ steps.extraction.outcome }}
         run: |
@@ -151,7 +164,7 @@ jobs:
               text = ("Weekly scrape — completed with failures: "
                       + ", ".join(failed))
           else:
-              text = "Weekly scrape — all 8 scrapers + extraction succeeded"
+              text = "Weekly scrape — all 9 scrapers + extraction succeeded"
           text += f"\n<{os.environ['RUN_URL']}|View run>"
           req = urllib.request.Request(
               os.environ["SLACK_WEBHOOK_URL"],
