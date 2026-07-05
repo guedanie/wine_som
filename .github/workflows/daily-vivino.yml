@@ -11,12 +11,16 @@ name: Daily Vivino Enrichment
 # ones: each run gets a fresh runner IP from the GH pool.
 
 on:
-  schedule:
-    - cron: '0 3 * * *'    # 03:00 UTC = 21:00 CT
-    - cron: '0 9 * * *'    # 09:00 UTC = 03:00 CT
-    - cron: '0 15 * * *'   # 15:00 UTC = 09:00 CT
-    - cron: '0 21 * * *'   # 21:00 UTC = 15:00 CT
-  workflow_dispatch:        # allow manual trigger from GitHub UI
+  # Cron PAUSED 2026-07-05: GitHub runner datacenter IPs are blocklisted by
+  # Vivino (~23 wines/day even on the crawl profile — it's an IP block, not
+  # a rate limit). Enrichment will run locally from a residential IP instead.
+  # Re-enable by uncommenting the schedule below.
+  # schedule:
+  #   - cron: '0 3 * * *'    # 03:00 UTC = 21:00 CT
+  #   - cron: '0 9 * * *'    # 09:00 UTC = 03:00 CT
+  #   - cron: '0 15 * * *'   # 15:00 UTC = 09:00 CT
+  #   - cron: '0 21 * * *'   # 21:00 UTC = 15:00 CT
+  workflow_dispatch:        # manual trigger only, for now
 
 concurrency:
   group: vivino-enrichment
