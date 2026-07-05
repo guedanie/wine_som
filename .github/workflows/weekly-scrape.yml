@@ -128,14 +128,19 @@ jobs:
           asyncio.run(SpecsScraper().run_full(SA_STORE_NUMBERS + AUSTIN_STORE_NUMBERS + DALLAS_STORE_NUMBERS))
           "
 
-      # ── extraction ───────────────────────────────────────────────────────
-      - name: Extract facts for new wines (--null-only)
+      # ── extraction (Haiku, CAPPED) ────────────────────────────────────────
+      # Capped at 1,500 wines/run to bound the Haiku spend now that the catalog
+      # is large (SA+Austin+Nashville+NC+Dallas). A local LLM (Ollama) will take
+      # over the bulk enrichment — see What's Next in CLAUDE.md. Backlog drains
+      # ~1,500/week meanwhile; UPC dedup already makes national brands
+      # recommendable without extraction.
+      - name: Extract facts for new wines (--null-only, capped)
         id: extraction
         continue-on-error: true
-        run: python3 -m enrichment.extraction.run_extraction --null-only
+        run: python3 -m enrichment.extraction.run_extraction --null-only --limit 1500
 
-      # Vivino enrichment runs in its own workflow (daily-vivino.yml, twice
-      # daily) — kept out of this job so two enrichments never overlap.
+      # Vivino enrichment runs in its own workflow (daily-vivino.yml — PAUSED,
+      # IP-blocked; moving local). Kept out of this job to avoid overlap.
 
       # No-op until the SLACK_WEBHOOK_URL secret is configured.
       - name: Notify Slack

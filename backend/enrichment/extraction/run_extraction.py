@@ -58,13 +58,34 @@ def write_batch(db, results):
             print(f"  write failed for {r['wine_id']}: {e}", flush=True)
 
 
+def _arg_limit() -> int:
+    """--limit N caps how many wines a run processes (bounds the Haiku spend
+    when the catalog is large). 0/absent = no cap."""
+    for i, a in enumerate(sys.argv):
+        if a == "--limit" and i + 1 < len(sys.argv):
+            try:
+                return int(sys.argv[i + 1])
+            except ValueError:
+                return 0
+        if a.startswith("--limit="):
+            try:
+                return int(a.split("=", 1)[1])
+            except ValueError:
+                return 0
+    return 0
+
+
 def main():
     null_only = "--null-only" in sys.argv
+    limit = _arg_limit()
     db = get_service_client()
 
     mode = "null-region wines only" if null_only else "all wines"
     print(f"Fetching wines + descriptions ({mode})...", flush=True)
     wines = fetch_wines(db, null_only=null_only)
+    if limit and len(wines) > limit:
+        print(f"  capping to {limit} of {len(wines)} (--limit)", flush=True)
+        wines = wines[:limit]
     total = len(wines)
     print(f"  {total} wines loaded", flush=True)
 
