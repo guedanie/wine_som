@@ -10,6 +10,7 @@ import WineGlassLoader from '../components/WineGlassLoader.jsx';
 import { streamRecommend, postFeedback } from '../lib/api.js';
 import { deriveWineCardMeta } from '../lib/regions.js';
 import useIsMobile from '../lib/useIsMobile.js';
+import uuid from '../lib/uuid.js';
 
 const DEFAULT_FOLLOWUPS = ["Anything from Burgundy?", "What about under $30?", "Something to cellar"];
 
@@ -70,7 +71,7 @@ export default function ChatRecommend() {
   const isMobile   = useIsMobile();
   const { prefs, apiReq, _restored } = state ?? {};
 
-  const [sessionId]    = useState(() => _restored?.sessionId    ?? crypto.randomUUID());
+  const [sessionId]    = useState(() => _restored?.sessionId    ?? uuid());
   const [wineVotes,    setWineVotes]    = useState(() => _restored?.wineVotes    ?? {});
   const [messageVotes, setMessageVotes] = useState(() => _restored?.messageVotes ?? {});
   const [messages,   setMessages]  = useState(() => _restored?.messages ?? []);
@@ -92,7 +93,7 @@ export default function ChatRecommend() {
     parts.push('under $' + prefs.budget);
     parts.push(prefs.occasion.toLowerCase());
     if (prefs.freeText?.trim())  parts.push(prefs.freeText.trim());
-    setMessages([{ id: crypto.randomUUID(), role: 'user', text: parts.join(' · ') }]);
+    setMessages([{ id: uuid(), role: 'user', text: parts.join(' · ') }]);
     callRecommend(apiReq);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -111,7 +112,7 @@ export default function ChatRecommend() {
             firstToken = false;
             setLoading(false);
             setStreaming(true);
-            setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'sommelier', text: event.text }]);
+            setMessages(prev => [...prev, { id: uuid(), role: 'sommelier', text: event.text }]);
           } else {
             setMessages(prev => {
               const msgs = [...prev];
@@ -148,7 +149,7 @@ export default function ChatRecommend() {
     setMessageVotes(prev => ({ ...prev, [messageId]: next }));
     if (direction === 'down' && current !== 'down') {
       setMessages(prev => [...prev, {
-        id: crypto.randomUUID(),
+        id: uuid(),
         role: 'sommelier',
         text: "Noted — what didn't land? The **grape variety**, the **price point**, or the **region**?",
         noFeedback: true,
@@ -160,7 +161,7 @@ export default function ChatRecommend() {
   const handleFollowup = (text) => {
     if (loading || streaming || !text.trim()) return;
     const history = messages.map(m => ({ role: m.role, content: m.text }));
-    setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text }]);
+    setMessages(prev => [...prev, { id: uuid(), role: 'user', text }]);
     callRecommend({ ...apiReq, message: text, conversation_history: history });
   };
 

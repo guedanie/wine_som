@@ -14,6 +14,9 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
+    # Dev convenience: any localhost port + LAN IPs (phone testing over WiFi).
+    # Production origins get added via env when we deploy.
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+):\d+",
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )

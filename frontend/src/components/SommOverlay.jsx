@@ -3,6 +3,7 @@ import { ThumbsUp, ThumbsDown } from 'lucide-react';
 import Stamp from './Stamp.jsx';
 import WineGlassLoader from './WineGlassLoader.jsx';
 import useIsMobile from '../lib/useIsMobile.js';
+import uuid from '../lib/uuid.js';
 import Tag from './Tag.jsx';
 import { streamSomm, postFeedback } from '../lib/api.js';
 
@@ -95,7 +96,7 @@ export default function SommOverlay({ wine }) {
   const [open,         setOpen]         = useState(false);
   const [messages,     setMessages]     = useState([]);
   const [messageVotes, setMessageVotes] = useState({});
-  const [sessionId]                     = useState(() => crypto.randomUUID());
+  const [sessionId]                     = useState(() => uuid());
   const [chips,        setChips]        = useState(() => initialChips(wine));
   const [loading,      setLoading]      = useState(false);
   const [input,        setInput]        = useState('');
@@ -128,7 +129,7 @@ export default function SommOverlay({ wine }) {
           if (firstToken) {
             firstToken = false;
             setLoading(false);
-            setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'sommelier', text: event.text }]);
+            setMessages(prev => [...prev, { id: uuid(), role: 'sommelier', text: event.text }]);
           } else {
             setMessages(prev => {
               const msgs = [...prev];
@@ -139,7 +140,7 @@ export default function SommOverlay({ wine }) {
         } else if (event.type === 'error') {
           setLoading(false);
           setMessages(prev => [...prev, {
-            id: crypto.randomUUID(),
+            id: uuid(),
             role: 'sommelier',
             text: "I'm having trouble connecting right now. Try again in a moment.",
             noFeedback: true,
@@ -153,7 +154,7 @@ export default function SommOverlay({ wine }) {
 
   function handleSend(text) {
     if (!text.trim() || loading) return;
-    setMessages(prev => [...prev, { id: crypto.randomUUID(), role: 'user', text }]);
+    setMessages(prev => [...prev, { id: uuid(), role: 'user', text }]);
     setInput('');
     callSomm(text);
   }
@@ -169,7 +170,7 @@ export default function SommOverlay({ wine }) {
     setMessageVotes(prev => ({ ...prev, [messageId]: next }));
     if (direction === 'down' && current !== 'down') {
       setMessages(prev => [...prev, {
-        id: crypto.randomUUID(),
+        id: uuid(),
         role: 'sommelier',
         text: "Noted — what didn't land? The **grape variety**, the **price point**, or the **region**?",
         noFeedback: true,
