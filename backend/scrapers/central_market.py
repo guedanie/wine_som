@@ -27,6 +27,10 @@ RETAILER_NAME = "Central Market"
 CM_STORES: Dict[str, Dict[str, str]] = {
     "61":  {"name": "Central Market North Lamar", "address": "4001 North Lamar",   "zip": "78756", "city": "Austin", "state": "TX"},
     "420": {"name": "Central Market Westgate",    "address": "4477 S. Lamar Blvd", "zip": "78745", "city": "Austin", "state": "TX"},
+    # Dallas — all three e-commerce-enabled (~1,400-2,500 wines), central-Dallas proximate
+    "552": {"name": "Central Market Lovers Lane",   "address": "5750 E Lovers Lane", "zip": "75206", "city": "Dallas", "state": "TX"},
+    "653": {"name": "Central Market Preston Royal", "address": "10720 Preston Rd",   "zip": "75230", "city": "Dallas", "state": "TX"},
+    "747": {"name": "Central Market Midway",        "address": "4349 W Northwest Hwy", "zip": "75220", "city": "Dallas", "state": "TX"},
 }
 
 # Override headers for the Central Market client

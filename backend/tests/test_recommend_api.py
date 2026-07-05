@@ -401,3 +401,43 @@ def test_select_diverse_top_single_retailer_backfills():
     scored = [{"wine_id": f"s{i}", "retailer": "Spec's", "_score": 10 - i} for i in range(12)]
     top = _select_diverse_top(scored, max_candidates=12, per_retailer_cap=5)
     assert len(top) == 12
+
+
+def test_select_diverse_top_caps_per_varietal():
+    """No single grape may fill more than per_varietal_cap of the list — spreads
+    grocery-heavy markets that over-index on Cabernet/Chardonnay."""
+    from collections import Counter
+    from api.routers.recommend import _select_diverse_top
+    # 10 Cabernets (top scores) + 4 Malbec + 4 Syrah, one retailer
+    scored = (
+        [{"wine_id": f"c{i}", "retailer": "Kroger", "varietal": "Cabernet Sauvignon", "_score": 10 - i * 0.1} for i in range(10)]
+        + [{"wine_id": f"m{i}", "retailer": "Kroger", "varietal": "Malbec", "_score": 6 - i * 0.1} for i in range(4)]
+        + [{"wine_id": f"y{i}", "retailer": "Kroger", "varietal": "Syrah", "_score": 5 - i * 0.1} for i in range(4)]
+    )
+    top = _select_diverse_top(scored, max_candidates=12, per_retailer_cap=12, per_varietal_cap=4)
+    mix = Counter(w["varietal"] for w in top)
+    assert mix["Cabernet Sauvignon"] == 4      # capped, not 10
+    assert mix["Malbec"] == 4
+    assert mix["Syrah"] == 4
+    assert len(top) == 12
+
+
+def test_varietal_cap_falls_back_to_grapes_field():
+    """When varietal is null, the cap keys on grapes[0]."""
+    from collections import Counter
+    from api.routers.recommend import _select_diverse_top
+    scored = (
+        [{"wine_id": f"c{i}", "retailer": "Kroger", "varietal": None, "grapes": ["Cabernet Sauvignon"], "_score": 10 - i} for i in range(8)]
+        + [{"wine_id": f"m{i}", "retailer": "Kroger", "varietal": None, "grapes": ["Malbec"], "_score": 3 - i} for i in range(6)]
+    )
+    top = _select_diverse_top(scored, max_candidates=10, per_retailer_cap=12, per_varietal_cap=5)
+    mix = Counter((w.get("grapes") or [None])[0] for w in top)
+    assert mix["Cabernet Sauvignon"] == 5      # capped by grapes[0]
+
+
+def test_varietal_cap_backfills_when_pool_too_narrow():
+    """If capping would starve the list (only one grape available), backfill."""
+    from api.routers.recommend import _select_diverse_top
+    scored = [{"wine_id": f"c{i}", "retailer": "Kroger", "varietal": "Cabernet Sauvignon", "_score": 10 - i} for i in range(12)]
+    top = _select_diverse_top(scored, max_candidates=12, per_retailer_cap=12, per_varietal_cap=4)
+    assert len(top) == 12      # cap can't be honored; fill anyway

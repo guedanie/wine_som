@@ -24,26 +24,40 @@ _recommend_limiter = RateLimiter(limit=15, window_seconds=3600)
 _MAX_CANDIDATES = 12
 _FETCH_PER_RETAILER = 500
 _RETAILER_CAP = 5    # max slots one retailer can take in the Claude candidate list
+_VARIETAL_CAP = 4    # max slots one grape can take — spreads grocery-heavy markets
+
+
+def _varietal_key(w: Dict[str, Any]) -> str:
+    return (w.get("varietal") or (w.get("grapes") or [None])[0] or "?")
 
 
 def _select_diverse_top(scored: List[Dict[str, Any]], max_candidates: int,
-                        per_retailer_cap: int) -> List[Dict[str, Any]]:
-    """Take the best-scored candidates with a per-retailer cap.
+                        per_retailer_cap: int,
+                        per_varietal_cap: int = None) -> List[Dict[str, Any]]:
+    """Take the best-scored candidates with per-retailer and (optional)
+    per-varietal caps.
 
-    Retailer-correlated data (price clustering, Vivino coverage) can otherwise
-    let one retailer fill the whole list. First pass respects the cap in score
-    order; if fewer than max_candidates survive, backfill from the skipped
-    wines (still in score order) so a single-retailer zip never starves.
+    Retailer-correlated data (price clustering, Vivino coverage) lets one
+    retailer fill the list; grocery-heavy markets over-index on Cabernet/
+    Chardonnay. First pass respects both caps in score order; if fewer than
+    max_candidates survive, backfill from the skipped wines (still in score
+    order, caps ignored) so a narrow single-retailer/single-grape zip never
+    starves.
     """
-    counts: Dict[str, int] = {}
+    r_counts: Dict[str, int] = {}
+    v_counts: Dict[str, int] = {}
     top: List[Dict[str, Any]] = []
     skipped: List[Dict[str, Any]] = []
     for w in scored:
         if len(top) >= max_candidates:
             break
         r = w.get("retailer") or "?"
-        if counts.get(r, 0) < per_retailer_cap:
-            counts[r] = counts.get(r, 0) + 1
+        v = _varietal_key(w)
+        r_ok = r_counts.get(r, 0) < per_retailer_cap
+        v_ok = per_varietal_cap is None or v_counts.get(v, 0) < per_varietal_cap
+        if r_ok and v_ok:
+            r_counts[r] = r_counts.get(r, 0) + 1
+            v_counts[v] = v_counts.get(v, 0) + 1
             top.append(w)
         else:
             skipped.append(w)
@@ -250,7 +264,7 @@ async def recommend(req: RecommendRequest):
     for w in scored:
         w["_score"] += rng.uniform(-0.4, 0.4)
     scored.sort(key=lambda w: w["_score"], reverse=True)
-    top = _select_diverse_top(scored, _MAX_CANDIDATES, _RETAILER_CAP)
+    top = _select_diverse_top(scored, _MAX_CANDIDATES, _RETAILER_CAP, _VARIETAL_CAP)
 
     logger.info(
         "RECOMMEND | zip=%s budget=%.0f-%.0f message=%r candidates=%d history=%d",
