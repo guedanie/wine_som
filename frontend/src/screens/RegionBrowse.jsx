@@ -6,6 +6,7 @@ import WineCard from '../components/WineCard.jsx';
 import Btn from '../components/Btn.jsx';
 import { getRegionWines } from '../lib/api.js';
 import { DISCOVERY_REGIONS, deriveWineCardMeta, buildApiReq } from '../lib/regions.js';
+import useIsMobile from '../lib/useIsMobile.js';
 
 const PRICE_BANDS = [
   { label: 'Under $20',  min: 0,   max: 20 },
@@ -34,6 +35,7 @@ function Chip({ label, active, onClick }) {
 
 export default function RegionBrowse() {
   const { slug }   = useParams();
+  const isMobile   = useIsMobile();
   const { state }  = useLocation();
   const navigate   = useNavigate();
 
@@ -131,7 +133,9 @@ export default function RegionBrowse() {
   }
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '28px 32px 80px' }}>
+    <div style={isMobile
+      ? { height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '20px 16px 48px' }
+      : { maxWidth: 1100, margin: '0 auto', padding: '28px 32px 80px' }}>
       <button
         onClick={() => navigate('/discover')}
         style={{ cursor: 'pointer', background: 'none', border: 'none', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--faded)', padding: 0, marginBottom: 22 }}>

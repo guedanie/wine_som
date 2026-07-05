@@ -23,14 +23,14 @@ function CompassRose() {
   );
 }
 
-export default function Poster({ region, className }) {
+export default function Poster({ region, className, compact }) {
   const src  = REGION_POSTERS[region];
   const meta = REGION_META[region];
 
   return (
     <div className={className} style={{ width: '100%' }}>
       {/* Header above frame */}
-      {meta && (
+      {meta && !compact && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
           <div style={{ fontFamily: 'var(--font-sans)', fontSize: 9, letterSpacing: '0.3em', textTransform: 'uppercase', color: 'var(--faded)' }}>
             {meta.country}
@@ -57,7 +57,7 @@ export default function Poster({ region, className }) {
       </div>
 
       {/* Footer below frame */}
-      {meta && (
+      {meta && !compact && (
         <div style={{ marginTop: 12 }}>
           <div style={{ fontFamily: 'var(--font-serif)', fontSize: 32, lineHeight: 1, color: 'var(--ink)' }}>
             {region}

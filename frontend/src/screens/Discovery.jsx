@@ -6,8 +6,8 @@ import useIsMobile from '../lib/useIsMobile.js';
 
 function RegionCard({ region, onClick }) {
   return (
-    <div onClick={onClick} style={{ cursor: 'pointer' }}>
-      <Poster region={region.name} />
+    <div onClick={onClick} style={{ cursor: 'pointer', minWidth: 0 }}>
+      <Poster region={region.name} compact />
       <div style={{ marginTop: 10 }}>
         <div style={{ fontFamily: 'var(--font-serif)', fontSize: 19, color: 'var(--ink)', lineHeight: 1 }}>{region.name}</div>
         <div style={{ fontSize: 10, letterSpacing: '0.16em', color: 'var(--sage)', marginTop: 3 }}>{region.coord}</div>
@@ -34,14 +34,14 @@ export default function Discovery() {
           <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, lineHeight: 1.6, color: 'var(--ink-2)', margin: '0 0 22px' }}>
             Every region is a poster. Start somewhere.
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 18 }}>
             {tier1.map(r => <RegionCard key={r.name} region={r} onClick={() => openRegion(r)} />)}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '32px 0 18px' }}>
             <span style={{ fontFamily: 'var(--font-serif)', fontSize: 20, color: 'var(--ink)', whiteSpace: 'nowrap' }}>More regions</span>
             <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 18 }}>
             {tier2.map(r => <RegionCard key={r.name} region={r} onClick={() => openRegion(r)} />)}
           </div>
         </div>
@@ -59,7 +59,7 @@ export default function Discovery() {
         Every region is a poster; every poster is a map. Start somewhere and follow the wine home.
       </p>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 24, marginTop: 36 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 24, marginTop: 36 }}>
         {tier1.map(r => <RegionCard key={r.name} region={r} onClick={() => openRegion(r)} />)}
       </div>
 
@@ -68,7 +68,7 @@ export default function Discovery() {
         <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 24 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 24 }}>
         {tier2.map(r => <RegionCard key={r.name} region={r} onClick={() => openRegion(r)} />)}
       </div>
     </div>

@@ -302,7 +302,7 @@ export default function SommOverlay({ wine }) {
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && input.trim()) handleSend(input.trim()); }}
               placeholder="Ask about this wine…"
-              style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink)', padding: '10px 12px' }}
+              style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: isMobile ? 16 : 13, color: 'var(--ink)', padding: '10px 12px' }}
             />
             <button
               onClick={() => handleSend(input.trim())}

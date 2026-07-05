@@ -226,7 +226,7 @@ export default function ChatRecommend() {
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && input.trim()) { handleFollowup(input.trim()); setInput(''); } }}
               placeholder="Ask a follow-up…"
-              style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--ink)', padding: '11px 12px', minWidth: 0 }}
+              style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: 16, color: 'var(--ink)', padding: '11px 12px', minWidth: 0 }}
             />
             <button
               onClick={() => { if (input.trim()) { handleFollowup(input.trim()); setInput(''); } }}
