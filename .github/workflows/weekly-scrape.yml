@@ -96,6 +96,16 @@ jobs:
           asyncio.run(AntonellisScraper().run_full())
           "
 
+      - name: Scrape Harvest Wine Market (Nashville)
+        id: harvest
+        continue-on-error: true
+        run: |
+          python3 -c "
+          import asyncio
+          from scrapers.harvest_wine import HarvestWineScraper
+          asyncio.run(HarvestWineScraper().run_full())
+          "
+
       - name: Scrape Spec's (12 SA stores — ~30 min)
         id: specs
         continue-on-error: true
@@ -128,6 +138,7 @@ jobs:
             aoc=${{ steps.aoc.outcome }}
             usnw=${{ steps.usnw.outcome }}
             antonellis=${{ steps.antonellis.outcome }}
+            harvest=${{ steps.harvest.outcome }}
             specs=${{ steps.specs.outcome }}
             extraction=${{ steps.extraction.outcome }}
         run: |
@@ -140,7 +151,7 @@ jobs:
               text = ("Weekly scrape — completed with failures: "
                       + ", ".join(failed))
           else:
-              text = "Weekly scrape — all 7 scrapers + extraction succeeded"
+              text = "Weekly scrape — all 8 scrapers + extraction succeeded"
           text += f"\n<{os.environ['RUN_URL']}|View run>"
           req = urllib.request.Request(
               os.environ["SLACK_WEBHOOK_URL"],
