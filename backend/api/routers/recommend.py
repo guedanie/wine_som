@@ -4,7 +4,7 @@ import uuid
 import logging
 import random
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 from api.schemas import RecommendRequest
 from db import get_supabase_client, get_service_client
@@ -12,10 +12,14 @@ from recommendation.scorer import score_candidates
 from recommendation.claude_client import stream_recommendations
 from recommendation.intent import parse_message, merge_intent, intent_from_request
 from utils.geo import zip_to_centroid, find_nearby_store_ids
+from api.ratelimit import RateLimiter, limit_dependency
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["recommend"])
+
+# Each call costs a Sonnet invocation — cap per IP per hour.
+_recommend_limiter = RateLimiter(limit=15, window_seconds=3600)
 
 _MAX_CANDIDATES = 12
 _FETCH_PER_RETAILER = 500
@@ -102,7 +106,7 @@ def _enrich_picks(raw_picks: List[Dict[str, Any]], by_id: Dict[str, Dict[str, An
     return enriched
 
 
-@router.post("/recommend")
+@router.post("/recommend", dependencies=[Depends(limit_dependency(_recommend_limiter, "recommend"))])
 async def recommend(req: RecommendRequest):
     supabase = get_supabase_client()
 

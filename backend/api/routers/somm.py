@@ -1,13 +1,17 @@
 import json
 import logging
 import anthropic
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from api.schemas import SommRequest
 from config import settings
+from api.ratelimit import RateLimiter, limit_dependency
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/somm", tags=["somm"])
+
+# Streams Haiku per message — cap per IP per hour.
+_somm_limiter = RateLimiter(limit=40, window_seconds=3600)
 
 anthropic_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
@@ -52,7 +56,7 @@ def _build_messages(req: SommRequest) -> list:
     return messages
 
 
-@router.post("", status_code=200)
+@router.post("", status_code=200, dependencies=[Depends(limit_dependency(_somm_limiter, "somm"))])
 async def ask_somm(req: SommRequest):
     system = _system_prompt(req.wine)
     messages = _build_messages(req)

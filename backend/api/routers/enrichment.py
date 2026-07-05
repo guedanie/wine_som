@@ -1,8 +1,19 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+import os
+from fastapi import APIRouter, Depends, Header, HTTPException, BackgroundTasks
 from db import get_service_client
 from enrichment.pipeline import enrich_wine_with_refetch, enrich_batch
 
-router = APIRouter(prefix="/api", tags=["enrichment"])
+def require_admin(x_admin_token: str = Header(default=None)):
+    """Enrichment spends the GrapeMinds budget (250 calls/month) — operator
+    only. Gate is active whenever ADMIN_TOKEN is set (i.e., in production);
+    unset locally, the endpoints stay open for dev use."""
+    expected = os.environ.get("ADMIN_TOKEN")
+    if expected and x_admin_token != expected:
+        raise HTTPException(status_code=403, detail="Admin token required")
+
+
+router = APIRouter(prefix="/api", tags=["enrichment"],
+                   dependencies=[Depends(require_admin)])
 
 
 @router.post("/enrich/{wine_id}", status_code=202)
