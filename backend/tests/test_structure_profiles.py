@@ -82,3 +82,43 @@ def test_unknown_region_uses_base_profile():
 def test_region_alone_without_known_grape_is_none():
     # region can't produce a profile without a grape to anchor on
     assert structure_for("Frankenwine", None, "Napa Valley") is None
+
+
+# ── persistence precedence (never overwrite authoritative structure) ──
+
+def test_persist_fills_empty_profile_from_table():
+    from recommendation.structure_profiles import structure_to_persist
+    s = structure_to_persist("Cabernet Sauvignon", None, "Napa Valley", existing={})
+    assert s["body"] == 9 and s["source"] == "table"
+
+
+def test_persist_fills_null_profile():
+    from recommendation.structure_profiles import structure_to_persist
+    s = structure_to_persist("Malbec", None, "Mendoza", existing=None)
+    assert s is not None and s["source"] == "table"
+
+
+def test_persist_skips_vivino_structure():
+    from recommendation.structure_profiles import structure_to_persist
+    existing = {"body": 5, "tannins": 4, "acidity": 8, "source": "vivino"}
+    assert structure_to_persist("Cabernet Sauvignon", None, "Napa Valley", existing) is None
+
+
+def test_persist_skips_grapeminds_structure_without_source():
+    """GrapeMinds structure has real data but no 'source' key — must not be overwritten."""
+    from recommendation.structure_profiles import structure_to_persist
+    existing = {"body": 7, "tannins": 6, "acidity": 5, "finish": 6}  # no source
+    assert structure_to_persist("Merlot", None, "Bordeaux", existing) is None
+
+
+def test_persist_recomputes_prior_table_entry():
+    """A previously table-written profile is safe to refresh (idempotent)."""
+    from recommendation.structure_profiles import structure_to_persist
+    existing = {"body": 6, "tannins": 6, "acidity": 6, "source": "table"}
+    s = structure_to_persist("Cabernet Sauvignon", None, "Napa Valley", existing)
+    assert s["body"] == 9 and s["source"] == "table"
+
+
+def test_persist_none_when_no_grape():
+    from recommendation.structure_profiles import structure_to_persist
+    assert structure_to_persist("Frankenwine", None, "Napa Valley", existing={}) is None

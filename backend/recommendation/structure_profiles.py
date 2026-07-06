@@ -148,3 +148,19 @@ def structure_for(varietal: Optional[str], grapes: Optional[List[str]],
         "source":  "table",
     }
     return out
+
+
+def structure_to_persist(varietal: Optional[str], grapes: Optional[List[str]],
+                         region: Optional[str],
+                         existing: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Return the table structure to WRITE for a wine, or None to skip.
+
+    Precedence: never overwrite authoritative structure. An existing profile is
+    authoritative unless it's empty or was itself written by the table (source
+    == 'table', safe to refresh). Vivino (source 'vivino') and GrapeMinds (real
+    data, no source key) are both preserved. Returns None when there's no grape
+    to anchor on.
+    """
+    if existing and existing.get("source") != "table":
+        return None   # vivino / grapeminds / any non-table authoritative data
+    return structure_for(varietal, grapes, region)
