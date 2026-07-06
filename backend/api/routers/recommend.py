@@ -105,6 +105,13 @@ def _enrich_picks(raw_picks: List[Dict[str, Any]], by_id: Dict[str, Dict[str, An
     for p in raw_picks:
         cand = by_id.get(p.get("wine_id"))
         if not cand:
+            # Claude named a wine in the narrative but its wine_id isn't a known
+            # candidate — it gets no card. Log it so narrative/card mismatches
+            # (e.g. "3 wines described, 2 cards shown") are diagnosable.
+            logger.warning(
+                "PICK DROPPED | wine_id=%r name=%r not in candidate pool — no card rendered",
+                p.get("wine_id"), p.get("name"),
+            )
             continue
         enriched.append({
             "wine_id": cand["wine_id"],

@@ -474,3 +474,19 @@ def test_varietal_cap_backfills_when_pool_too_narrow():
     scored = [{"wine_id": f"c{i}", "retailer": "Kroger", "varietal": "Cabernet Sauvignon", "_score": 10 - i} for i in range(12)]
     top = _select_diverse_top(scored, max_candidates=12, per_retailer_cap=12, per_varietal_cap=4)
     assert len(top) == 12      # cap can't be honored; fill anyway
+
+
+def test_enrich_picks_warns_when_dropping_mismatched_pick(caplog):
+    """A pick whose wine_id isn't a known candidate is dropped — log it so a
+    narrative/card mismatch (3 wines described, 2 cards shown) is diagnosable."""
+    import logging
+    from api.routers.recommend import _enrich_picks
+    by_id = {"good": {"wine_id": "good", "name": "Real Wine", "price": 20, "retailer": "Spec's"}}
+    raw = [
+        {"wine_id": "good", "name": "Real Wine", "price": 20, "retailer": "Spec's", "why": "fits"},
+        {"wine_id": "ghost", "name": "Hallucinated", "price": 15, "retailer": "H-E-B", "why": "x"},
+    ]
+    with caplog.at_level(logging.WARNING):
+        out = _enrich_picks(raw, by_id)
+    assert [p["wine_id"] for p in out] == ["good"]        # ghost dropped
+    assert any("ghost" in r.message for r in caplog.records)  # and logged
