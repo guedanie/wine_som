@@ -62,7 +62,7 @@ function ThumbBtn({ direction, voted, onClick }) {
 function SommelierBubble({ children, vote, onVote }) {
   return (
     <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
-      <Stamp size={28} />
+      <Stamp size={28} reversed />
       <div style={{ flex: 1 }}>
         <div style={{ background: 'var(--cream-raised)', border: '1px solid var(--border)', borderRadius: '4px 12px 12px 12px', padding: '11px 13px', fontFamily: 'var(--font-sans)', fontSize: 13, lineHeight: 1.55, color: 'var(--ink-2)' }}>
           {children}
@@ -201,7 +201,7 @@ export default function SommOverlay({ wine }) {
           onMouseEnter={e => { e.currentTarget.style.background = 'var(--bordeaux-deep)'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 28px rgba(110,16,35,0.46)'; }}
           onMouseLeave={e => { e.currentTarget.style.background = 'var(--bordeaux)'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(110,16,35,0.38)'; }}
         >
-          <Stamp size={24} />
+          <Stamp size={24} reversed />
           Ask Somm
         </button>
       )}
@@ -241,7 +241,7 @@ export default function SommOverlay({ wine }) {
         {/* Panel title bar */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 18px', borderBottom: '1px solid var(--border)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-            <Stamp size={26} />
+            <Stamp size={26} reversed />
             <span style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>Somm</span>
           </div>
           <button
@@ -276,7 +276,7 @@ export default function SommOverlay({ wine }) {
           )}
           {loading && (
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 12 }}>
-              <Stamp size={28} />
+              <Stamp size={28} reversed />
               <WineGlassLoader />
             </div>
           )}

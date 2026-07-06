@@ -18,7 +18,7 @@ const DEFAULT_FOLLOWUPS = ["Anything from Burgundy?", "What about under $30?", "
 function SommelierBubble({ children, vote, onVote }) {
   return (
     <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start', marginBottom: 14 }}>
-      <Stamp size={32} />
+      <Stamp size={32} reversed />
       <div style={{ flex: 1 }}>
         <div style={{ background: 'var(--cream-raised)', border: '1px solid var(--border)', borderRadius: '4px 14px 14px 14px', padding: '13px 15px', fontFamily: 'var(--font-sans)', fontSize: 14, lineHeight: 1.55, color: 'var(--ink-2)' }}>
           {children}
@@ -203,7 +203,7 @@ export default function ChatRecommend() {
           {messageList}
           {loading && (
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 16 }}>
-              <Stamp size={32} />
+              <Stamp size={32} reversed />
               <WineGlassLoader />
             </div>
           )}
@@ -340,7 +340,7 @@ export default function ChatRecommend() {
           )}
           {loading && (
             <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start', marginBottom: 14 }}>
-              <Stamp size={32} />
+              <Stamp size={32} reversed />
               <WineGlassLoader />
             </div>
           )}
