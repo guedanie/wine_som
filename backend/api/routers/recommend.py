@@ -92,7 +92,7 @@ def _detect_retailer(message: str) -> Optional[str]:
 
 INVENTORY_SELECT = (
     "price, curbside_price, wine_id,"
-    "stores!inner(retailer_name, zip_code, address),"
+    "stores!inner(retailer_name, name, zip_code, address),"
     "wines(id, name, varietal, region, country, wine_type, grapes, abv, body,"
     "image_url, vivino_rating, vivino_ratings_count,"
     "wine_details(tasting_notes, flavor_profile, structure_profile, grapeminds_enriched_at))"
@@ -187,6 +187,7 @@ async def recommend(req: RecommendRequest):
             continue
         retailer = (row.get("stores") or {}).get("retailer_name") or "unknown"
         store_address = (row.get("stores") or {}).get("address") or None
+        store_name = (row.get("stores") or {}).get("name") or None
         by_retailer.setdefault(retailer, []).append({
             "wine_id": wine.get("id"),
             "name": wine.get("name"),
@@ -202,6 +203,7 @@ async def recommend(req: RecommendRequest):
             "price": row.get("price"),
             "retailer": retailer,
             "store_address": store_address,
+            "store_name": store_name,
             "image_url": wine.get("image_url"),
             "vivino_rating": wine.get("vivino_rating"),
             "vivino_ratings_count": wine.get("vivino_ratings_count"),

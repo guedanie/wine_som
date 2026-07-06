@@ -253,3 +253,28 @@ def test_conversational_first_turn_has_no_directive():
     msg = _build_user_message(_CANDS, {"message": "bold red"},
                               conversation_history=None, conversational=True)
     assert "picks: []" not in msg
+
+
+# ── relevance-first card count (no padding to a quota) ─────────────
+
+def test_user_message_has_no_hard_card_quota():
+    msg = _build_user_message(_CANDS, {"message": "shiraz from HEB"}, conversational=False)
+    assert "3–5" not in msg and "3-5" not in msg
+    # relevance-first, anti-padding language present
+    assert "genuinely fit" in msg.lower()
+    assert "just" in msg.lower()  # "return just that one" style guidance
+
+
+def test_format_wine_exposes_store_name_to_agent():
+    from recommendation.claude_client import _format_wine
+    line = _format_wine({
+        "name": "Penfolds Shiraz", "price": 24.0, "retailer": "H-E-B",
+        "store_name": "Lincoln Heights H-E-B", "varietal": "Shiraz",
+    })
+    assert "Lincoln Heights" in line
+
+
+def test_format_wine_without_store_name_still_works():
+    from recommendation.claude_client import _format_wine
+    line = _format_wine({"name": "X", "price": 20.0, "retailer": "Spec's", "varietal": "Malbec"})
+    assert "@ Spec's" in line

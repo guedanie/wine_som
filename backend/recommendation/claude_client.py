@@ -17,7 +17,7 @@ _TOOL = {
             "narrative": {"type": "string"},
             "picks": {
                 "type": "array",
-                "description": "Wine picks from the inventory. Return 2-4 wines in Recommend Mode. Return an empty array [] in Education Mode (when answering a knowledge question) or Pairing Mode (when the user asks what food goes with a wine already shown).",
+                "description": "Wine picks from the inventory. In Recommend Mode return up to 4 wines that GENUINELY fit — fewer is better; a single standout beats padding, and one perfect match should be returned alone. Never add a weaker or off-target wine (wrong retailer/store, wrong style) to reach a number. Return an empty array [] in Education Mode (when answering a knowledge question) or Pairing Mode (when the user asks what food goes with a wine already shown).",
                 "minItems": 0,
                 "items": {
                     "type": "object",
@@ -70,7 +70,9 @@ message contains multiple intents, lead with the strongest signal and weave in t
 lighter style, exploring new or familiar region). Never ask more than two questions at once.
 - Default to red wines unless the user specifies otherwise.
 - Prioritize wines available in the local inventory provided — only recommend wines from the list.
-- Give 2–3 concrete recommendations. Quality over quantity.
+- Recommend only wines that genuinely fit — usually 2–3, but never pad to a number. \
+A single standout is better than one good pick plus filler. If only one wine truly \
+matches a specific request (a named grape, retailer, or store), recommend just that one.
 - For each pick: producer and wine name, what to expect in the glass (fruit, structure, finish), \
 price point, and why it fits. Be specific.
 - Be opinionated. If one recommendation is clearly the best fit, say so.
@@ -159,7 +161,9 @@ def _format_wine(wine: Dict[str, Any]) -> str:
     ]))
     price = float(wine.get("price") or 0.0)
     retailer = wine.get("retailer") or ""
-    line = f"{wine.get('name', 'Unknown')} — {location} — ${price:.2f} @ {retailer}"
+    store_name = wine.get("store_name") or ""
+    where = f"{retailer} — {store_name}" if store_name else retailer
+    line = f"{wine.get('name', 'Unknown')} — {location} — ${price:.2f} @ {where}"
 
     rating = wine.get("vivino_rating")
     count = wine.get("vivino_ratings_count") or 0
@@ -205,7 +209,6 @@ def _build_user_message(
     listings = "\n\n".join(
         f"{i + 1}. [wine_id: {w.get('wine_id')}] {_format_wine(w)}"
         for i, w in enumerate(candidates))
-    count_instruction = "3–5" if len(candidates) >= 3 else "as many as you can"
     style_str = ", ".join(intent.get("flavors") or []) or "no specific style"
     avoid_str = ", ".join(intent.get("avoid") or []) or "nothing"
     type_str = f" {intent['wine_type']}" if intent.get("wine_type") else ""
@@ -241,7 +244,10 @@ def _build_user_message(
         f"Looking for:{type_str} {style_str}. "
         f"Avoiding: {avoid_str}.\n\n"
         f"Here are the wines currently available:\n\n{listings}\n\n"
-        f"Select {count_instruction} wines from the list above that best serve my intent. "
+        f"Recommend the wines from the list that genuinely fit my intent — up to 4, but "
+        f"fewer is better than padding. If only one wine truly matches, recommend just "
+        f"that one; never add a weaker or off-target pick to reach a number. If I named a "
+        f"retailer or store, only recommend wines shown at that retailer/store. "
         f"Set wine_id to the exact id shown in [wine_id: ...] for each pick."
         f"{followup_directive}"
     )
