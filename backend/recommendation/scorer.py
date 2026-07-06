@@ -2,6 +2,7 @@ import re
 import unicodedata
 from typing import List, Dict, Any
 from recommendation.flavor_profiles import flavor_tags_for, infer_body
+from recommendation.structure_profiles import structure_for
 
 # Axis weights
 _W_TYPE = 3.0
@@ -65,8 +66,12 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
             score += _W_TYPE
 
         if want_body:
+            # Real structure (Vivino/GrapeMinds) wins; else the deterministic
+            # grape+region table (more precise than tag-based infer_body); else tags.
             body = (wine.get("body")
                     or _body_from_structure(wine.get("structure_profile"))
+                    or _body_from_structure(
+                        structure_for(wine.get("varietal"), wine.get("grapes"), wine.get("region")))
                     or infer_body(tags))
             if body == want_body:
                 score += _W_BODY

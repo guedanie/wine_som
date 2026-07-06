@@ -166,3 +166,22 @@ def test_body_from_structure_light():
     flat = _wine("No Signal", varietal=None, grapes=[], region=None, tasting_notes="")
     result = score_candidates(_intent(body="light"), [flat, structured])
     assert result[0]["name"] == "Structured Light"
+
+
+def test_table_fills_medium_body_where_tags_cannot():
+    """infer_body only knows light/full (from tags); a medium grape like Merlot
+    has no such tag, so ONLY the grape+region table can satisfy a 'medium' intent."""
+    from recommendation.flavor_profiles import flavor_tags_for
+    from recommendation.scorer import infer_body
+    # confirm the tag path genuinely can't produce 'medium' for Merlot
+    tags = flavor_tags_for("Merlot", ["Merlot"], "Bordeaux")
+    assert infer_body(tags) != "medium"
+
+    merlot = _wine("Table Merlot", varietal="Merlot", grapes=["Merlot"],
+                   region="Bordeaux", body=None)
+    merlot["structure_profile"] = {}   # Vivino never matched it
+    cab = _wine("Table Cab", varietal="Cabernet Sauvignon", grapes=["Cabernet Sauvignon"],
+                region="Napa Valley", body=None)
+    cab["structure_profile"] = {}
+    result = score_candidates(_intent(wine_type="red", body="medium"), [cab, merlot])
+    assert result[0]["name"] == "Table Merlot"   # only the table gives it medium body
