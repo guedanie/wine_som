@@ -131,6 +131,39 @@ async def test_recommend_returns_200():
 
 
 @pytest.mark.asyncio
+async def test_recommend_passes_conversational_flag_through():
+    """The conversational flag from the request must reach stream_recommendations."""
+    stream = MagicMock(side_effect=_make_stream_mock())
+    with patch("api.routers.recommend.stream_recommendations", stream), \
+         patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([WINE_ROW])), \
+         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            await client.post("/api/recommend", json={
+                "zip_code": "78209", "budget_min": 15.0, "budget_max": 35.0,
+                "style_preferences": ["bold"], "conversational": True,
+                "message": "why that one?",
+                "conversation_history": [{"role": "user", "content": "bold red"}],
+            })
+    assert stream.call_args.args[3] is True   # 4th positional arg = conversational
+
+
+@pytest.mark.asyncio
+async def test_recommend_conversational_defaults_false():
+    stream = MagicMock(side_effect=_make_stream_mock())
+    with patch("api.routers.recommend.stream_recommendations", stream), \
+         patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([WINE_ROW])), \
+         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            await client.post("/api/recommend", json={
+                "zip_code": "78209", "budget_min": 15.0, "budget_max": 35.0,
+                "style_preferences": ["bold"],
+            })
+    assert stream.call_args.args[3] is False
+
+
+@pytest.mark.asyncio
 async def test_recommend_no_enriched_wines_returns_400():
     with patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([])), \
          patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):

@@ -9,6 +9,7 @@ import WineCard from '../components/WineCard.jsx';
 import WineGlassLoader from '../components/WineGlassLoader.jsx';
 import WineCardSkeleton from '../components/WineCardSkeleton.jsx';
 import { streamRecommend, postFeedback } from '../lib/api.js';
+import { naturalChatMode } from '../lib/flags.js';
 import { deriveWineCardMeta } from '../lib/regions.js';
 import useIsMobile from '../lib/useIsMobile.js';
 import uuid from '../lib/uuid.js';
@@ -163,7 +164,7 @@ export default function ChatRecommend() {
     if (loading || streaming || !text.trim()) return;
     const history = messages.map(m => ({ role: m.role, content: m.text }));
     setMessages(prev => [...prev, { id: uuid(), role: 'user', text }]);
-    callRecommend({ ...apiReq, message: text, conversation_history: history });
+    callRecommend({ ...apiReq, message: text, conversation_history: history, conversational: naturalChatMode() });
   };
 
   // Picks arrive as one event only after the narrative finishes generating.

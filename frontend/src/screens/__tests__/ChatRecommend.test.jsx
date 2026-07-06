@@ -83,6 +83,41 @@ it('shows narrative and wine cards when streamRecommend succeeds', async () => {
   expect(screen.getByText('Esprit de Tablas')).toBeInTheDocument();
 });
 
+it('sends conversational:true on a follow-up when natural mode is on', async () => {
+  const store = { somm_natural: '1' };
+  vi.stubGlobal('localStorage', {
+    getItem: k => (k in store ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: k => { delete store[k]; },
+  });
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'Here are three wines.' };
+    yield { type: 'picks', picks: [{ wine_id: 'uuid-1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's", why: 'Great.' }], session_id: 'sess-1' };
+  });
+  renderScreen();
+  await waitFor(() => screen.getByText('Here are three wines.'));
+  const input = screen.getAllByPlaceholderText('Ask a follow-up…')[0];
+  await userEvent.type(input, 'why that one?{Enter}');
+  await waitFor(() => expect(streamRecommend).toHaveBeenCalledTimes(2));
+  expect(streamRecommend.mock.calls[1][0]).toMatchObject({ conversational: true, message: 'why that one?' });
+  vi.unstubAllGlobals();
+});
+
+it('sends conversational:false on a follow-up when natural mode is off', async () => {
+  vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {}, removeItem: () => {} });
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'Here are three wines.' };
+    yield { type: 'picks', picks: [{ wine_id: 'uuid-1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's", why: 'Great.' }], session_id: 'sess-1' };
+  });
+  renderScreen();
+  await waitFor(() => screen.getByText('Here are three wines.'));
+  const input = screen.getAllByPlaceholderText('Ask a follow-up…')[0];
+  await userEvent.type(input, 'why that one?{Enter}');
+  await waitFor(() => expect(streamRecommend).toHaveBeenCalledTimes(2));
+  expect(streamRecommend.mock.calls[1][0]).toMatchObject({ conversational: false });
+  vi.unstubAllGlobals();
+});
+
 it('navigates to /wine/:id with pick state when a WineCard is clicked', async () => {
   streamRecommend.mockImplementation(async function* () {
     yield { type: 'token', text: 'Here are three wines for you.' };

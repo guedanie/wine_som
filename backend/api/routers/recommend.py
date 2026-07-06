@@ -274,7 +274,7 @@ async def recommend(req: RecommendRequest):
 
     # Raises immediately (before StreamingResponse starts) if the client can't init.
     try:
-        gen = stream_recommendations(top, resolved, req.conversation_history)
+        gen = stream_recommendations(top, resolved, req.conversation_history, req.conversational)
     except Exception:
         raise HTTPException(status_code=500, detail="Recommendation service unavailable")
 

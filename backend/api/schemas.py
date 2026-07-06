@@ -49,6 +49,7 @@ class RecommendRequest(BaseModel):
     grapes: List[str] = []                   # explicit varietal filter from advanced search
     message: str = "Recommend wines based on my preferences"
     conversation_history: Optional[List[Dict[str, Any]]] = None
+    conversational: bool = False             # when true, follow-ups bias to text-only (no new cards) unless clearly re-asking
 
 
 class WinePick(BaseModel):

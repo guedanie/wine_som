@@ -180,10 +180,27 @@ def _format_wine(wine: Dict[str, Any]) -> str:
     return line
 
 
+# Injected on follow-up turns when the client requests conversational mode.
+# Flips the ambiguous-intent default from "make cards" to "just talk" so the
+# chat reads like a sommelier answering, not a slot machine spitting new picks.
+_FOLLOWUP_CONVERSATIONAL_DIRECTIVE = (
+    "\n\nIMPORTANT — this is a follow-up and the user already has wine "
+    "recommendations on screen from earlier in this conversation. Answer "
+    "conversationally in the narrative and return picks: [] UNLESS the user is "
+    "clearly asking for DIFFERENT or ADDITIONAL wines (e.g. 'show me something "
+    "cheaper', 'anything from Rioja instead', 'what else do you have', 'find me a "
+    "white'). Treat questions about the wines already shown — 'why that one?', "
+    "'tell me more about it', 'what food pairs', 'how should I serve it', 'is it "
+    "worth it' — as conversation and return picks: []. Do NOT replace the existing "
+    "cards with a fresh set just because the user spoke again."
+)
+
+
 def _build_user_message(
     candidates: List[Dict[str, Any]],
     intent: Dict[str, Any],
     conversation_history: Optional[List[Dict[str, Any]]] = None,
+    conversational: bool = False,
 ) -> str:
     listings = "\n\n".join(
         f"{i + 1}. [wine_id: {w.get('wine_id')}] {_format_wine(w)}"
@@ -212,6 +229,11 @@ def _build_user_message(
 
     message_line = f"My request: {user_message}\n\n" if not is_default else ""
 
+    followup_directive = (
+        _FOLLOWUP_CONVERSATIONAL_DIRECTIVE
+        if conversational and conversation_history else ""
+    )
+
     return (
         f"{history_preamble}"
         f"{message_line}"
@@ -221,6 +243,7 @@ def _build_user_message(
         f"Here are the wines currently available:\n\n{listings}\n\n"
         f"Select {count_instruction} wines from the list above that best serve my intent. "
         f"Set wine_id to the exact id shown in [wine_id: ...] for each pick."
+        f"{followup_directive}"
     )
 
 
@@ -385,6 +408,7 @@ def stream_recommendations(
     candidates: List[Dict[str, Any]],
     intent: Dict[str, Any],
     conversation_history: Optional[List[Dict[str, Any]]] = None,
+    conversational: bool = False,
 ):
     """
     Returns a generator that yields (type, data) tuples:
@@ -397,7 +421,7 @@ def stream_recommendations(
 
     Raises on init failure so the router can return 500 before streaming starts.
     """
-    user_msg = _build_user_message(candidates, intent, conversation_history)
+    user_msg = _build_user_message(candidates, intent, conversation_history, conversational)
     user_message = intent.get("message") or ""
 
     logger.info(

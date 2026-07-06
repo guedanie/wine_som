@@ -223,3 +223,33 @@ def test_format_wine_omits_rating_when_absent():
     wine = {"name": "Obscure Wine", "varietal": "Malbec", "region": "Mendoza",
             "country": "Argentina", "price": 20.0, "retailer": "H-E-B"}
     assert "Vivino" not in _format_wine(wine)
+
+
+# ── conversational follow-up directive (chat naturalness) ──────────
+
+from recommendation.claude_client import _build_user_message
+
+_CANDS = [{"wine_id": "w1", "name": "A", "price": 20, "retailer": "Spec's",
+           "varietal": "Malbec", "region": "Mendoza", "country": "Argentina"}]
+_HIST = [{"role": "user", "content": "bold red under $30"},
+         {"role": "assistant", "content": "Here are three."}]
+
+
+def test_conversational_followup_adds_no_cards_directive():
+    msg = _build_user_message(_CANDS, {"message": "why that one?"},
+                              conversation_history=_HIST, conversational=True)
+    assert "picks: []" in msg
+    assert "already" in msg.lower()  # references existing recommendations on screen
+
+
+def test_conversational_off_has_no_directive():
+    msg = _build_user_message(_CANDS, {"message": "why that one?"},
+                              conversation_history=_HIST, conversational=False)
+    assert "picks: []" not in msg
+
+
+def test_conversational_first_turn_has_no_directive():
+    """First turn (no history) must still recommend — directive only on follow-ups."""
+    msg = _build_user_message(_CANDS, {"message": "bold red"},
+                              conversation_history=None, conversational=True)
+    assert "picks: []" not in msg
