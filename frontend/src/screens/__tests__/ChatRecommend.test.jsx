@@ -84,7 +84,8 @@ it('shows narrative and wine cards when streamRecommend succeeds', async () => {
 });
 
 it('sends conversational:true on a follow-up when natural mode is on', async () => {
-  const store = { somm_natural: '1' };
+  // natural mode is on by default (empty storage)
+  const store = {};
   vi.stubGlobal('localStorage', {
     getItem: k => (k in store ? store[k] : null),
     setItem: (k, v) => { store[k] = String(v); },
@@ -104,7 +105,12 @@ it('sends conversational:true on a follow-up when natural mode is on', async () 
 });
 
 it('sends conversational:false on a follow-up when natural mode is off', async () => {
-  vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {}, removeItem: () => {} });
+  const store = { somm_natural_off: '1' };   // explicit opt-out
+  vi.stubGlobal('localStorage', {
+    getItem: k => (k in store ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: k => { delete store[k]; },
+  });
   streamRecommend.mockImplementation(async function* () {
     yield { type: 'token', text: 'Here are three wines.' };
     yield { type: 'picks', picks: [{ wine_id: 'uuid-1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's", why: 'Great.' }], session_id: 'sess-1' };
@@ -116,6 +122,21 @@ it('sends conversational:false on a follow-up when natural mode is off', async (
   await waitFor(() => expect(streamRecommend).toHaveBeenCalledTimes(2));
   expect(streamRecommend.mock.calls[1][0]).toMatchObject({ conversational: false });
   vi.unstubAllGlobals();
+});
+
+it('renders wine cards inline in the chat stream on mobile (Option A, no bottom sheet)', async () => {
+  window.matchMedia = vi.fn().mockImplementation(q => ({
+    matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
+  }));
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'Here are three wines.' };
+    yield { type: 'picks', picks: [{ wine_id: 'uuid-1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's", why: 'Great.' }], session_id: 'sess-1' };
+  });
+  renderScreen();
+  await waitFor(() => screen.getByText('Esprit de Tablas'));   // card is inline in the stream
+  expect(screen.getByText(/pick near you|picks near you/)).toBeInTheDocument();
+  expect(screen.queryByTestId('wine-sheet')).toBeNull();        // old bottom sheet is gone
+  window.matchMedia = undefined;
 });
 
 it('navigates to /wine/:id with pick state when a WineCard is clicked', async () => {

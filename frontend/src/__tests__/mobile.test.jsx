@@ -42,16 +42,18 @@ test('mobile chrome: TopBar brand + bottom tabs render', () => {
   expect(screen.getByText("Tonight's brief")).toBeInTheDocument(); // mobile prefs heading
 });
 
-test('mobile chat: picks render in a bottom sheet with a toggle handle', async () => {
+test('mobile chat: picks render inline in the chat stream (Option A)', async () => {
+  const cards = [
+    { wine_id: 'w1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's", tagline: 'PASO', coord: null, flavors: [] },
+    { wine_id: 'w2', name: 'Brunello di Montalcino', price: 72, retailer: 'H-E-B', tagline: 'TUSCANY', coord: null, flavors: [] },
+  ];
   const restored = {
     sessionId: 's1',
     wineVotes: {},
     messageVotes: {},
-    messages: [{ id: 'm1', role: 'sommelier', text: 'Two picks for you.' }],
-    picks: [
-      { wine_id: 'w1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's", tagline: 'PASO', coord: null, flavors: [] },
-      { wine_id: 'w2', name: 'Brunello di Montalcino', price: 72, retailer: 'H-E-B', tagline: 'TUSCANY', coord: null, flavors: [] },
-    ],
+    // inline model: picks are attached to the sommelier message that produced them
+    messages: [{ id: 'm1', role: 'sommelier', text: 'Two picks for you.', picks: cards }],
+    picks: cards,
   };
   render(
     <MemoryRouter initialEntries={[{
@@ -61,17 +63,19 @@ test('mobile chat: picks render in a bottom sheet with a toggle handle', async (
       <Routes><Route path="/recommend" element={<ChatRecommend />} /></Routes>
     </MemoryRouter>
   );
-  expect(screen.getByTestId('wine-sheet')).toBeInTheDocument();
-  expect(screen.getByText('2 wines for you')).toBeInTheDocument();
+  // cards are inline in the stream, no bottom sheet
+  expect(screen.queryByTestId('wine-sheet')).not.toBeInTheDocument();
+  expect(screen.getByText('2 picks near you')).toBeInTheDocument();
   expect(screen.getByText('Esprit de Tablas')).toBeInTheDocument();
-
-  const handle = screen.getByRole('button', { expanded: false });
-  await userEvent.click(handle);
-  expect(screen.getByRole('button', { expanded: true })).toBeInTheDocument();
+  expect(screen.getByText('Brunello di Montalcino')).toBeInTheDocument();
 });
 
-test('mobile chat: sheet absent when there are no picks', () => {
-  const restored = { sessionId: 's1', wineVotes: {}, messageVotes: {}, messages: [], picks: [] };
+test('mobile chat: no inline cards when the message has no picks', () => {
+  const restored = {
+    sessionId: 's1', wineVotes: {}, messageVotes: {},
+    messages: [{ id: 'm1', role: 'sommelier', text: 'Tell me a bit more about the occasion.' }],
+    picks: [],
+  };
   render(
     <MemoryRouter initialEntries={[{
       pathname: '/recommend',
@@ -81,6 +85,7 @@ test('mobile chat: sheet absent when there are no picks', () => {
     </MemoryRouter>
   );
   expect(screen.queryByTestId('wine-sheet')).not.toBeInTheDocument();
+  expect(screen.queryByText(/picks near you/)).not.toBeInTheDocument();
 });
 
 

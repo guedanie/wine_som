@@ -83,7 +83,6 @@ export default function ChatRecommend() {
   const [streaming,  setStreaming] = useState(false);
   const [error,      setError]     = useState(null);
   const [input,      setInput]     = useState('');
-  const [sheetOpen,  setSheetOpen] = useState(false);
 
   // All hooks must be called before any early return
   useEffect(() => {
@@ -123,7 +122,17 @@ export default function ChatRecommend() {
             });
           }
         } else if (event.type === 'picks') {
-          if (event.picks.length > 0) setPicks(event.picks.map(deriveWineCardMeta));
+          if (event.picks.length > 0) {
+            const enriched = event.picks.map(deriveWineCardMeta);
+            setPicks(enriched);                       // desktop side panel
+            setMessages(prev => {                     // mobile inline: attach to last sommelier msg
+              const msgs = [...prev];
+              for (let k = msgs.length - 1; k >= 0; k--) {
+                if (msgs[k].role === 'sommelier') { msgs[k] = { ...msgs[k], picks: enriched }; break; }
+              }
+              return msgs;
+            });
+          }
         } else if (event.type === 'suggestions') {
           setFollowups(event.suggestions);
         } else if (event.type === 'error') {
@@ -173,35 +182,76 @@ export default function ChatRecommend() {
   // the panel/sheet sits confusingly empty for a couple seconds.
   const awaitingPicks = (loading || streaming) && picks.length === 0;
 
-  const messageList = messages.map((m, i) =>
-    m.role === 'user'
-      ? <UserBubble key={m.id ?? i}>{m.text}</UserBubble>
-      : <SommelierBubble
-          key={m.id ?? i}
-          vote={messageVotes[m.id] ?? null}
-          onVote={m.noFeedback ? undefined : dir => handleMessageVote(m.id, dir)}
-        >
-          {m.text.split('\n\n').map((para, j) => (
-            <p key={j} style={{ margin: j > 0 ? '10px 0 0' : 0 }}>
-              {para.split(/\*\*([^*]+)\*\*/g).map((part, k) =>
-                k % 2 === 1
-                  ? <strong key={k} style={{ color: 'var(--bordeaux)' }}>{part}</strong>
-                  : part
-              )}
-              {streaming && i === messages.length - 1 && j === m.text.split('\n\n').length - 1 && (
-                <span style={{ display: 'inline-block', width: 2, height: 14, background: 'var(--bordeaux)', marginLeft: 2, verticalAlign: 'middle', animation: 'blink 0.9s step-end infinite' }} />
-              )}
-            </p>
-          ))}
-        </SommelierBubble>
+  // Option A: wine cards render inline in the chat stream, attached to the
+  // sommelier message that produced them — so a text-only follow-up reads as a
+  // normal reply, not a fresh slot-machine pull.
+  const InlineCards = ({ picks: cardPicks }) => (
+    <div style={{ marginBottom: 16, animation: 'fadeUp 0.35s ease both' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 42, marginBottom: 10 }}>
+        <Eyebrow>{cardPicks.length} pick{cardPicks.length !== 1 ? 's' : ''} near you</Eyebrow>
+        <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {cardPicks.map(pick => (
+          <WineCard
+            key={pick.wine_id}
+            wine={pick}
+            voteSize={44}
+            vote={wineVotes[pick.wine_id] ?? null}
+            onVote={direction => handleWineVote(pick.wine_id, direction)}
+            onClick={() => navigate('/wine/' + pick.wine_id, {
+              state: { pick, chatState: { messages, picks, prefs, apiReq, sessionId, wineVotes, messageVotes, followups } },
+            })}
+          />
+        ))}
+      </div>
+    </div>
   );
+
+  const messageList = messages.flatMap((m, i) => {
+    if (m.role === 'user') return [<UserBubble key={m.id ?? i}>{m.text}</UserBubble>];
+    const bubble = (
+      <SommelierBubble
+        key={m.id ?? i}
+        vote={messageVotes[m.id] ?? null}
+        onVote={m.noFeedback ? undefined : dir => handleMessageVote(m.id, dir)}
+      >
+        {m.text.split('\n\n').map((para, j) => (
+          <p key={j} style={{ margin: j > 0 ? '10px 0 0' : 0 }}>
+            {para.split(/\*\*([^*]+)\*\*/g).map((part, k) =>
+              k % 2 === 1
+                ? <strong key={k} style={{ color: 'var(--bordeaux)' }}>{part}</strong>
+                : part
+            )}
+            {streaming && i === messages.length - 1 && j === m.text.split('\n\n').length - 1 && (
+              <span style={{ display: 'inline-block', width: 2, height: 14, background: 'var(--bordeaux)', marginLeft: 2, verticalAlign: 'middle', animation: 'blink 0.9s step-end infinite' }} />
+            )}
+          </p>
+        ))}
+      </SommelierBubble>
+    );
+    return m.picks?.length
+      ? [bubble, <InlineCards key={(m.id ?? i) + '-cards'} picks={m.picks} />]
+      : [bubble];
+  });
 
   if (isMobile) {
     return (
       <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Chat scroll */}
+        {/* Chat scroll — cards live inline here (Option A) */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 8px', WebkitOverflowScrolling: 'touch' }}>
           {messageList}
+          {awaitingPicks && !loading && (
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 42, marginBottom: 10 }}>
+                <span className="t-eyebrow" style={{ animation: 'skeleton-pulse 1.4s ease-in-out infinite' }}>Pouring your picks…</span>
+                <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {[0, 1, 2].map(i => <WineCardSkeleton key={i} />)}
+              </div>
+            </div>
+          )}
           {loading && (
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 16 }}>
               <Stamp size={32} reversed />
@@ -245,67 +295,6 @@ export default function ChatRecommend() {
             </button>
           </div>
         </div>
-
-        {/* Spacer anchors the sheet peek below the composer */}
-        {(picks.length > 0 || awaitingPicks) && <div style={{ height: 76, flexShrink: 0 }} />}
-
-        {/* Dim overlay (only interactive once real picks exist) */}
-        {picks.length > 0 && (
-          <div onClick={() => setSheetOpen(false)} style={{
-            position: 'absolute', inset: 0, background: 'rgba(26,26,26,0.45)',
-            zIndex: 8, opacity: sheetOpen ? 1 : 0,
-            pointerEvents: sheetOpen ? 'auto' : 'none',
-            transition: 'opacity 0.28s',
-          }} />
-        )}
-
-        {/* Wine cards bottom sheet — peeks during streaming so users know bottles are coming */}
-        {(picks.length > 0 || awaitingPicks) && (
-          <div data-testid="wine-sheet" style={{
-            position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 9,
-            height: '68%', background: 'var(--cream)', borderTop: '1.5px solid var(--ink)',
-            transform: (sheetOpen && picks.length > 0) ? 'translateY(0)' : 'translateY(calc(100% - 76px))',
-            transition: 'transform 0.32s cubic-bezier(0.2, 0.7, 0.3, 1)',
-            display: 'flex', flexDirection: 'column',
-          }}>
-            <div onClick={() => { if (picks.length > 0) setSheetOpen(p => !p); }} role="button" aria-expanded={sheetOpen}
-              style={{ padding: '10px 16px 12px', cursor: picks.length > 0 ? 'pointer' : 'default', flexShrink: 0, borderBottom: sheetOpen ? '1px solid var(--border)' : 'none' }}>
-              <div style={{ width: 36, height: 3, background: 'var(--border)', borderRadius: 2, margin: '0 auto 10px' }} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                {awaitingPicks ? (
-                  <span className="t-eyebrow" style={{ animation: 'skeleton-pulse 1.4s ease-in-out infinite' }}>Pouring your picks…</span>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-                    <span className="t-eyebrow">{picks.length} wine{picks.length !== 1 ? 's' : ''} for you</span>
-                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--sage)' }}>in stock near you</span>
-                  </div>
-                )}
-                {picks.length > 0 && (
-                  <span style={{ fontSize: 13, color: 'var(--faded)', transform: sheetOpen ? 'scaleY(-1)' : 'none', display: 'inline-block', transition: 'transform 0.28s' }}>∧</span>
-                )}
-              </div>
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px 16px', display: 'flex', flexDirection: 'column', gap: 14, WebkitOverflowScrolling: 'touch' }}>
-              {awaitingPicks
-                ? [0, 1, 2].map(i => <WineCardSkeleton key={i} />)
-                : picks.map(pick => (
-                  <WineCard
-                    key={pick.wine_id}
-                    wine={pick}
-                    voteSize={44}
-                    vote={wineVotes[pick.wine_id] ?? null}
-                    onVote={direction => handleWineVote(pick.wine_id, direction)}
-                    onClick={() => { setSheetOpen(false); navigate('/wine/' + pick.wine_id, {
-                      state: {
-                        pick,
-                        chatState: { messages, picks, prefs, apiReq, sessionId, wineVotes, messageVotes, followups },
-                      },
-                    }); }}
-                  />
-                ))}
-            </div>
-          </div>
-        )}
       </div>
     );
   }

@@ -20,23 +20,23 @@ beforeEach(() => {
 });
 
 describe('naturalChatMode', () => {
-  test('defaults to false with no param and empty storage', () => {
-    expect(naturalChatMode()).toBe(false);
-  });
-
-  test('?natural=1 enables and persists it', () => {
-    setSearch('?natural=1');
-    expect(naturalChatMode()).toBe(true);
-    // sticky: still true after the param is gone
-    setSearch('');
+  test('defaults to true (natural mode is now the default)', () => {
     expect(naturalChatMode()).toBe(true);
   });
 
-  test('?natural=0 clears the persisted flag', () => {
-    localStorage.setItem('somm_natural', '1');
+  test('?natural=0 disables and persists the opt-out', () => {
     setSearch('?natural=0');
     expect(naturalChatMode()).toBe(false);
+    // sticky: still off after the param is gone
     setSearch('');
     expect(naturalChatMode()).toBe(false);
+  });
+
+  test('?natural=1 clears the opt-out and re-enables', () => {
+    localStorage.setItem('somm_natural_off', '1');
+    setSearch('?natural=1');
+    expect(naturalChatMode()).toBe(true);
+    setSearch('');
+    expect(naturalChatMode()).toBe(true);
   });
 });
