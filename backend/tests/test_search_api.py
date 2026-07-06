@@ -136,3 +136,20 @@ async def test_search_out_of_stock_wines_excluded():
         resp = await _get("/api/search?q=tuscany&zip=78209")
     wines = resp.json()["wines"]
     assert [w["wine_id"] for w in wines] == ["w1"]
+
+
+@pytest.mark.asyncio
+async def test_search_matches_sub_region():
+    """A sub-region search (e.g. 'Chianti Classico') must include sub_region in
+    the OR clause so region-detail deep-links resolve to the right wines."""
+    db = _make_db()
+    captured = {}
+    orig_or = db.table.return_value.select.return_value.or_
+    def capture_or(clause):
+        captured["clause"] = clause
+        return orig_or.return_value
+    db.table.return_value.select.return_value.or_ = capture_or
+    p1, p2, p3 = _patches(db)
+    with p1, p2, p3:
+        await _get("/api/search?q=Chianti%20Classico&zip=78209")
+    assert "sub_region.ilike" in captured["clause"]

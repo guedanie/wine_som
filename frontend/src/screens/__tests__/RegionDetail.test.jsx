@@ -68,6 +68,15 @@ test('CTA navigates to region browse', async () => {
   expect(mockNavigate).toHaveBeenCalledWith('/region/Tuscany');
 });
 
+test('clicking a sub-region deep-links to search pre-filled with it', async () => {
+  renderScreen('tuscany');
+  const rows = await screen.findAllByRole('link');
+  const chianti = rows.find(r => /Chianti Classico/.test(r.textContent));
+  expect(chianti).toBeTruthy();
+  await userEvent.click(chianti);
+  expect(mockNavigate).toHaveBeenCalledWith('/search?q=Chianti%20Classico');
+});
+
 test('unknown slug shows not-found message', () => {
   renderScreen('atlantis');
   expect(screen.getByText(/Region not found/)).toBeInTheDocument();

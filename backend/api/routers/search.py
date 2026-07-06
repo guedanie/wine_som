@@ -77,10 +77,11 @@ async def search(
     ilike = f"%{term}%"
     wines_q = (
         db.table("wines")
-        .select("id,name,brand,vintage_year,varietal,region,country,wine_type,"
+        .select("id,name,brand,vintage_year,varietal,region,sub_region,country,wine_type,"
                 "image_url,vivino_rating,vivino_ratings_count")
         .or_(f"name.ilike.{ilike},brand.ilike.{ilike},"
-             f"varietal.ilike.{ilike},region.ilike.{ilike}")
+             f"varietal.ilike.{ilike},region.ilike.{ilike},"
+             f"sub_region.ilike.{ilike}")
         .limit(_WINE_MATCH_LIMIT)
     )
     wine_rows = wines_q.execute().data or []

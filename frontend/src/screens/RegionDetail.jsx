@@ -124,12 +124,15 @@ export default function RegionDetail() {
           {detail.subregions.map(s2 => {
             const n = countFor(s2.name, counts);
             return (
-              <div key={s2.name} style={{ display: 'flex', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
+              <div key={s2.name} role="link"
+                onClick={() => navigate(`/search?q=${encodeURIComponent(s2.name)}`)}
+                style={{ display: 'flex', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 500, color: 'var(--ink)' }}>{s2.name}</div>
                   <div style={{ fontSize: 10.5, letterSpacing: '0.12em', color: 'var(--sage)', marginTop: 2 }}>{s2.coord}</div>
                 </div>
-                {n != null && <div style={{ fontSize: 11, color: 'var(--bordeaux)', whiteSpace: 'nowrap' }}>{n} wine{n !== 1 ? 's' : ''}</div>}
+                {n != null && <div style={{ fontSize: 11, color: 'var(--bordeaux)', whiteSpace: 'nowrap', marginRight: 10 }}>{n} wine{n !== 1 ? 's' : ''}</div>}
+                <span style={{ fontSize: 12, color: 'var(--bordeaux)', flex: 'none' }}>→</span>
               </div>
             );
           })}
@@ -237,7 +240,9 @@ export default function RegionDetail() {
             {detail.subregions.map(s => {
               const n = countFor(s.name, counts);
               return (
-                <div key={s.name} style={{ display: 'flex', alignItems: 'center', padding: '11px 0', borderBottom: '1px solid var(--border)' }}>
+                <div key={s.name} role="link"
+                  onClick={() => navigate(`/search?q=${encodeURIComponent(s.name)}`)}
+                  style={{ display: 'flex', alignItems: 'center', padding: '11px 0', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
                   <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--brass)', flex: 'none' }} />
                     <span style={{ fontFamily: 'var(--font-serif)', fontSize: 17, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -252,6 +257,7 @@ export default function RegionDetail() {
                       {n} wine{n !== 1 ? 's' : ''}
                     </span>
                   )}
+                  <span style={{ fontSize: 12, color: 'var(--bordeaux)', marginLeft: 12, flex: 'none' }}>→</span>
                 </div>
               );
             })}
