@@ -77,7 +77,7 @@ export default function ChatRecommend() {
   const [messageVotes, setMessageVotes] = useState(() => _restored?.messageVotes ?? {});
   const [messages,   setMessages]  = useState(() => _restored?.messages ?? []);
   const [picks,      setPicks]     = useState(() => _restored?.picks    ?? []);
-  const [followups,  setFollowups] = useState(DEFAULT_FOLLOWUPS);
+  const [followups,  setFollowups] = useState(() => _restored?.followups ?? DEFAULT_FOLLOWUPS);
   const [loading,    setLoading]   = useState(() => !_restored);
   const [streaming,  setStreaming] = useState(false);
   const [error,      setError]     = useState(null);
@@ -297,7 +297,7 @@ export default function ChatRecommend() {
                     onClick={() => { setSheetOpen(false); navigate('/wine/' + pick.wine_id, {
                       state: {
                         pick,
-                        chatState: { messages, picks, prefs, apiReq, sessionId, wineVotes, messageVotes },
+                        chatState: { messages, picks, prefs, apiReq, sessionId, wineVotes, messageVotes, followups },
                       },
                     }); }}
                   />
@@ -412,7 +412,7 @@ export default function ChatRecommend() {
                   onClick={() => navigate('/wine/' + pick.wine_id, {
                     state: {
                       pick,
-                      chatState: { messages, picks, prefs, apiReq, sessionId, wineVotes, messageVotes },
+                      chatState: { messages, picks, prefs, apiReq, sessionId, wineVotes, messageVotes, followups },
                     },
                   })}
                 />

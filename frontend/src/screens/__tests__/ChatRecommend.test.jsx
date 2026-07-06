@@ -149,3 +149,18 @@ it('does not call streamRecommend when _restored state is provided', async () =>
   expect(screen.getByText('Here are my top picks.')).toBeInTheDocument();
   expect(screen.getByText('Esprit de Tablas')).toBeInTheDocument();
 });
+
+it('restores dynamic follow-up chips (not the defaults) from _restored', async () => {
+  renderScreen({
+    prefs, apiReq,
+    _restored: {
+      messages: [{ role: 'sommelier', text: 'picks' }],
+      picks: [],
+      followups: ['Is 2018 a good vintage?', 'Decant this?', 'Cheaper alternative?'],
+    },
+  });
+  await new Promise(r => setTimeout(r, 50));
+  // the restored suggestions show, not the DEFAULT_FOLLOWUPS
+  expect(screen.getByText('Is 2018 a good vintage?')).toBeInTheDocument();
+  expect(screen.queryByText('Anything from Burgundy?')).not.toBeInTheDocument();
+});
