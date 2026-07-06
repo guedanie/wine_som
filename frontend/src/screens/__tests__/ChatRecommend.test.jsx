@@ -124,18 +124,37 @@ it('sends conversational:false on a follow-up when natural mode is off', async (
   vi.unstubAllGlobals();
 });
 
-it('renders wine cards inline in the chat stream on mobile (Option A, no bottom sheet)', async () => {
+it('renders picks as conversational messages on mobile (Option C — name link, price, no card/sheet)', async () => {
   window.matchMedia = vi.fn().mockImplementation(q => ({
     matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
   }));
   streamRecommend.mockImplementation(async function* () {
-    yield { type: 'token', text: 'Here are three wines.' };
+    yield { type: 'token', text: 'Weight and grip under $60.\n\n**Esprit de Tablas** is my first call.' };
+    yield { type: 'picks', picks: [{ wine_id: 'uuid-1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's", why: 'Dark cherry, garrigue, leather.' }], session_id: 'sess-1' };
+  });
+  renderScreen();
+  await waitFor(() => screen.getByText('Esprit de Tablas'));    // wine name link inline
+  expect(screen.getByText('$55')).toBeInTheDocument();           // inline price
+  expect(screen.getByText(/Dark cherry/)).toBeInTheDocument();   // per-pick tasting note (why)
+  expect(screen.queryByText(/picks near you/)).toBeNull();       // no card-block label
+  expect(screen.queryByTestId('wine-sheet')).toBeNull();         // no bottom sheet
+  window.matchMedia = undefined;
+});
+
+it('tapping the wine-name link on mobile navigates to the dossier', async () => {
+  window.matchMedia = vi.fn().mockImplementation(q => ({
+    matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
+  }));
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'One pick.' };
     yield { type: 'picks', picks: [{ wine_id: 'uuid-1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's", why: 'Great.' }], session_id: 'sess-1' };
   });
   renderScreen();
-  await waitFor(() => screen.getByText('Esprit de Tablas'));   // card is inline in the stream
-  expect(screen.getByText(/pick near you|picks near you/)).toBeInTheDocument();
-  expect(screen.queryByTestId('wine-sheet')).toBeNull();        // old bottom sheet is gone
+  await waitFor(() => screen.getByText('Esprit de Tablas'));
+  await userEvent.click(screen.getByText('Esprit de Tablas'));
+  expect(mockNavigate).toHaveBeenCalledWith('/wine/uuid-1', expect.objectContaining({
+    state: expect.objectContaining({ pick: expect.objectContaining({ wine_id: 'uuid-1' }) }),
+  }));
   window.matchMedia = undefined;
 });
 

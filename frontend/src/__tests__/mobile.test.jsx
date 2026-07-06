@@ -42,17 +42,17 @@ test('mobile chrome: TopBar brand + bottom tabs render', () => {
   expect(screen.getByText("Tonight's brief")).toBeInTheDocument(); // mobile prefs heading
 });
 
-test('mobile chat: picks render inline in the chat stream (Option A)', async () => {
+test('mobile chat: picks render as conversational messages (Option C)', async () => {
   const cards = [
-    { wine_id: 'w1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's", tagline: 'PASO', coord: null, flavors: [] },
-    { wine_id: 'w2', name: 'Brunello di Montalcino', price: 72, retailer: 'H-E-B', tagline: 'TUSCANY', coord: null, flavors: [] },
+    { wine_id: 'w1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's", why: 'Dark cherry, garrigue.' },
+    { wine_id: 'w2', name: 'Brunello di Montalcino', price: 72, retailer: 'H-E-B', why: 'Structured and age-worthy.' },
   ];
   const restored = {
     sessionId: 's1',
     wineVotes: {},
     messageVotes: {},
-    // inline model: picks are attached to the sommelier message that produced them
-    messages: [{ id: 'm1', role: 'sommelier', text: 'Two picks for you.', picks: cards }],
+    // Option C: picks attached to the message that produced them; rendered as messages
+    messages: [{ id: 'm1', role: 'sommelier', text: 'Two bottles near you.', picks: cards }],
     picks: cards,
   };
   render(
@@ -63,11 +63,13 @@ test('mobile chat: picks render inline in the chat stream (Option A)', async () 
       <Routes><Route path="/recommend" element={<ChatRecommend />} /></Routes>
     </MemoryRouter>
   );
-  // cards are inline in the stream, no bottom sheet
   expect(screen.queryByTestId('wine-sheet')).not.toBeInTheDocument();
-  expect(screen.getByText('2 picks near you')).toBeInTheDocument();
+  expect(screen.queryByText(/picks near you/)).not.toBeInTheDocument();  // no card-block label
+  // wine names render as links, with their tasting notes and prices
   expect(screen.getByText('Esprit de Tablas')).toBeInTheDocument();
   expect(screen.getByText('Brunello di Montalcino')).toBeInTheDocument();
+  expect(screen.getByText(/Dark cherry/)).toBeInTheDocument();
+  expect(screen.getByText('$55')).toBeInTheDocument();
 });
 
 test('mobile chat: no inline cards when the message has no picks', () => {

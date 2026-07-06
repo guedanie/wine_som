@@ -67,6 +67,51 @@ function UserBubble({ children }) {
   );
 }
 
+// Option C (mobile): each wine is a conversational message — the sommelier's
+// note (why) leads, then a tappable wine-name link with inline price + store
+// pill. No card chrome; the wine name is the CTA.
+function PickMessage({ pick, vote, onVote, onClick }) {
+  const price = pick.price != null ? `$${Number(pick.price).toFixed(0)}` : null;
+  return (
+    <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start', marginBottom: 14 }}>
+      <Stamp size={32} reversed />
+      <div style={{ flex: 1 }}>
+        <div style={{ background: 'var(--cream-raised)', border: '1px solid var(--border)', borderRadius: '4px 14px 14px 14px', padding: '13px 15px' }}>
+          {pick.why && (
+            <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, lineHeight: 1.6, color: 'var(--ink-2)' }}>{pick.why}</div>
+          )}
+          <div style={{ marginTop: pick.why ? 9 : 0, paddingTop: pick.why ? 8 : 0, borderTop: pick.why ? '0.75px solid var(--border)' : 'none', display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" onClick={onClick}
+              style={{ fontFamily: 'var(--font-serif)', fontSize: 17, color: 'var(--bordeaux)', background: 'none', border: 'none', borderBottom: '1.5px solid var(--brass)', padding: 0, cursor: 'pointer', lineHeight: 1.1 }}>
+              {pick.name}<span style={{ color: 'var(--brass)', fontFamily: 'var(--font-sans)', fontSize: 12, marginLeft: 3 }}>→</span>
+            </button>
+            {price && <span style={{ fontFamily: 'var(--font-serif)', fontSize: 16, color: 'var(--ink)' }}>{price}</span>}
+            {pick.retailer && (
+              <span style={{ borderRadius: 999, border: '0.75px solid var(--sage)', color: 'var(--sage)', fontFamily: 'var(--font-sans)', fontSize: 10.5, padding: '2px 9px' }}>◎ {pick.retailer}</span>
+            )}
+          </div>
+        </div>
+        {onVote && (
+          <div style={{ display: 'flex', gap: 4, marginTop: 6, paddingLeft: 4 }}>
+            {[['up', ThumbsUp, 'Helpful', 'var(--sage)'], ['down', ThumbsDown, 'Not helpful', 'var(--bordeaux)']].map(([dir, Icon, label, activeColor]) => (
+              <button key={dir} type="button" title={label} aria-label={label}
+                onClick={e => { e.stopPropagation(); onVote(dir); }}
+                style={{ cursor: 'pointer', width: 24, height: 24, borderRadius: 2,
+                  border: vote === dir ? `1px solid ${activeColor}` : '1px solid var(--border)',
+                  background: vote === dir ? activeColor : 'transparent',
+                  color: vote === dir ? 'var(--cream)' : 'var(--faded)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  transition: 'all 140ms cubic-bezier(.25,.46,.45,.94)', padding: 0 }}>
+                <Icon size={11} strokeWidth={1.75} />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ChatRecommend() {
   const { state }  = useLocation();
   const navigate   = useNavigate();
@@ -182,74 +227,63 @@ export default function ChatRecommend() {
   // the panel/sheet sits confusingly empty for a couple seconds.
   const awaitingPicks = (loading || streaming) && picks.length === 0;
 
-  // Option A: wine cards render inline in the chat stream, attached to the
-  // sommelier message that produced them — so a text-only follow-up reads as a
-  // normal reply, not a fresh slot-machine pull.
-  const InlineCards = ({ picks: cardPicks }) => (
-    <div style={{ marginBottom: 16, animation: 'fadeUp 0.35s ease both' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 42, marginBottom: 10 }}>
-        <Eyebrow>{cardPicks.length} pick{cardPicks.length !== 1 ? 's' : ''} near you</Eyebrow>
-        <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {cardPicks.map(pick => (
-          <WineCard
-            key={pick.wine_id}
-            wine={pick}
-            voteSize={44}
-            vote={wineVotes[pick.wine_id] ?? null}
-            onVote={direction => handleWineVote(pick.wine_id, direction)}
-            onClick={() => navigate('/wine/' + pick.wine_id, {
-              state: { pick, chatState: { messages, picks, prefs, apiReq, sessionId, wineVotes, messageVotes, followups } },
-            })}
-          />
-        ))}
-      </div>
-    </div>
-  );
+  const navToWine = pick => navigate('/wine/' + pick.wine_id, {
+    state: { pick, chatState: { messages, picks, prefs, apiReq, sessionId, wineVotes, messageVotes, followups } },
+  });
+
+  // Option C (mobile): the sommelier voice leads. When a message carries picks,
+  // the bubble shows only the framing line and each wine becomes its own
+  // conversational PickMessage (note + tappable name link + price + store pill).
+  const renderBody = (text, i) =>
+    text.split('\n\n').map((para, j) => (
+      <p key={j} style={{ margin: j > 0 ? '10px 0 0' : 0 }}>
+        {para.split(/\*\*([^*]+)\*\*/g).map((part, k) =>
+          k % 2 === 1
+            ? <strong key={k} style={{ color: 'var(--bordeaux)' }}>{part}</strong>
+            : part
+        )}
+        {streaming && i === messages.length - 1 && j === text.split('\n\n').length - 1 && (
+          <span style={{ display: 'inline-block', width: 2, height: 14, background: 'var(--bordeaux)', marginLeft: 2, verticalAlign: 'middle', animation: 'blink 0.9s step-end infinite' }} />
+        )}
+      </p>
+    ));
 
   const messageList = messages.flatMap((m, i) => {
     if (m.role === 'user') return [<UserBubble key={m.id ?? i}>{m.text}</UserBubble>];
-    const bubble = (
+    const hasPicks = m.picks?.length;
+    // when picks exist, the intro bubble shows only the framing paragraph
+    const introText = hasPicks ? (m.text.split('\n\n')[0] || m.text) : m.text;
+    const intro = (
       <SommelierBubble
         key={m.id ?? i}
         vote={messageVotes[m.id] ?? null}
         onVote={m.noFeedback ? undefined : dir => handleMessageVote(m.id, dir)}
       >
-        {m.text.split('\n\n').map((para, j) => (
-          <p key={j} style={{ margin: j > 0 ? '10px 0 0' : 0 }}>
-            {para.split(/\*\*([^*]+)\*\*/g).map((part, k) =>
-              k % 2 === 1
-                ? <strong key={k} style={{ color: 'var(--bordeaux)' }}>{part}</strong>
-                : part
-            )}
-            {streaming && i === messages.length - 1 && j === m.text.split('\n\n').length - 1 && (
-              <span style={{ display: 'inline-block', width: 2, height: 14, background: 'var(--bordeaux)', marginLeft: 2, verticalAlign: 'middle', animation: 'blink 0.9s step-end infinite' }} />
-            )}
-          </p>
-        ))}
+        {renderBody(introText, i)}
       </SommelierBubble>
     );
-    return m.picks?.length
-      ? [bubble, <InlineCards key={(m.id ?? i) + '-cards'} picks={m.picks} />]
-      : [bubble];
+    if (!hasPicks) return [intro];
+    const pickMsgs = m.picks.map(pick => (
+      <PickMessage
+        key={(m.id ?? i) + '-' + pick.wine_id}
+        pick={pick}
+        vote={wineVotes[pick.wine_id] ?? null}
+        onVote={direction => handleWineVote(pick.wine_id, direction)}
+        onClick={() => navToWine(pick)}
+      />
+    ));
+    return [intro, ...pickMsgs];
   });
 
   if (isMobile) {
     return (
       <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Chat scroll — cards live inline here (Option A) */}
+        {/* Chat scroll — Option C: each wine is a conversational message */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 8px', WebkitOverflowScrolling: 'touch' }}>
           {messageList}
           {awaitingPicks && !loading && (
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 42, marginBottom: 10 }}>
-                <span className="t-eyebrow" style={{ animation: 'skeleton-pulse 1.4s ease-in-out infinite' }}>Pouring your picks…</span>
-                <span style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {[0, 1, 2].map(i => <WineCardSkeleton key={i} />)}
-              </div>
+            <div style={{ display: 'flex', gap: 11, alignItems: 'center', marginBottom: 14, paddingLeft: 43 }}>
+              <span className="t-eyebrow" style={{ animation: 'skeleton-pulse 1.4s ease-in-out infinite' }}>Pouring your picks…</span>
             </div>
           )}
           {loading && (
