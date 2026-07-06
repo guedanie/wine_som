@@ -9,6 +9,7 @@ from typing import List, Dict, Any, Optional
 from config import settings
 from enrichment.extraction.reference import (
     APPELLATIONS, CORE_GRAPES, FEW_SHOT, parent_region_for,
+    canonical_region, canonical_country, canonical_grape, country_for_region,
 )
 
 MODEL = "claude-haiku-4-5-20251001"
@@ -58,7 +59,15 @@ def _system_prompt() -> str:
         "Return null for any field the name/description does not determine — NEVER invent a "
         "vintage, region, or grape. `grapes` is the full blend (empty list if unknown); "
         "`varietal` is the single primary grape. `body` is exactly one of light|medium|full. "
-        "`region` is the broad region and `sub_region` is the specific appellation if named.\n\n"
+        "`region` is the broad region and `sub_region` is the specific appellation if named.\n"
+        "`country` — ALWAYS fill it when the region, appellation, or country name makes it "
+        "clear (Napa/Sonoma/California -> United States; Tuscany/Chianti/Barolo -> Italy; "
+        "Rioja -> Spain; Mendoza -> Argentina; Marlborough -> New Zealand; Bordeaux/Burgundy "
+        "-> France). Use full country names ('United States', not 'US').\n"
+        "For a classic appellation whose grape is fixed by law, give that grape as `varietal` "
+        "even if unstated (Chianti/Brunello -> Sangiovese; Barolo/Barbaresco -> Nebbiolo; "
+        "Sancerre/Pouilly-Fumé -> Sauvignon Blanc; Rioja red -> Tempranillo; red Burgundy -> "
+        "Pinot Noir; Côtes du Rhône -> Grenache).\n\n"
         "APPELLATION -> REGION reference (if you see the appellation, the region is the group):\n"
         f"{appellations}\n\n"
         "CORE GRAPES by color (prefer these spellings; other grapes are allowed):\n"
@@ -74,26 +83,35 @@ def _post_process(rec: Dict[str, Any]) -> Dict[str, Any]:
     parent = parent_region_for(out.get("sub_region"))
     if parent:
         out["region"] = parent
-    # 2. body normalization
+    # 2. region name canonicalization (Toscana -> Tuscany, etc.)
+    out["region"] = canonical_region(out.get("region"))
+    # 3. grape synonyms -> canonical spelling (Fume Blanc -> Sauvignon Blanc)
+    out["varietal"] = canonical_grape(out.get("varietal"))
+    out["grapes"] = [canonical_grape(g) for g in (out.get("grapes") or [])]
+    # 4. country: canonicalize what the model gave, else derive from region
+    country = canonical_country(out.get("country"))
+    if not country:
+        country = country_for_region(out.get("region"))
+    out["country"] = country
+    # 5. body normalization
     body = (out.get("body") or "").strip().lower()
     out["body"] = body if body in _BODY_VALUES else None
-    # 3. vintage range
+    # 6. vintage range
     vy = out.get("vintage_year")
     next_year = datetime.date.today().year + 1
     if not (isinstance(vy, int) and 1900 <= vy <= next_year):
         out["vintage_year"] = None
-    # 4. abv range
+    # 7. abv range
     abv = out.get("abv")
     try:
         abv = float(abv)
         out["abv"] = abv if 0 < abv <= 25 else None
     except (TypeError, ValueError):
         out["abv"] = None
-    # 5. varietal defaults to first grape
-    grapes = out.get("grapes") or []
+    # 8. varietal defaults to first grape
+    grapes = out.get("grapes")
     if not out.get("varietal") and grapes:
         out["varietal"] = grapes[0]
-    out["grapes"] = grapes
     return out
 
 

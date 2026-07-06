@@ -91,7 +91,7 @@ CORE_GRAPES = {
 FEW_SHOT = [
     ("Decoy Cabernet Sauvignon California Red Wine",
      "Rich Californian red with dark cherry and supple tannins. ABV: 14.5%",
-     {"region": "California", "sub_region": None, "country": "US", "vintage_year": None,
+     {"region": "California", "sub_region": None, "country": "United States", "vintage_year": None,
       "varietal": "Cabernet Sauvignon", "grapes": ["Cabernet Sauvignon"], "abv": 14.5,
       "body": "full"}),
     ("Château du Cauze Saint-Émilion Grand Cru 2019", "",
@@ -99,7 +99,7 @@ FEW_SHOT = [
       "vintage_year": 2019, "varietal": "Merlot", "grapes": ["Merlot", "Cabernet Franc"],
       "abv": None, "body": "full"}),
     ("Les Lunes Rouge 2021", "A fresh, low-tannin red blend from Mendocino.",
-     {"region": "Mendocino", "sub_region": None, "country": "US", "vintage_year": 2021,
+     {"region": "Mendocino", "sub_region": None, "country": "United States", "vintage_year": 2021,
       "varietal": "Red Blend", "grapes": [], "abv": None, "body": "medium"}),
     ("Whitehaven Sauvignon Blanc New Zealand White Wine",
      "Zesty Marlborough white, grapefruit and passionfruit.",
@@ -127,3 +127,95 @@ def parent_region_for(appellation: Optional[str]) -> Optional[str]:
     if not appellation:
         return None
     return _APPELLATION_INDEX.get(_norm(appellation))
+
+
+# ── deterministic normalization (lifts every extractor backend) ──────────────
+
+# Parent region -> country. Keyed by canonical region name (APPELLATIONS keys +
+# common broad regions the models emit). Drives country inference when a region
+# is known but the country field is missing/inconsistent.
+REGION_COUNTRY = {
+    # France
+    "bordeaux": "France", "burgundy": "France", "rhone": "France", "loire": "France",
+    "beaujolais": "France", "languedoc": "France", "provence": "France",
+    "southwest france": "France", "champagne": "France", "alsace": "France",
+    # Italy
+    "tuscany": "Italy", "piedmont": "Italy", "veneto": "Italy", "other italy": "Italy",
+    "alto adige": "Italy", "sicily": "Italy", "abruzzo": "Italy", "puglia": "Italy",
+    "lombardy": "Italy", "umbria": "Italy", "friuli": "Italy",
+    # Spain / Portugal
+    "rioja": "Spain", "other spain": "Spain", "ribera del duero": "Spain",
+    "priorat": "Spain", "rias baixas": "Spain", "rueda": "Spain",
+    "douro": "Portugal", "other portugal": "Portugal",
+    # USA
+    "napa valley": "United States", "sonoma": "United States",
+    "central coast": "United States", "other california": "United States",
+    "california": "United States", "willamette valley": "United States",
+    "columbia valley": "United States", "oregon": "United States",
+    "washington": "United States", "texas": "United States", "paso robles": "United States",
+    # Southern hemisphere + Germany + SA
+    "mendoza": "Argentina", "other argentina": "Argentina", "argentina": "Argentina",
+    "chile": "Chile", "barossa valley": "Australia", "other australia": "Australia",
+    "australia": "Australia", "marlborough": "New Zealand",
+    "other new zealand": "New Zealand", "new zealand": "New Zealand",
+    "germany": "Germany", "mosel": "Germany", "south africa": "South Africa",
+}
+
+# Region-name variants (foreign/alt spellings) -> our canonical region name.
+REGION_ALIASES = {
+    "toscana": "Tuscany", "toskana": "Tuscany",
+    "piemonte": "Piedmont", "piedmonte": "Piedmont",
+    "rhone valley": "Rhône", "cotes du rhone": "Rhône", "cote du rhone": "Rhône",
+    "bourgogne": "Burgundy", "borgogna": "Burgundy",
+    "napa": "Napa Valley", "sonoma county": "Sonoma", "sonoma coast": "Sonoma",
+    "sud de france": "Languedoc", "south of france": "Languedoc",
+    "usa": "California", "u.s.a.": "California",   # only when no finer region given
+}
+
+# Grape synonyms -> our canonical varietal spelling.
+GRAPE_SYNONYMS = {
+    "fume blanc": "Sauvignon Blanc", "fumé blanc": "Sauvignon Blanc",
+    "prosecco": "Glera",
+    "pinot gris": "Pinot Grigio",
+    "shiraz": "Syrah",
+    "garnacha": "Grenache",
+    "monastrell": "Mourvèdre",
+    "primitivo": "Zinfandel",
+    "cot": "Malbec", "côt": "Malbec",
+    "spatburgunder": "Pinot Noir", "spätburgunder": "Pinot Noir",
+    "grauburgunder": "Pinot Grigio",
+    "weissburgunder": "Pinot Blanc",
+}
+
+# Country-name variants -> canonical.
+COUNTRY_ALIASES = {
+    "us": "United States", "u.s.": "United States", "usa": "United States",
+    "u.s.a.": "United States", "america": "United States", "united states of america": "United States",
+    "argentine": "Argentina", "españa": "Spain", "espana": "Spain",
+    "italia": "Italy", "deutschland": "Germany",
+}
+
+
+def canonical_region(region: Optional[str]) -> Optional[str]:
+    if not region:
+        return region
+    return REGION_ALIASES.get(_norm(region), region)
+
+
+def canonical_country(country: Optional[str]) -> Optional[str]:
+    if not country:
+        return country
+    return COUNTRY_ALIASES.get(_norm(country), country)
+
+
+def canonical_grape(grape: Optional[str]) -> Optional[str]:
+    if not grape:
+        return grape
+    return GRAPE_SYNONYMS.get(_norm(grape), grape)
+
+
+def country_for_region(region: Optional[str]) -> Optional[str]:
+    """Infer country from a (canonicalized) region name, else None."""
+    if not region:
+        return None
+    return REGION_COUNTRY.get(_norm(region))
