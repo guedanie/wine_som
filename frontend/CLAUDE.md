@@ -124,7 +124,10 @@ Portrait 3:4 aspect ratio.
 
 1. **Preference capture** — zip, budget slider, style cards (Bold & Tannic / Light & Elegant /
    Earthy & Savory / Bright & Fruity), occasion toggle → Find wines
-2. **Chat + recommendations** — split: sommelier chat left, wine cards right
+2. **Chat + recommendations** — **desktop**: split (sommelier chat left, wine cards right).
+   **mobile**: Option C — each wine is a conversational message (tasting note + tappable
+   wine-name link + inline price + `◎ store` pill + thumbs), no card chrome. Follow-up
+   questions answer conversationally by default (natural mode); only an explicit re-ask spawns new picks.
 3. **Wine dossier** — region poster hero, wine detail, structure bars, contour divider,
    local store availability with map pins, "More from this region" grid
 4. **Discover** — region poster grid, click → wine dossier

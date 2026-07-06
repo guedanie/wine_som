@@ -48,9 +48,14 @@ Full-stack wine recommendation app. Users enter zip code + budget + style prefer
 | Poster Option B | `frontend/src/components/Poster.jsx` | Above-frame header (country · rule · coord mono); below-frame footer (serif 32px name + compass rose SVG + subregion); `REGION_META` lookup added to `regions.js` |
 | Ask Somm endpoint | `backend/api/routers/somm.py` | `POST /api/somm` — streaming SSE, Haiku, wine-context system prompt, history support; empty message → opening statement |
 | Dossier bottle layout | `frontend/src/screens/RegionDossier.jsx` | Design handoff v2: bottle image primary (matted frame, stripe placeholder, Shopify `_1200x` hi-res rewrite), region poster demoted to 88px thumbnail; Vivino rating badge below price; BEST PRICE store badge |
-| Search + Region Detail | `backend/api/routers/search.py`, `frontend/src/screens/{SearchScreen,RegionDetail}.jsx` | `/api/search` (name/brand/varietal/region + nearby price + distance); Region Detail page (facts grid, sub-region counts, Leaflet map); nav search button |
-| Test suite | `backend/tests/` | 286 passing (+ 3 integration-schema vs live DB) |
-| Frontend | `frontend/` | Vite + React 19 + Tailwind v3 — desktop + mobile/PWA, 134 tests passing; `npm run dev` at localhost:5173 |
+| Search + Region Detail | `backend/api/routers/search.py`, `frontend/src/screens/{SearchScreen,RegionDetail}.jsx` | `/api/search` (name/brand/varietal/region/**sub_region** + nearby price + distance); Region Detail page (facts grid, sub-region counts, Leaflet map); **sub-region rows deep-link to `/search?q=` (mobile + desktop)**; nav search button |
+| Grape+region structure table | `backend/recommendation/structure_profiles.py`, `scripts/persist_structure.py` | Deterministic `(grape, region) → {body, tannins, acidity, source:'table'}`, ~55 grapes + ~25 region modifiers (Napa Cab 9/9/5 vs Bordeaux 8/9/6). Validated vs Vivino (tannin 76% / acidity 49% within ±1, beats raw LLM). Wired into scorer body resolution below Vivino/GrapeMinds; **persisted catalog-wide** (structure coverage ~5%→52%, Vivino never overwritten, idempotent) |
+| Local LLM extractor + benchmarks | `backend/enrichment/extraction/{ollama_extractor,benchmark,structure_benchmark}.py` | qwen2.5:7b via Ollama at Haiku parity for facts (80/85/97% varietal/region/country); benchmark harnesses vs Vivino ground truth. Backup/fill layer; **not yet wired into CI** (Haiku extraction capped at 1500/run meanwhile) |
+| New "Pin" brand mark | `frontend/src/components/Stamp.jsx`, `frontend/public/{favicon,icons,assets}` | Map-pin mark with wine-glass negative space (grape-cluster retired); `reversed` = bordeaux-circle avatar for Somm identity; regenerated PWA icons |
+| Conversational chat mode | `backend/recommendation/claude_client.py`, `frontend/src/lib/flags.js` | **Default ON** (`?natural=0` to opt out): follow-up questions answer conversationally (`picks:[]`) instead of spawning new cards, unless clearly re-asking. Backend `conversational` flag → follow-up directive; frontend `naturalChatMode()` sticky flag |
+| Mobile chat Option C | `frontend/src/screens/ChatRecommend.jsx` (`PickMessage`) | **Mobile-only**: each wine is a conversational message (tasting note + tappable name-link/price/store-pill + thumbs), no card chrome. Replaced Option A inline cards / bottom sheet. **Desktop keeps split-panel WineCards** |
+| Test suite | `backend/tests/` | 327 passing (+ 3 integration-schema vs live DB) |
+| Frontend | `frontend/` | Vite + React 19 + Tailwind v3 — desktop + mobile/PWA, 143 tests passing; `npm run dev` at localhost:5173 |
 
 ### In Progress / Blocked
 | Item | Status |
@@ -176,6 +181,17 @@ System Python is **3.9.6**. Use `Optional[str]` from `typing`, NOT `str | None` 
 - **Automation**: `.github/workflows/daily-vivino.yml` — twice daily, 1,000 wines/run; Vivino step deliberately removed from weekly-scrape.yml so two enrichments never overlap
 - **Columns**: `wines.vivino_wine_id`, `vivino_rating`, `vivino_ratings_count`, `vivino_match_score`, `vivino_enriched_at` (migration 13); facts land in `wines.grapes/abv/region/country` + `wine_details.structure_profile/pairing`
 
+### Grape+Region Structure Table (deterministic, fills Vivino's gap)
+- **Why not the LLM**: benchmarked qwen2.5:7b structure inference vs Vivino ground truth — sweetness 86% / body 65% but tannin 59% (under-scales) / acidity 22%; heavier calibration prompting made it WORSE. A small LLM can't quantify a 1-10 structure scale. But grape identity (LLM-extracted ~80%) *determines* most of it.
+- **`recommendation/structure_profiles.py` `structure_for(varietal, grapes, region)`** → `{body, tannins, acidity, source:'table'}`. ~55 grapes with base profiles + ~25 region modifiers (warm New World +body/+tannin/−acid; cool climate +acid/−body; structured Old World +grip). A Napa Cabernet is 9/9/5 vs Bordeaux 8/9/6. Returns None if no known grape.
+- **Validated vs Vivino** (100 wines, within ±1): table beats the raw LLM on tannin (76% vs 60%) and acidity (49% vs 20%). A table→LLM hybrid (LLM refines within ±2, anchored on the table baseline) is marginally best AND fills the ~3% of blends the table can't anchor — reserved for a future pass; sweetness stays LLM (its one strong axis, 87%).
+- **Persist**: `scripts/persist_structure.py` writes table structure to `wine_details.structure_profile` via `structure_to_persist()`, which NEVER overwrites Vivino (`source:'vivino'`) or GrapeMinds (real data, no source) — fills empty profiles + refreshes prior table entries (idempotent), skips wines with no grape. One run took real-structure coverage ~5%→52% (8,352 table + 807 vivino of 17,619). Re-run after facts extraction fills more varietals to grow coverage.
+
+### Local LLM Extraction (backup facts layer — not yet wired into CI)
+- `enrichment/extraction/ollama_extractor.py` mirrors the Haiku `extractor.py` against Ollama `/api/chat` (`format:"json"`, temp 0). **qwen2.5:7b at Haiku parity** on facts (80/85/97% varietal/region/country vs 82/90/100); llama3.1:8b worse. ~9x slower but free — fits a nightly unattended batch.
+- Deterministic normalization in `reference.py` (region aliases Toscana→Tuscany, grape synonyms Fume Blanc→Sauvignon Blanc, region→country inference) lifted both backends and pushed country 57%→~100%.
+- Benchmarks: `benchmark.py` (facts) + `structure_benchmark.py` (table vs LLM vs hybrid), scored against Vivino. Migration plan: wire behind `EXTRACTOR_BACKEND=ollama`, drain the backlog locally, drop Haiku from CI. Weekly Haiku extraction CAPPED at 1500/run meanwhile.
+
 ### Zip→Store Radius Lookup
 - `/api/recommend` uses `find_nearby_store_ids(zip_code, db, radius_miles=10.0)` — not a hardcoded zip filter
 - `backend/utils/geo.py`: `zip_to_centroid` (pgeocode offline dataset) + `haversine` + `find_nearby_store_ids`
@@ -203,7 +219,16 @@ System Python is **3.9.6**. Use `Optional[str]` from `typing`, NOT `str | None` 
   wines — obscure natural wines aren't punished for having no Vivino presence.
 - **Body resolution order** — text `body` field → numeric `structure_profile.body`
   (≥7 full, 4–6.9 medium, <4 light; covers GrapeMinds + Vivino-backfilled wines) →
-  `infer_body(tags)` from grape knowledge.
+  **grape+region `structure_profiles.structure_for()`** (more precise than tags —
+  covers medium-bodied grapes like Merlot) → `infer_body(tags)` from grape knowledge.
+- **Relevance-first card count** — NO hard quota. The prompt says "recommend the
+  wines that genuinely fit — up to 4, fewer is better; return just one if only one
+  matches; never pad." Fixes padding a narrow request with an off-target second pick.
+- **Store names exposed to Claude** — `_format_wine` shows `@ H-E-B — Lincoln Heights
+  H-E-B` so the agent can honor "from Lincoln Heights" itself (soft, no hard filter).
+- **Narrative↔picks 1:1** — the prompt forbids naming a wine in the narrative that
+  isn't in `picks`; `_enrich_picks` logs a `PICK DROPPED` warning if a pick's wine_id
+  isn't a known candidate (diagnoses "3 described, 2 carded" mismatches).
 - **Full-pool scoring** — ALL fetched candidates are scored (no per-retailer
   shuffle-truncate; that randomly dropped best matches). Turn-to-turn variety comes
   from seeded ±0.4 jitter added to scores after scoring, below any axis weight.
@@ -329,15 +354,19 @@ backend/
     vivino.py                  — Async Vivino client (httpx): search + ratings + image + attribute parse (grapes/region/abv/structure/foods); VivinoFetchError on 429/network; structure_to_profile 1-5→1-10
     extraction/
       extractor.py             — Haiku fact extractor (region/varietal/grapes/abv/body)
-      reference.py             — Appellation→region cheat sheet + core grapes + few-shot
-      run_extraction.py        — One-shot script: extract all wines + write to DB
+      ollama_extractor.py      — Local-LLM (qwen2.5:7b) facts extractor; Haiku-parity backup, not yet in CI
+      reference.py             — Appellation→region cheat sheet + core grapes + few-shot + normalization (region/grape/country aliases)
+      run_extraction.py        — One-shot script: extract all wines + write to DB (`--null-only`, `--limit N`)
+      benchmark.py             — Facts benchmark (Haiku vs Ollama vs Vivino ground truth)
+      structure_benchmark.py   — Structure benchmark: grape+region table vs LLM vs hybrid, scored on Vivino
   matching/
     eval/                      — GrapeMinds matching eval scripts + results
   recommendation/
-    scorer.py                  — knowledge-based deterministic scoring (grape/region → flavor)
+    scorer.py                  — knowledge-based deterministic scoring (grape/region → flavor); body via structure table
     flavor_profiles.py         — curated grape/region → flavor-tag lookup
+    structure_profiles.py      — deterministic (grape,region) → {body,tannins,acidity}; structure_for() + structure_to_persist()
     intent.py                  — NL message → structured intent + merge with explicit fields
-    claude_client.py           — Claude Haiku tool-use call (final pick + narrative)
+    claude_client.py           — Claude tool-use call (pick + narrative); relevance-first count, conversational follow-up directive, store names in listings
   scrapers/
     base.py                    — BaseScraper ABC + Supabase upsert + auto-geocode stores
     geraldines.py              — Shopify scraper for shopgeraldines.com (SA, ~200 natural wines)
@@ -352,8 +381,9 @@ backend/
   scripts/
     backfill_store_coords.py   — One-time lat/lon backfill for existing stores
     merge_duplicate_wines.py   — One-time canonical-UPC dedup merge (idempotent, --dry-run)
+    persist_structure.py       — Persist grape+region table structure to wine_details (Vivino-safe, idempotent; `--limit N`, `--dry-run`)
     run_vivino_sample.py       — Vivino runner: `--limit N [--dry-run] [--missing-images] [--backfill-facts]`; thresholds 0.6 (ratings/image) / 0.7 (facts); 2 workers @ 1.0s; abort breaker; never stamps on fetch failure
-  tests/                       — 245 tests (242 unit + 3 integration vs live schema)
+  tests/                       — 327 tests (324 unit + 3 integration vs live schema)
   conftest.py                  — registers the `integration` pytest marker
   config.py                    — Pydantic settings (reads from ../.env)
   db.py                        — Supabase anon + service role clients
@@ -381,6 +411,7 @@ frontend/
   src/
     lib/
       api.js                   — getWine, callRecommend, streamRecommend, postFeedback, streamSomm fetch wrappers
+      flags.js                 — client feature flags; naturalChatMode() (default ON, sticky ?natural=0 opt-out)
       regions.js               — DISCOVERY_REGIONS (+ country/subregion), REGION_META, REGION_POSTERS, buildApiReq, deriveWineCardMeta
     components/
       Btn.jsx Eyebrow.jsx Tag.jsx  — shared design-system atoms
@@ -391,7 +422,7 @@ frontend/
       SommOverlay.jsx          — FAB + 400px slide-in chat panel; wine context strip; streaming chat; Pattern B thumbs; suggestion chips; history persists on close
     screens/
       PreferenceCapture.jsx    — zip + budget + style cards + occasion toggle → /recommend
-      ChatRecommend.jsx        — sommelier chat left, WineCards right; Pattern B message feedback; sessionId + vote state persisted across dossier round-trip
+      ChatRecommend.jsx        — desktop: sommelier chat left + WineCards right (split panel). MOBILE: Option C conversational PickMessages (name-link/price/store-pill, no cards). Pattern B message feedback; conversational follow-ups; sessionId + vote state persisted across dossier round-trip
       RegionDossier.jsx        — wine dossier: Poster (Option B), ruler StructureBars, store row, SommOverlay wired with wine context
       Discovery.jsx            — 18-region grid (10 Tier 1 + 8 Tier 2), click → /recommend
     App.jsx                    — NavBar + react-router-dom v7 routes
@@ -464,16 +495,20 @@ docs/
 4. ~~Feedback loop~~ ✅ Done — Pattern A (wine card thumbs) + Pattern B (sommelier message thumbs + follow-up bubble); `POST /api/feedback` + `feedback` table live; session-scoped votes persist across dossier round-trip
 5. ~~Somm overlay + design refresh~~ ✅ Done — `SommOverlay` FAB + slide-in chat panel on dossier; `POST /api/somm` streaming; StructureBars ruler/segmented variants; Poster Option B with compass rose
 6. ~~Deploy~~ ✅ Done 2026-07-05 — Vercel + Railway; rate limits, ADMIN_TOKEN gate, ALLOWED_ORIGINS CORS; live private beta
-7. ~~Mobile / PWA~~ ✅ Done — responsive ≤640px on all screens, bottom-sheet cards, filter drawer, installable PWA
-8. **Vivino local job** — cron PAUSED (GitHub datacenter IPs blocklisted by Vivino). Set up a local `launchd` residential-IP run to drain the backlog (~1,027 matched of ~13k; ceiling 40-60%)
-9. **Extraction pass on new Nashville/NC/Dallas wines** — Harvest + Kroger + Harris Teeter + DFW HEB wines need `--null-only` extraction to become recommendable
-10. **User accounts** — Supabase Auth (already in stack); saved favorites, history, feedback identity; prerequisite for price alerts
-11. **Feedback-as-scoring-signal** — thumbs data accumulating in `feedback` table; nothing reads it yet. Fold votes into the scorer once enough accrue
-12. **Price alerts + promo scraping** — Spec's `unitPricePromoDiscount`, Kroger promo price, HEB ONLINE/CURBSIDE delta all already captured
-13. **Ratings badge in WineCard + ChatRecommend** — picks already carry `image_url`/`vivino_rating`/`vivino_ratings_count`; dossier badge done, chat cards remaining
-14. **Analytics** — PostHog free tier; region clicks, style popularity, conversion, drop-off
-15. Kroger banner expansion — Memphis/Houston (Kroger), other NC/VA cities (Harris Teeter); config-only via `MARKETS`
-16. Local MCP server for Claude Desktop (parked) — see memory `mcp-desktop-parked`
-17. Add more Shopify local wine shops (same scraper pattern, zero new code)
-18. Local LLM for fact extraction — benchmark Ollama (Llama 3 / Mistral) vs the Haiku extractor; goal is zero per-call cost
-19. Blocked probes not worth revisiting without headless browser: Total Wine, WFM, Publix, Food Lion, Tom Thumb/Albertsons
+7. ~~Mobile / PWA~~ ✅ Done — responsive ≤640px on all screens, installable PWA (mobile chat now Option C conversational messages, not cards)
+8. ~~Grape+region structure table~~ ✅ Done — deterministic structure, validated vs Vivino, persisted catalog-wide (coverage ~5%→52%); see structure-table section
+9. ~~Chat naturalness + mobile Option C~~ ✅ Done — conversational follow-ups (default ON), relevance-first card count, mobile conversational pick messages, new Pin mark, sub-region search deep-link
+10. **Vivino local job** — cron PAUSED (GitHub datacenter IPs blocklisted by Vivino). Set up a local `launchd` residential-IP run to drain the backlog (~1,027 matched of ~13k; ceiling 40-60%)
+11. **Local LLM extraction cutover** — qwen2.5:7b benchmarked at Haiku parity (`ollama_extractor.py`). Wire behind `EXTRACTOR_BACKEND=ollama`, drain backlog locally, drop Haiku from CI (capped at 1500/run now). Re-run `persist_structure.py` after to grow structure coverage past 52%
+12. **Blend structure/sweetness LLM pass** — table→LLM hybrid for the ~3% of blends the table can't anchor + LLM sweetness (its one strong structure axis)
+13. **Extraction pass on new Nashville/NC/Dallas wines** — Harvest + Kroger + Harris Teeter + DFW HEB wines need `--null-only` extraction to become recommendable (also unlocks more structure coverage on re-run of `persist_structure.py`)
+14. **User accounts** — Supabase Auth (already in stack); saved favorites, history, feedback identity; prerequisite for price alerts
+15. **Feedback-as-scoring-signal** — thumbs data accumulating in `feedback` table; nothing reads it yet (only ~6 votes so far, mostly dogfooding). Fold votes into the scorer once enough accrue
+16. **Price alerts + promo scraping** — Spec's `unitPricePromoDiscount`, Kroger promo price, HEB ONLINE/CURBSIDE delta all already captured
+17. **Ratings badge in WineCard + ChatRecommend** — picks already carry `image_url`/`vivino_rating`/`vivino_ratings_count`; dossier badge done, chat cards remaining
+18. **Per-pick distance** — Option C store pill shows `◎ {retailer}` only; add store→zip distance per pick for the `· X.X mi` suffix
+19. **Analytics** — PostHog free tier; region clicks, style popularity, conversion, drop-off
+20. Kroger banner expansion — Memphis/Houston (Kroger), other NC/VA cities (Harris Teeter); config-only via `MARKETS`
+21. Local MCP server for Claude Desktop (parked) — see memory `mcp-desktop-parked`
+22. Add more Shopify local wine shops (same scraper pattern, zero new code)
+23. Blocked probes not worth revisiting without headless browser: Total Wine, WFM, Publix, Food Lion, Tom Thumb/Albertsons
