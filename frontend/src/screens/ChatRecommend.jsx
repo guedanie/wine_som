@@ -10,6 +10,7 @@ import WineGlassLoader from '../components/WineGlassLoader.jsx';
 import WineCardSkeleton from '../components/WineCardSkeleton.jsx';
 import { streamRecommend, postFeedback } from '../lib/api.js';
 import { naturalChatMode } from '../lib/flags.js';
+import { track } from '../lib/analytics.js';
 import { deriveWineCardMeta } from '../lib/regions.js';
 import useIsMobile from '../lib/useIsMobile.js';
 import uuid from '../lib/uuid.js';
@@ -179,6 +180,7 @@ export default function ChatRecommend() {
         } else if (event.type === 'picks') {
           if (event.picks.length > 0) {
             const enriched = event.picks.map(deriveWineCardMeta);
+            track('recommendation_shown', { count: enriched.length });
             setPicks(enriched);                       // desktop side panel
             setMessages(prev => {                     // mobile inline: attach to last sommelier msg
               const msgs = [...prev];
@@ -206,6 +208,7 @@ export default function ChatRecommend() {
     const current = wineVotes[wineId] ?? null;
     const next    = current === direction ? null : direction;
     setWineVotes(prev => ({ ...prev, [wineId]: next }));
+    track('feedback_voted', { type: 'wine_card', vote: next });
     postFeedback({ type: 'wine_card', entity_id: wineId, vote: next, session_id: sessionId, zip: prefs.zip });
   }
 
@@ -237,9 +240,12 @@ export default function ChatRecommend() {
   // the panel/sheet sits confusingly empty for a couple seconds.
   const awaitingPicks = (loading || streaming) && picks.length === 0;
 
-  const navToWine = pick => navigate('/wine/' + pick.wine_id, {
-    state: { pick, chatState: { messages, picks, prefs, apiReq, sessionId, wineVotes, messageVotes, followups } },
-  });
+  const navToWine = pick => {
+    track('pick_opened', { wine_id: pick.wine_id, retailer: pick.retailer, source: 'chat' });
+    navigate('/wine/' + pick.wine_id, {
+      state: { pick, chatState: { messages, picks, prefs, apiReq, sessionId, wineVotes, messageVotes, followups } },
+    });
+  };
 
   // Option C (mobile): the sommelier voice leads. When a message carries picks,
   // the bubble shows only the framing line and each wine becomes its own
@@ -443,12 +449,7 @@ export default function ChatRecommend() {
                   wine={pick}
                   vote={wineVotes[pick.wine_id] ?? null}
                   onVote={direction => handleWineVote(pick.wine_id, direction)}
-                  onClick={() => navigate('/wine/' + pick.wine_id, {
-                    state: {
-                      pick,
-                      chatState: { messages, picks, prefs, apiReq, sessionId, wineVotes, messageVotes, followups },
-                    },
-                  })}
+                  onClick={() => navToWine(pick)}
                 />
               ))}
             </div>

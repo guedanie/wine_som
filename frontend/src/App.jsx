@@ -1,4 +1,6 @@
-import { Routes, Route } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Routes, Route, useLocation } from 'react-router-dom';
+import { trackPageview } from './lib/analytics.js';
 import NavBar from './components/NavBar.jsx';
 import { TopBar, BottomTabs } from './components/MobileChrome.jsx';
 import useIsMobile from './lib/useIsMobile.js';
@@ -11,6 +13,9 @@ import RegionDetail from './screens/RegionDetail.jsx';
 import SearchScreen from './screens/SearchScreen.jsx';
 
 function AppRoutes() {
+  const { pathname } = useLocation();
+  // SPA pageview on every route change (capture_pageview is off in init).
+  useEffect(() => { trackPageview(pathname); }, [pathname]);
   return (
     <Routes>
       <Route path="/" element={<PreferenceCapture />} />

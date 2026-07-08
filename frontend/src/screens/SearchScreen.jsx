@@ -4,6 +4,7 @@ import {
   DISCOVERY_REGIONS, REGION_POSTERS, STYLE_WINE_TYPE, VARIETAL_OPTS, regionSlug,
 } from '../lib/regions.js';
 import { searchWines } from '../lib/api.js';
+import { track } from '../lib/analytics.js';
 import useIsMobile, { loadZip } from '../lib/useIsMobile.js';
 
 const STRIPE_BG = 'repeating-linear-gradient(135deg, var(--paper), var(--paper) 11px, #E6DAC2 11px, #E6DAC2 22px)';
@@ -96,6 +97,7 @@ export default function SearchScreen() {
         maxPrice: maxPrice < 200 ? maxPrice : null,
         retailers, varietals,
       });
+      track('search_performed', { has_query: !!q.trim(), results: data.wines?.length ?? 0, filters: retailers.length + varietals.length });
       setWines(data.wines);
     } catch (e) {
       setError(e.message);

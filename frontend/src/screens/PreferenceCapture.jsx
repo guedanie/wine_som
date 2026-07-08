@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Eyebrow from '../components/Eyebrow.jsx';
 import Btn from '../components/Btn.jsx';
 import { buildApiReq, VARIETAL_OPTS } from '../lib/regions.js';
+import { track } from '../lib/analytics.js';
 import useIsMobile, { loadZip, saveZip } from '../lib/useIsMobile.js';
 
 const STYLE_OPTS = [
@@ -38,6 +39,10 @@ export default function PreferenceCapture() {
     saveZip(zip);
     const prefs  = { zip, budget, styles, occasion, wineTypes, grapes, freeText };
     const apiReq = buildApiReq(prefs);
+    track('preferences_submitted', {
+      budget, occasion, styles_count: styles.length,
+      wine_types: wineTypes.length, has_free_text: !!freeText?.trim(),
+    });
     navigate('/recommend', { state: { prefs, apiReq } });
   };
 

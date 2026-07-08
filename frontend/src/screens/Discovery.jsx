@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import Eyebrow from '../components/Eyebrow.jsx';
 import Poster from '../components/Poster.jsx';
 import { DISCOVERY_REGIONS, regionSlug } from '../lib/regions.js';
+import { track } from '../lib/analytics.js';
 import useIsMobile from '../lib/useIsMobile.js';
 
 function RegionCard({ region, onClick }) {
@@ -23,6 +24,7 @@ export default function Discovery() {
   const tier2    = DISCOVERY_REGIONS.filter(r => r.tier === 2);
 
   function openRegion(r) {
+    track('region_opened', { region: r.name, tier: r.tier });
     navigate(`/regions/${regionSlug(r.name)}`);
   }
 

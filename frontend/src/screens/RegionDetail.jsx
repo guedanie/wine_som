@@ -5,6 +5,7 @@ import {
   REGION_META, REGION_POSTERS, REGION_DETAILS, SLUG_TO_REGION,
 } from '../lib/regions.js';
 import { getSubregionCounts } from '../lib/api.js';
+import { track } from '../lib/analytics.js';
 import useIsMobile from '../lib/useIsMobile.js';
 
 const STRIPE_BG = 'repeating-linear-gradient(135deg, var(--paper), var(--paper) 11px, #E6DAC2 11px, #E6DAC2 22px)';
@@ -48,6 +49,10 @@ export default function RegionDetail() {
   const { slug } = useParams();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const openSubregion = name => {
+    track('subregion_deeplinked', { region: SLUG_TO_REGION[slug], sub_region: name });
+    navigate(`/search?q=${encodeURIComponent(name)}`);
+  };
   const region = SLUG_TO_REGION[slug];
   const meta   = REGION_META[region];
   const detail = REGION_DETAILS[region];
@@ -125,7 +130,7 @@ export default function RegionDetail() {
             const n = countFor(s2.name, counts);
             return (
               <div key={s2.name} role="link"
-                onClick={() => navigate(`/search?q=${encodeURIComponent(s2.name)}`)}
+                onClick={() => openSubregion(s2.name)}
                 style={{ display: 'flex', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 500, color: 'var(--ink)' }}>{s2.name}</div>
@@ -241,7 +246,7 @@ export default function RegionDetail() {
               const n = countFor(s.name, counts);
               return (
                 <div key={s.name} role="link"
-                  onClick={() => navigate(`/search?q=${encodeURIComponent(s.name)}`)}
+                  onClick={() => openSubregion(s.name)}
                   style={{ display: 'flex', alignItems: 'center', padding: '11px 0', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
                   <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
                     <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--brass)', flex: 'none' }} />
