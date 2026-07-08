@@ -43,6 +43,8 @@ Full-stack wine recommendation app. Users enter zip code + budget + style prefer
 | HEB store registry | `data/heb-stores.csv` | CSV-driven active flag; 25 active (SA + Austin + DFW); flip flag to add a store, no code change |
 | Weekly scrape workflow | `.github/workflows/weekly-scrape.yml` | GitHub Actions cron Sunday 02:00 CT — all 9 scrapers (7 SA/Austin + Harvest + Kroger) + `--null-only` extraction; Slack notify per-scraper; each step `continue-on-error` |
 | requirements.txt | `backend/requirements.txt` | 17 pinned deps for reproducible CI installs |
+| Optional user accounts + favorites | `frontend/src/lib/{supabase,auth,favorites,pendingSave}.js(x)`, `components/{SignInModal,AuthNav,SaveBookmark,DossierSaveButton}.jsx`, `screens/Saved.jsx`, `supabase/migrations/20260707000002_user_accounts.sql` | **Anonymous-first, optional.** Supabase Auth email **magic link** (verified working; implicit flow). `AuthProvider`/`useAuth` centralizes session + saved bottles + a contextual sign-in prompt. Save bookmark on every WineCard + dossier Save button; anon tap → sign-in prompt → auto-saves via pending-save round-trip. `/saved` view (desktop avatar menu + mobile Saved tab). `profiles` + `favorites` tables, RLS-scoped `user_id=auth.uid()` (read/write direct via supabase-js, no backend). |
+| Analytics (PostHog) | `frontend/src/lib/analytics.js` | No-op-safe wrapper (silent without `VITE_POSTHOG_KEY`); SPA pageviews + funnel events (preferences_submitted, recommendation_shown, pick_opened, feedback_voted, region_opened, search_performed, subregion_deeplinked). LIVE — key set in Vercel + local. |
 | Price history | `supabase/migrations/20260707000001_price_history.sql` | Append-only `price_history` table fed by a delta-only trigger on `retail_inventory` (`log_price_change`, SECURITY DEFINER) — logs initial price on insert + any price/curbside change. Scrapers untouched (full-refresh upsert). Baseline snapshot of 87,347 current prices captured. Phase 1 of price alerts (capture; alert UX awaits user accounts) |
 | Feedback loop | `backend/api/routers/feedback.py`, `supabase/migrations/20260630000001_feedback_table.sql` | `POST /api/feedback` + `feedback` Supabase table; Pattern A (wine card thumbs) + Pattern B (sommelier message thumbs + follow-up bubble); session-scoped votes with toggle support |
 | Somm overlay | `frontend/src/components/SommOverlay.jsx`, `backend/api/routers/somm.py` | FAB + 400px slide-in chat panel; wine-context Claude Haiku system prompt; suggestion chips (red vs white set); Pattern B feedback; chat history persists across close/reopen |
@@ -74,7 +76,6 @@ Full-stack wine recommendation app. Users enter zip code + budget + style prefer
 ### Not Started
 - Spec's Austin stores (same scraper pattern, just add Austin store IDs)
 - Feedback-as-scoring-signal (thumbs data collecting in `feedback` table, nothing reads it yet)
-- User accounts (Supabase Auth — enables saved favorites, price alerts)
 
 ---
 
@@ -504,7 +505,7 @@ docs/
 11. **Local LLM extraction cutover** — qwen2.5:7b benchmarked at Haiku parity (`ollama_extractor.py`). Wire behind `EXTRACTOR_BACKEND=ollama`, drain backlog locally, drop Haiku from CI (capped at 1500/run now). Re-run `persist_structure.py` after to grow structure coverage past 52%
 12. **Blend structure/sweetness LLM pass** — table→LLM hybrid for the ~3% of blends the table can't anchor + LLM sweetness (its one strong structure axis)
 13. **Extraction pass on new Nashville/NC/Dallas wines** — Harvest + Kroger + Harris Teeter + DFW HEB wines need `--null-only` extraction to become recommendable (also unlocks more structure coverage on re-run of `persist_structure.py`)
-14. **User accounts** — Supabase Auth (already in stack); saved favorites, history, feedback identity; prerequisite for price alerts
+14. **User accounts (optional, anonymous-first)** — ⚙️ Phase 0 (magic-link auth) + Phase 1 (saved favorites) DONE & working: sign-in, Save on cards/dossier, `/saved` view, desktop avatar menu + mobile Saved tab. **NEXT (paused 2026-07-07, resume here): mobile account home + "You" tab** (handoff screen 6 — signed-in mobile users can't sign out / see profile yet; desktop avatar menu has it). Then Phase 2 cellar, Phase 3 Somm taste-profile interview, Phase 4 price-alert watches. Roadmap: `docs/user-accounts-roadmap.md`; design handoff recreated from `~/Downloads/design_handoff_user_accounts`.
 15. **Feedback-as-scoring-signal** — thumbs data accumulating in `feedback` table; nothing reads it yet (only ~6 votes so far, mostly dogfooding). Fold votes into the scorer once enough accrue
 16. **Price alerts + promo scraping** — ⚙️ Phase 1 DONE: `price_history` table + trigger capturing deltas now (can't backfill, so started early). REMAINING: `price_watches` (user × wine × target) + notifier — depends on user accounts. Promo data (Spec's `unitPricePromoDiscount`, Kroger promo, HEB ONLINE/CURBSIDE delta) flows into history too
 17. ~~Ratings badge in WineCard + ChatRecommend~~ ✅ Done — desktop WineCards + mobile Option C pick messages show a compact `4.3★ · 57k` Vivino badge (gated on rating + count)

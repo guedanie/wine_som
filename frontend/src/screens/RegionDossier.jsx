@@ -353,7 +353,7 @@ export default function RegionDossier() {
         }}
         style={{ cursor: 'pointer', background: 'none', border: 'none', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--faded)', padding: 0, marginBottom: 26 }}
       >
-        ← Back to recommendations
+        {chatState ? '← Back to recommendations' : '← Back'}
       </button>
 
       <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 48, alignItems: 'start' }}>
