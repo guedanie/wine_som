@@ -23,10 +23,9 @@ this wine") and only ever *adds* capability — it never gates what already work
 ## Auth methods
 - **Magic link (email)** — build first. Passwordless, Supabase built-in, no
   external setup. `supabase.auth.signInWithOtp({ email })`.
-- **Apple OAuth (Sign in with Apple)** — second. Needs an Apple Developer
-  account ($99/yr): App ID + Services ID + a Sign-in-with-Apple key, then
-  configure the provider in Supabase. Expected on iOS PWAs. **Requires user
-  setup before it can be wired.**
+- **Apple OAuth (Sign in with Apple)** — **DEFERRED (2026-07-07 decision).**
+  Needs an Apple Developer account ($99/yr) + App ID/Services ID/key + Supabase
+  provider config. Not building for now; magic link only. Revisit later.
 
 ---
 
