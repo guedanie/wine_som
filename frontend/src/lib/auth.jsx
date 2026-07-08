@@ -27,7 +27,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (!supabase) return;
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true); });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
     return () => sub.subscription.unsubscribe();
   }, []);
 

@@ -1,5 +1,6 @@
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
 import Tag from './Tag.jsx';
+import SaveBookmark from './SaveBookmark.jsx';
 
 const _THUMB_EASE = 'all 140ms cubic-bezier(.25,.46,.45,.94)';
 
@@ -33,13 +34,14 @@ function LandscapeCard({ wine, onClick, vote, onVote }) {
     <div
       onClick={onClick}
       style={{
-        border: '1.5px solid var(--ink)', background: 'var(--cream)',
+        border: '1.5px solid var(--ink)', background: 'var(--cream)', position: 'relative',
         cursor: onClick ? 'pointer' : 'default', display: 'flex', alignItems: 'stretch',
         minHeight: 120, transition: 'transform .18s var(--ease), box-shadow .18s var(--ease)',
       }}
       onMouseEnter={e => { if (onClick) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(26,26,26,.12)'; } }}
       onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
     >
+      <SaveBookmark wine={wine} size={15} style={{ position: 'absolute', top: 4, right: 4, width: 32, height: 32, zIndex: 2 }} />
       {/* Left rail — tagline + coord above, price anchored bottom */}
       <div style={{ padding: '14px 16px', borderRight: '0.75px solid var(--brass)', minWidth: 130, maxWidth: 150, display: 'flex', flexDirection: 'column', gap: 8, flex: 'none' }}>
         <div>
@@ -52,7 +54,7 @@ function LandscapeCard({ wine, onClick, vote, onVote }) {
             <div style={{ fontSize: 9.5, letterSpacing: '0.14em', color: 'var(--sage)', marginTop: 5 }}>{wine.coord}</div>
           )}
         </div>
-        <div style={{ fontFamily: 'var(--font-serif)', fontSize: 26, color: 'var(--bordeaux)', marginTop: 'auto' }}>${wine.price}</div>
+        {wine.price != null && <div style={{ fontFamily: 'var(--font-serif)', fontSize: 26, color: 'var(--bordeaux)', marginTop: 'auto' }}>${wine.price}</div>}
       </div>
 
       {/* Body — name, meta, tags; thumbs bottom-right */}
@@ -95,7 +97,7 @@ export default function WineCard({ wine, onClick, vote, onVote, variant, voteSiz
       onMouseEnter={e => { if (onClick) { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = 'var(--shadow-card)'; } }}
       onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
     >
-      <div style={{ padding: '13px 14px', borderBottom: '0.75px solid var(--brass)', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10 }}>
+      <div style={{ padding: '13px 14px', borderBottom: '0.75px solid var(--brass)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
         <div style={{ minWidth: 0 }}>
           {wine.tagline && (
             <div style={{ fontSize: 9.5, letterSpacing: '0.24em', textTransform: 'uppercase', color: 'var(--faded)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -106,7 +108,10 @@ export default function WineCard({ wine, onClick, vote, onVote, variant, voteSiz
             <div style={{ fontSize: 10, letterSpacing: '0.16em', color: 'var(--sage)', marginTop: 4 }}>{wine.coord}</div>
           )}
         </div>
-        <div style={{ fontFamily: 'var(--font-serif)', fontSize: 24, color: 'var(--bordeaux)', flex: 'none' }}>${wine.price}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2, flex: 'none' }}>
+          <SaveBookmark wine={wine} size={15} style={{ width: 30, height: 30 }} />
+          {wine.price != null && <div style={{ fontFamily: 'var(--font-serif)', fontSize: 24, color: 'var(--bordeaux)' }}>${wine.price}</div>}
+        </div>
       </div>
       <div style={{ padding: '13px 14px 14px' }}>
         <div style={{ fontFamily: 'var(--font-serif)', fontSize: 23, lineHeight: 1.05, color: 'var(--ink)' }}>{wine.name}</div>
