@@ -6,11 +6,25 @@ Usage:
     python3 -m enrichment.extraction.run_extraction            # all wines
     python3 -m enrichment.extraction.run_extraction --null-only  # only wines with null region
 """
+import os
 import sys
 from db import get_service_client
 from enrichment.extraction.extractor import extract_facts
 
 BATCH_SIZE = 15
+
+
+def get_extractor():
+    """Select the fact-extraction backend from EXTRACTOR_BACKEND.
+
+    'ollama' → local qwen2.5:7b (free, ~9x slower, needs Ollama running);
+    anything else (default 'haiku') → the Anthropic Haiku extractor. Both share
+    the (wines, batch_size=N) signature and output shape.
+    """
+    if os.environ.get("EXTRACTOR_BACKEND", "haiku").lower() == "ollama":
+        from enrichment.extraction.ollama_extractor import extract_facts_ollama
+        return extract_facts_ollama
+    return extract_facts
 WRITE_FIELDS = ["region", "sub_region", "country", "vintage_year", "varietal", "grapes", "abv", "body"]
 
 
@@ -79,9 +93,11 @@ def main():
     null_only = "--null-only" in sys.argv
     limit = _arg_limit()
     db = get_service_client()
+    extractor = get_extractor()
 
+    backend = os.environ.get("EXTRACTOR_BACKEND", "haiku").lower()
     mode = "null-region wines only" if null_only else "all wines"
-    print(f"Fetching wines + descriptions ({mode})...", flush=True)
+    print(f"Fetching wines + descriptions ({mode}) — backend={backend}...", flush=True)
     wines = fetch_wines(db, null_only=null_only)
     if limit and len(wines) > limit:
         print(f"  capping to {limit} of {len(wines)} (--limit)", flush=True)
@@ -92,7 +108,7 @@ def main():
     written = 0
     for i in range(0, total, BATCH_SIZE):
         batch = wines[i:i + BATCH_SIZE]
-        results = extract_facts(batch, batch_size=BATCH_SIZE)
+        results = extractor(batch, batch_size=BATCH_SIZE)
         write_batch(db, results)
         written += len(results)
         pct = (i + len(batch)) / total * 100
