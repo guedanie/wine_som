@@ -506,9 +506,9 @@ docs/
 14. **User accounts** — Supabase Auth (already in stack); saved favorites, history, feedback identity; prerequisite for price alerts
 15. **Feedback-as-scoring-signal** — thumbs data accumulating in `feedback` table; nothing reads it yet (only ~6 votes so far, mostly dogfooding). Fold votes into the scorer once enough accrue
 16. **Price alerts + promo scraping** — Spec's `unitPricePromoDiscount`, Kroger promo price, HEB ONLINE/CURBSIDE delta all already captured
-17. **Ratings badge in WineCard + ChatRecommend** — picks already carry `image_url`/`vivino_rating`/`vivino_ratings_count`; dossier badge done, chat cards remaining
+17. ~~Ratings badge in WineCard + ChatRecommend~~ ✅ Done — desktop WineCards + mobile Option C pick messages show a compact `4.3★ · 57k` Vivino badge (gated on rating + count)
 18. **Per-pick distance** — Option C store pill shows `◎ {retailer}` only; add store→zip distance per pick for the `· X.X mi` suffix
-19. **Analytics** — PostHog free tier; region clicks, style popularity, conversion, drop-off
+19. **Analytics** — ⚙️ Foundation shipped (`lib/analytics.js`, no-op without `VITE_POSTHOG_KEY`; funnel events + SPA pageviews). REMAINING: create a PostHog project (free tier) + set `VITE_POSTHOG_KEY` in Vercel to turn it on
 20. Kroger banner expansion — Memphis/Houston (Kroger), other NC/VA cities (Harris Teeter); config-only via `MARKETS`
 21. Local MCP server for Claude Desktop (parked) — see memory `mcp-desktop-parked`
 22. Add more Shopify local wine shops (same scraper pattern, zero new code)
