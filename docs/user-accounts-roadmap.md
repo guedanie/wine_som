@@ -43,13 +43,22 @@ this wine") and only ever *adds* capability — it never gates what already work
 - "Save" (heart) on the dossier + wine cards; a "Saved" view.
 - Anonymous tap on Save → contextual sign-in prompt, then save.
 
-### Phase 2 — Cellar (wines you own / recently bought)
-- `cellar` table: user_id, wine_id (nullable — bought elsewhere), free_text_name,
-  vintage, purchase_date, price_paid, quantity, drink_by, status
-  (owned/consumed), notes.
-- "I bought this" / "Add to cellar" action; optional match to a catalog wine.
-- Cellar view: what you own, drinking windows, value, quick "drank it" logging.
-- Note: cellar wines often aren't in our catalog — support manual entry.
+### Phase 2 — Cellar (wines you own / recently bought) — IN PROGRESS
+**Decisions (2026-07-08):** Core scope (add + quantity + purchase date + list +
+drinking-window signal + "drank it" consumption). Drinking window from an **auto
+heuristic** (varietal+vintage → year range, `lib/drinkingWindow.js`, no LLM,
+user can override). **Both add-paths** (dossier "Add to cellar" for catalog
+wines + manual "+ Add bottle" for off-catalog).
+
+**Foundation DONE:** `cellar` table (migration `20260708000001`, RLS-scoped,
+`wine_id` nullable for off-catalog, denormalized name/vintage/region, quantity,
+purchase_date, price_paid, drink_from/drink_to, status owned|consumed, notes);
+`lib/drinkingWindow.js` (`drinkingWindow()` + `windowStatus()` → hold/ready/soon/
+past + label + fill, TDD'd); `lib/cellar.js` (list/add/update/remove/drinkBottle).
+
+**REMAINING (UI):** Cellar screen (list + drinking-window bars per handoff
+screen 7 + "+ Add bottle"), the Add-bottle form (manual + catalog prefill),
+dossier "Add to cellar" button, account-screen Cellar tile/link → real count.
 
 ### Phase 3 — Somm taste profile (conversational preference interview)
 - The Somm asks the client a guided set of questions — like a real sommelier
