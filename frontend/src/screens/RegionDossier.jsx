@@ -9,6 +9,7 @@ import SommOverlay from '../components/SommOverlay.jsx';
 import { REGION_POSTERS, REGION_META, REGION_DETAILS, regionSlug } from '../lib/regions.js';
 import useIsMobile from '../lib/useIsMobile.js';
 import { getWine } from '../lib/api.js';
+import DossierSaveButton from '../components/DossierSaveButton.jsx';
 
 function structureToBars(sp) {
   if (!sp) return [];
@@ -325,7 +326,7 @@ export default function RegionDossier() {
 
             <div style={{ display: 'flex', gap: 10 }}>
               <Btn onClick={() => navigate('/discover')} style={{ flex: 1, justifyContent: 'center' }}>More from this region</Btn>
-              <Btn variant="ghost" onClick={() => navigate('/discover')} style={{ flex: 1, justifyContent: 'center' }}>Save to cellar</Btn>
+              <DossierSaveButton wineId={id} name={pick.name} style={{ flex: 1, justifyContent: 'center' }} />
             </div>
           </div>
         </div>
@@ -480,7 +481,7 @@ export default function RegionDossier() {
 
           <div style={{ display: 'flex', gap: 12, marginTop: 18 }}>
             <Btn onClick={() => navigate('/discover')}>More from this region</Btn>
-            <Btn variant="ghost" onClick={() => navigate('/discover')}>Save to cellar</Btn>
+            <DossierSaveButton wineId={id} name={pick.name} />
           </div>
         </div>
       </div>
