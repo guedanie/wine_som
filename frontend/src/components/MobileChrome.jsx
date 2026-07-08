@@ -39,6 +39,12 @@ export function TopBar() {
   } else if (pathname === '/search') {
     title = 'Search';
     sub = null;
+  } else if (pathname === '/saved') {
+    title = 'Saved';
+    sub = null;
+  } else if (pathname === '/account') {
+    title = 'You';
+    sub = null;
   }
 
   return (
@@ -109,6 +115,15 @@ const TABS = [
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+      </svg>
+    ),
+  },
+  {
+    id: 'account', label: 'You', to: '/account',
+    match: p => p === '/account',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="8" r="4" /><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" />
       </svg>
     ),
   },
