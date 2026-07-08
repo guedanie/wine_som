@@ -12,6 +12,7 @@
     "test:run": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.110.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.22.0",
     "posthog-js": "^1.398.2",

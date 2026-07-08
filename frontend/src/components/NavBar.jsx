@@ -1,5 +1,6 @@
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import Stamp from './Stamp.jsx';
+import AuthNav from './AuthNav.jsx';
 
 export default function NavBar() {
   const navigate = useNavigate();
@@ -34,8 +35,8 @@ export default function NavBar() {
         ))}
       </div>
 
-      {/* Search — right */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+      {/* Search + auth — right */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12 }}>
         <button
           onClick={() => navigate('/search')}
           style={{
@@ -51,6 +52,7 @@ export default function NavBar() {
           </svg>
           Search wines & regions
         </button>
+        <AuthNav />
       </div>
     </nav>
   );
