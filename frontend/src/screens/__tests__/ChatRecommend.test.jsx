@@ -141,6 +141,35 @@ it('renders picks as conversational messages on mobile (Option C — name link, 
   window.matchMedia = undefined;
 });
 
+it('shows the Vivino rating badge in a mobile pick message', async () => {
+  window.matchMedia = vi.fn().mockImplementation(q => ({
+    matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
+  }));
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'One pick.' };
+    yield { type: 'picks', picks: [{ wine_id: 'uuid-1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's", why: 'Great.', vivino_rating: 4.3, vivino_ratings_count: 57491 }], session_id: 'sess-1' };
+  });
+  renderScreen();
+  await waitFor(() => screen.getByText('Esprit de Tablas'));
+  expect(screen.getByText(/4\.3★/)).toBeInTheDocument();   // rating
+  expect(screen.getByText(/57k/)).toBeInTheDocument();      // compact count
+  window.matchMedia = undefined;
+});
+
+it('omits the rating badge when a mobile pick has no Vivino rating', async () => {
+  window.matchMedia = vi.fn().mockImplementation(q => ({
+    matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
+  }));
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'One pick.' };
+    yield { type: 'picks', picks: [{ wine_id: 'uuid-2', name: 'Obscure Natural', price: 32, retailer: "Geraldine's", why: 'Funky.' }], session_id: 'sess-2' };
+  });
+  renderScreen();
+  await waitFor(() => screen.getByText('Obscure Natural'));
+  expect(screen.queryByText(/★/)).toBeNull();
+  window.matchMedia = undefined;
+});
+
 it('tapping the wine-name link on mobile navigates to the dossier', async () => {
   window.matchMedia = vi.fn().mockImplementation(q => ({
     matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},

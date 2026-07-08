@@ -72,6 +72,10 @@ function UserBubble({ children }) {
 // pill. No card chrome; the wine name is the CTA.
 function PickMessage({ pick, vote, onVote, onClick }) {
   const price = pick.price != null ? `$${Number(pick.price).toFixed(0)}` : null;
+  const hasRating = pick.vivino_rating && pick.vivino_ratings_count > 0;
+  const ratingCount = pick.vivino_ratings_count >= 1000
+    ? `${Math.round(pick.vivino_ratings_count / 1000)}k`
+    : pick.vivino_ratings_count;
   return (
     <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start', marginBottom: 14 }}>
       <Stamp size={32} reversed />
@@ -88,6 +92,12 @@ function PickMessage({ pick, vote, onVote, onClick }) {
             {price && <span style={{ fontFamily: 'var(--font-serif)', fontSize: 16, color: 'var(--ink)' }}>{price}</span>}
             {pick.retailer && (
               <span style={{ borderRadius: 999, border: '0.75px solid var(--sage)', color: 'var(--sage)', fontFamily: 'var(--font-sans)', fontSize: 10.5, padding: '2px 9px' }}>◎ {pick.retailer}</span>
+            )}
+            {hasRating && (
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10.5, color: 'var(--brass)', whiteSpace: 'nowrap' }}
+                title={`${pick.vivino_ratings_count.toLocaleString()} ratings on Vivino`}>
+                {pick.vivino_rating.toFixed(1)}★ · {ratingCount}
+              </span>
             )}
           </div>
         </div>
