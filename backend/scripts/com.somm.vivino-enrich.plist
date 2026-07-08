@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.somm.vivino-enrich</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/danielguerrero/Documents/ai_dev/wine_app/backend/scripts/run_vivino_launchd.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/danielguerrero/Documents/ai_dev/wine_app/backend</string>
+
+    <!-- Twice daily, local time. If asleep at the trigger, launchd runs it on next wake. -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict>
+            <key>Hour</key><integer>10</integer>
+            <key>Minute</key><integer>0</integer>
+        </dict>
+        <dict>
+            <key>Hour</key><integer>16</integer>
+            <key>Minute</key><integer>0</integer>
+        </dict>
+    </array>
+
+    <key>StandardOutPath</key>
+    <string>/Users/danielguerrero/Library/Logs/somm-vivino.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/danielguerrero/Library/Logs/somm-vivino.err.log</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>LowPriorityIO</key>
+    <true/>
+</dict>
+</plist>

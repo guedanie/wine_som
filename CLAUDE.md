@@ -12,7 +12,8 @@ Full-stack wine recommendation app. Users enter zip code + budget + style prefer
 |---|---|---|
 | Supabase schema | `supabase/migrations/` | 13 migrations live in cloud DB |
 | Vivino enrichment | `backend/enrichment/vivino.py`, `backend/scripts/run_vivino_sample.py` | Async httpx; ratings + bottle image + canonical facts (grapes/region/abv/structure/pairing) from 2 HTML requests/wine; 429-safe (VivinoFetchError, no false stamps, pause-and-resume); `--missing-images` + `--backfill-facts` modes; ~1,027 matched |
-| Daily Vivino workflow | `.github/workflows/daily-vivino.yml` | **PAUSED 2026-07-05** — GitHub runner datacenter IPs are IP-blocklisted by Vivino (~23 wines/day even on crawl profile). `workflow_dispatch` only; enrichment moving to a local residential-IP job |
+| Daily Vivino workflow | `.github/workflows/daily-vivino.yml` | **PAUSED 2026-07-05** — GitHub runner datacenter IPs are IP-blocklisted by Vivino (~23 wines/day even on crawl profile). `workflow_dispatch` only |
+| Local Vivino launchd job | `backend/scripts/run_vivino_launchd.sh` + `com.somm.vivino-enrich.plist` | Replaces the paused cron — runs the enricher from this machine's **residential IP** (not blocklisted; verified 3/3 matched). Twice daily (10:00/16:00 local), `--limit 300`/run, logs to `~/Library/Logs/somm-vivino.log`. Wrapper cd's to `backend/` so `../.env` resolves; idempotent + abort-breaker safe. Install: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.somm.vivino-enrich.plist` |
 | Deployment | Vercel + Railway | Frontend Vercel (root `vercel.json` pins Vite build), backend Railway (`Procfile`, $PORT bind); env-driven CORS (`ALLOWED_ORIGINS`), per-IP rate limits, ADMIN_TOKEN gate on `/api/enrich/*` |
 | Mobile / PWA | `frontend/src/components/MobileChrome.jsx`, `lib/useIsMobile.js` | Responsive ≤640px branch on every screen (shared logic, conditional layout); TopBar + BottomTabs chrome; chat cards in a bottom sheet; filter drawer; `manifest.json` + vine-mark icons; 16px inputs (no iOS zoom); session-restore on dossier back |
 | FastAPI app | `backend/api/` | `/health`, `/api/wines/search`, `/api/wines/:id` |
@@ -498,7 +499,7 @@ docs/
 7. ~~Mobile / PWA~~ ✅ Done — responsive ≤640px on all screens, installable PWA (mobile chat now Option C conversational messages, not cards)
 8. ~~Grape+region structure table~~ ✅ Done — deterministic structure, validated vs Vivino, persisted catalog-wide (coverage ~5%→52%); see structure-table section
 9. ~~Chat naturalness + mobile Option C~~ ✅ Done — conversational follow-ups (default ON), relevance-first card count, mobile conversational pick messages, new Pin mark, sub-region search deep-link
-10. **Vivino local job** — cron PAUSED (GitHub datacenter IPs blocklisted by Vivino). Set up a local `launchd` residential-IP run to drain the backlog (~1,027 matched of ~13k; ceiling 40-60%)
+10. ~~Vivino local job~~ ✅ Done — `launchd` residential-IP job (`com.somm.vivino-enrich`, 2×/day, `--limit 300`) drains the backlog from an un-blocklisted IP; verified working. Was ~1,027 matched of ~13k; ceiling 40-60%
 11. **Local LLM extraction cutover** — qwen2.5:7b benchmarked at Haiku parity (`ollama_extractor.py`). Wire behind `EXTRACTOR_BACKEND=ollama`, drain backlog locally, drop Haiku from CI (capped at 1500/run now). Re-run `persist_structure.py` after to grow structure coverage past 52%
 12. **Blend structure/sweetness LLM pass** — table→LLM hybrid for the ~3% of blends the table can't anchor + LLM sweetness (its one strong structure axis)
 13. **Extraction pass on new Nashville/NC/Dallas wines** — Harvest + Kroger + Harris Teeter + DFW HEB wines need `--null-only` extraction to become recommendable (also unlocks more structure coverage on re-run of `persist_structure.py`)
