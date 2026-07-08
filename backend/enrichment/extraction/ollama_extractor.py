@@ -7,7 +7,10 @@ Set OLLAMA_MODEL / OLLAMA_URL to override the defaults.
 """
 import os
 import json
+import socket
+import time
 import urllib.request
+import urllib.error
 from typing import List, Dict, Any
 
 from enrichment.extraction.reference import APPELLATIONS, CORE_GRAPES, FEW_SHOT
@@ -28,7 +31,8 @@ _JSON_INSTRUCTION = (
 )
 
 
-def _call_ollama(system: str, user: str, model: str, timeout: int = 120) -> dict:
+def _call_ollama(system: str, user: str, model: str, timeout: int = 120,
+                 retries: int = 3) -> dict:
     body = json.dumps({
         "model": model,
         "messages": [
@@ -39,12 +43,23 @@ def _call_ollama(system: str, user: str, model: str, timeout: int = 120) -> dict
         "format": "json",
         "options": {"temperature": 0},
     }).encode()
-    req = urllib.request.Request(OLLAMA_URL, data=body,
-                                headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        data = json.loads(resp.read())
-    content = (data.get("message") or {}).get("content") or "{}"
-    return json.loads(content)
+    # Each attempt opens a fresh connection with a fresh Request, so a transient
+    # slow/stalled window (e.g. after a sleep/wake) self-heals instead of the
+    # whole run silently skipping wines. Re-raise only after exhausting retries.
+    last = None
+    for attempt in range(retries):
+        try:
+            req = urllib.request.Request(OLLAMA_URL, data=body,
+                                         headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.loads(resp.read())
+            content = (data.get("message") or {}).get("content") or "{}"
+            return json.loads(content)
+        except (urllib.error.URLError, socket.timeout, TimeoutError, ConnectionError) as e:
+            last = e
+            if attempt < retries - 1:
+                time.sleep(2 * (attempt + 1))   # 2s, 4s backoff
+    raise last
 
 
 def extract_facts_ollama(wines: List[Dict[str, Any]], batch_size: int = 10,
