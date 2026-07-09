@@ -134,7 +134,8 @@ export default function ChatRecommend() {
 
   // Personalized recommendations: gather the user's liked/owned wines so the
   // scorer can boost + cite ("close to X you saved"). Null when signed out.
-  const tasteFor = () => (user ? buildTasteContext(user.id) : Promise.resolve(null));
+  // Fail-soft: a taste hiccup must never block the recommendation itself.
+  const tasteFor = () => (user ? buildTasteContext(user.id).catch(() => null) : Promise.resolve(null));
 
   const [sessionId]    = useState(() => _restored?.sessionId    ?? uuid());
   const [wineVotes,    setWineVotes]    = useState(() => _restored?.wineVotes    ?? {});
