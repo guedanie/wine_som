@@ -1,5 +1,5 @@
 // frontend/src/screens/ChatRecommend.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
 import Eyebrow from '../components/Eyebrow.jsx';
@@ -129,7 +129,7 @@ export default function ChatRecommend() {
   const { state }  = useLocation();
   const navigate   = useNavigate();
   const isMobile   = useIsMobile();
-  const { user }   = useAuth();
+  const { user, ready } = useAuth();
   const { prefs, apiReq, _restored } = state ?? {};
 
   // Personalized recommendations: gather the user's liked/owned wines so the
@@ -147,9 +147,13 @@ export default function ChatRecommend() {
   const [error,      setError]     = useState(null);
   const [input,      setInput]     = useState('');
 
-  // All hooks must be called before any early return
+  // All hooks must be called before any early return. Wait for auth to resolve
+  // (getSession is async) so a signed-in user's taste context is attached to the
+  // FIRST recommendation instead of racing to null.
+  const firedRef = useRef(false);
   useEffect(() => {
-    if (!prefs || _restored) return;   // skip if no prefs or state is restored
+    if (!prefs || _restored || !ready || firedRef.current) return;
+    firedRef.current = true;
     const parts = [];
     if (prefs.styles?.length)    parts.push(prefs.styles.join(', '));
     if (prefs.wineTypes?.length) parts.push(prefs.wineTypes.join(', '));
@@ -160,7 +164,7 @@ export default function ChatRecommend() {
     setMessages([{ id: uuid(), role: 'user', text: parts.join(' · ') }]);
     tasteFor().then(taste => callRecommend({ ...apiReq, taste }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [ready]);
 
   if (!prefs) return <Navigate to="/" replace />;
 
