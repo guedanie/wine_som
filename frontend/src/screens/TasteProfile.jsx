@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
 import { saveTasteProfile } from '../lib/profile.js';
 import { TASTE_QUESTIONS, buildProfile } from '../lib/tasteInterview.js';
+import useIsMobile from '../lib/useIsMobile.js';
 import Stamp from '../components/Stamp.jsx';
 
 const CHIP = (active) => ({
@@ -34,6 +35,12 @@ function YouSaid({ children }) {
 export default function TasteProfile() {
   const { authState, user, requireSignIn } = useAuth();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
+  // On mobile the chrome gives each screen a fixed-height content area, so the
+  // screen must scroll itself — else the growing Q&A pushes Continue off-screen.
+  const rootStyle = isMobile
+    ? { height: '100%', overflowY: 'auto', WebkitOverflowScrolling: 'touch', padding: '18px 16px 96px' }
+    : { maxWidth: 760, margin: '0 auto', padding: '24px 20px 60px' };
   const [step, setStep]       = useState(0);
   const [answers, setAnswers] = useState({});
   const [answered, setAnswered] = useState([]);   // display strings for past Qs
@@ -82,7 +89,7 @@ export default function TasteProfile() {
   };
 
   return (
-    <div style={{ maxWidth: 760, margin: '0 auto', padding: '24px 20px 60px' }}>
+    <div style={rootStyle}>
       <div style={{ fontFamily: 'var(--font-sans)', fontSize: 10, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--faded)', fontWeight: 600, marginBottom: 18 }}>Taste profile</div>
 
       {answered.map((a, i) => (
