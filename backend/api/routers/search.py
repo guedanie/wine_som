@@ -1,3 +1,4 @@
+import re
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
@@ -8,6 +9,15 @@ router = APIRouter(prefix="/api", tags=["search"])
 
 _WINE_MATCH_LIMIT = 300      # catalog rows matched by name/brand/varietal/region
 _INVENTORY_LIMIT = 1000
+
+
+def _group_key(name: str) -> str:
+    """Vintage-agnostic key so the same wine sold as multiple vintages (each
+    with its own UPC → separate wine rows) groups into one search result."""
+    s = (name or "").lower()
+    s = re.sub(r"\b(19|20)\d{2}\b", " ", s)      # strip vintage years
+    s = re.sub(r"[^a-z0-9]+", " ", s).strip()
+    return s
 
 
 class SearchWineRow(BaseModel):
@@ -21,6 +31,7 @@ class SearchWineRow(BaseModel):
     wine_type: Optional[str] = None
     price: float
     retailer: str
+    retailers: Optional[List[str]] = None      # all nearby retailers across grouped vintages
     distance_miles: Optional[float] = None
     image_url: Optional[str] = None
     vivino_rating: Optional[float] = None
@@ -111,8 +122,8 @@ async def search(
     if retailers:
         wanted_retailers = {r.strip() for r in retailers.split(",") if r.strip()}
 
-    # Lowest price per wine
-    best: Dict[str, Dict[str, Any]] = {}
+    # Per-wine nearby offers: lowest price + the set of retailers carrying it.
+    per_wine: Dict[str, Dict[str, Any]] = {}
     for row in inv_rows:
         wid = row.get("wine_id")
         meta = store_meta.get(row.get("store_ref"))
@@ -123,16 +134,28 @@ async def search(
         price = float(row.get("price") or 0)
         if price <= 0:
             continue
-        if wid not in best or price < best[wid]["price"]:
-            best[wid] = {"price": price, "retailer": meta["retailer"],
-                         "distance": meta["distance"]}
+        e = per_wine.setdefault(wid, {"price": price, "retailer": meta["retailer"],
+                                      "distance": meta["distance"], "retailers": set()})
+        e["retailers"].add(meta["retailer"])
+        if price < e["price"]:
+            e.update(price=price, retailer=meta["retailer"], distance=meta["distance"])
+
+    # Group vintage variants (same normalized name) into one result — so a wine
+    # sold as multiple vintages/UPCs shows its FULL nearby availability, not one
+    # fragment. Represent the group by its best-stocked row (most retailers).
+    groups: Dict[str, List[str]] = {}
+    for wid in per_wine:
+        groups.setdefault(_group_key(by_wine_id[wid].get("name") or ""), []).append(wid)
 
     term_lower = term.lower()
     results = []
-    for wid, offer in best.items():
-        w = by_wine_id[wid]
+    for wids in groups.values():
+        cheapest = min((per_wine[w] for w in wids), key=lambda e: e["price"])
+        rep_wid = max(wids, key=lambda w: (len(per_wine[w]["retailers"]), -per_wine[w]["price"]))
+        w = by_wine_id[rep_wid]
+        all_retailers = sorted(set().union(*[per_wine[wi]["retailers"] for wi in wids]))
         results.append(SearchWineRow(
-            wine_id=wid,
+            wine_id=rep_wid,                     # link to the best-stocked vintage
             name=w.get("name") or "",
             brand=w.get("brand"),
             vintage_year=w.get("vintage_year"),
@@ -140,9 +163,10 @@ async def search(
             region=w.get("region"),
             country=w.get("country"),
             wine_type=w.get("wine_type"),
-            price=offer["price"],
-            retailer=offer["retailer"],
-            distance_miles=offer["distance"],
+            price=cheapest["price"],
+            retailer=cheapest["retailer"],
+            retailers=all_retailers,
+            distance_miles=cheapest["distance"],
             image_url=w.get("image_url"),
             vivino_rating=w.get("vivino_rating"),
             vivino_ratings_count=w.get("vivino_ratings_count"),

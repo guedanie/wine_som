@@ -155,7 +155,9 @@ export default function SearchScreen() {
           {[w.brand, w.vintage_year, w.region].filter(Boolean).join(' · ')}
         </div>
         <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--sage)', marginTop: 2 }}>
-          {w.retailer}{w.distance_miles != null ? ` · ${w.distance_miles} mi` : ''}
+          {w.retailers?.length > 1
+            ? `from $${w.price} · ${w.retailers.slice(0, 3).join(' · ')}${w.retailers.length > 3 ? ` +${w.retailers.length - 3}` : ''}`
+            : `${w.retailer}${w.distance_miles != null ? ` · ${w.distance_miles} mi` : ''}`}
         </div>
       </div>
       <div style={{ fontFamily: 'var(--font-serif)', fontSize: 20, color: 'var(--bordeaux)', flexShrink: 0 }}>${w.price}</div>

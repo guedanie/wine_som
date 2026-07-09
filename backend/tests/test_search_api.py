@@ -153,3 +153,12 @@ async def test_search_matches_sub_region():
     with p1, p2, p3:
         await _get("/api/search?q=Chianti%20Classico&zip=78209")
     assert "sub_region.ilike" in captured["clause"]
+
+
+def test_group_key_merges_vintage_variants():
+    from api.routers.search import _group_key
+    # same wine, different vintages/UPCs → same group key
+    assert _group_key("The Prisoner Red Blend") == _group_key("The Prisoner Red Blend 2021")
+    assert _group_key("The Prisoner Red Blend 2020") == _group_key("the prisoner red blend")
+    # genuinely different wines → different keys
+    assert _group_key("The Prisoner Red Blend") != _group_key("The Prisoner Cabernet Sauvignon")
