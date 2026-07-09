@@ -128,7 +128,7 @@ async def test_subregion_counts():
         {"sub_region": "Montalcino"},
         {"sub_region": None},
     ]
-    (db.table.return_value.select.return_value.eq.return_value
+    (db.table.return_value.select.return_value.eq.return_value.not_.is_.return_value
      .limit.return_value.execute.return_value) = resp_mock
     with patch("api.routers.region.get_supabase_client", return_value=db):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
@@ -148,7 +148,7 @@ async def test_subregion_counts_uses_region_alias():
     resp_mock = MagicMock()
     resp_mock.data = []
     eq_mock = db.table.return_value.select.return_value.eq
-    eq_mock.return_value.limit.return_value.execute.return_value = resp_mock
+    eq_mock.return_value.not_.is_.return_value.limit.return_value.execute.return_value = resp_mock
     with patch("api.routers.region.get_supabase_client", return_value=db):
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             resp = await ac.get("/api/region/Rh%C3%B4ne%20Valley/subregions")

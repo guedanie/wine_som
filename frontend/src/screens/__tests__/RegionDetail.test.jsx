@@ -52,9 +52,9 @@ test('renders sub-regions with live wine counts', async () => {
   });
   renderScreen('tuscany');
   expect(screen.getByText('Chianti Classico')).toBeInTheDocument();
-  await waitFor(() => expect(screen.getByText('24 wines')).toBeInTheDocument());
+  await waitFor(() => expect(screen.getByText('24 nearby')).toBeInTheDocument());
   // "Montalcino" (curated) matches "Brunello di Montalcino" (DB) by containment
-  expect(screen.getByText('18 wines')).toBeInTheDocument();
+  expect(screen.getByText('18 nearby')).toBeInTheDocument();
 });
 
 test('renders the map', () => {

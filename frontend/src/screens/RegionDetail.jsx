@@ -6,7 +6,7 @@ import {
 } from '../lib/regions.js';
 import { getSubregionCounts } from '../lib/api.js';
 import { track } from '../lib/analytics.js';
-import useIsMobile from '../lib/useIsMobile.js';
+import useIsMobile, { loadZip } from '../lib/useIsMobile.js';
 
 const STRIPE_BG = 'repeating-linear-gradient(135deg, var(--paper), var(--paper) 11px, #E6DAC2 11px, #E6DAC2 22px)';
 
@@ -62,7 +62,7 @@ export default function RegionDetail() {
 
   useEffect(() => {
     if (!region) return;
-    getSubregionCounts(region).then(d => setCounts(d.counts)).catch(() => {});
+    getSubregionCounts(region, loadZip()).then(d => setCounts(d.counts)).catch(() => {});
   }, [region]);
 
   if (!region || !detail) {
@@ -136,7 +136,7 @@ export default function RegionDetail() {
                   <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 500, color: 'var(--ink)' }}>{s2.name}</div>
                   <div style={{ fontSize: 10.5, letterSpacing: '0.12em', color: 'var(--sage)', marginTop: 2 }}>{s2.coord}</div>
                 </div>
-                {n != null && <div style={{ fontSize: 11, color: 'var(--bordeaux)', whiteSpace: 'nowrap', marginRight: 10 }}>{n} wine{n !== 1 ? 's' : ''}</div>}
+                {n != null && <div style={{ fontSize: 11, color: 'var(--bordeaux)', whiteSpace: 'nowrap', marginRight: 10 }}>{n} nearby</div>}
                 <span style={{ fontSize: 12, color: 'var(--bordeaux)', flex: 'none' }}>→</span>
               </div>
             );
@@ -259,7 +259,7 @@ export default function RegionDetail() {
                   </span>
                   {n != null && (
                     <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--faded)', marginLeft: 18, whiteSpace: 'nowrap' }}>
-                      {n} wine{n !== 1 ? 's' : ''}
+                      {n} nearby
                     </span>
                   )}
                   <span style={{ fontSize: 12, color: 'var(--bordeaux)', marginLeft: 12, flex: 'none' }}>→</span>

@@ -50,23 +50,49 @@ def _row_to_wine_item(row: Dict[str, Any], retailer: str, address: Optional[str]
 
 
 @router.get("/region/{region_name}/subregions")
-async def get_subregion_counts(region_name: str):
-    """Catalog-level wine counts grouped by sub_region for a region.
+async def get_subregion_counts(
+    region_name: str,
+    zip: Optional[str] = Query(None, description="Scope counts to wines in stock near this zip"),
+):
+    """Wine counts grouped by sub_region for a region.
 
-    Not stock-aware — counts reflect the full catalog so the Region Detail
-    page can show stable sub-region weights without a zip.
+    With a `zip`, counts only wines that are in stock at stores near that zip —
+    so the number a user sees matches what clicking it (a zip-scoped search)
+    returns. Without a zip, catalog-wide (stable weights).
     """
     db = get_supabase_client()
     db_region = _db_region_name(region_name)
     rows = (
         db.table("wines")
-        .select("sub_region")
+        .select("id, sub_region")
         .eq("region", db_region)
+        .not_.is_("sub_region", "null")
         .limit(10000)
         .execute()
-    )
+    ).data or []
+
+    if zip:
+        centroid = zip_to_centroid(zip)
+        nearby = find_nearby_store_ids(zip, db, centroid=centroid) if centroid else []
+        if not nearby:
+            return {"region": region_name, "counts": {}}
+        wine_ids = [r["id"] for r in rows]
+        available: set = set()
+        for i in range(0, len(wine_ids), 200):
+            inv = (
+                db.table("retail_inventory")
+                .select("wine_id")
+                .in_("wine_id", wine_ids[i:i + 200])
+                .in_("store_ref", nearby)
+                .eq("in_stock", True)
+                .limit(5000)
+                .execute()
+            ).data or []
+            available |= {r["wine_id"] for r in inv}
+        rows = [r for r in rows if r["id"] in available]
+
     counts: Dict[str, int] = {}
-    for row in (rows.data or []):
+    for row in rows:
         sub = row.get("sub_region")
         if sub:
             counts[sub] = counts.get(sub, 0) + 1

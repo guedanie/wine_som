@@ -47,8 +47,9 @@ export async function getRegionWines(region, zip) {
   return res.json();
 }
 
-export async function getSubregionCounts(region) {
-  const res = await fetch(`${BASE}/api/region/${encodeURIComponent(region)}/subregions`);
+export async function getSubregionCounts(region, zip) {
+  const qs = zip ? `?zip=${encodeURIComponent(zip)}` : '';
+  const res = await fetch(`${BASE}/api/region/${encodeURIComponent(region)}/subregions${qs}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
