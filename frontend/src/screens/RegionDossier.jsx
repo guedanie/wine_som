@@ -11,6 +11,7 @@ import useIsMobile from '../lib/useIsMobile.js';
 import { getWine } from '../lib/api.js';
 import DossierSaveButton from '../components/DossierSaveButton.jsx';
 import DossierCellarButton from '../components/DossierCellarButton.jsx';
+import DossierRateButton from '../components/DossierRateButton.jsx';
 
 function structureToBars(sp) {
   if (!sp) return [];
@@ -331,6 +332,9 @@ export default function RegionDossier() {
                 <DossierCellarButton wine={{ id, name: wine.name ?? pick.name, vintage_year: wine.vintage_year, region: wine.region ?? pick.region, varietal: wine.varietal, wine_type: wine.wine_type }} style={{ flex: 1, justifyContent: 'center' }} />
               </div>
               <Btn onClick={() => navigate('/discover')} style={{ justifyContent: 'center' }}>More from this region</Btn>
+              <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 4 }}>
+                <DossierRateButton wineId={id} zip={zip} />
+              </div>
             </div>
           </div>
         </div>
@@ -487,6 +491,7 @@ export default function RegionDossier() {
             <Btn onClick={() => navigate('/discover')}>More from this region</Btn>
             <DossierSaveButton wineId={id} name={pick.name} />
             <DossierCellarButton wine={{ id, name: wine.name ?? pick.name, vintage_year: wine.vintage_year, region: wine.region ?? pick.region, varietal: wine.varietal, wine_type: wine.wine_type }} />
+            <div style={{ marginLeft: 'auto' }}><DossierRateButton wineId={id} zip={zip} /></div>
           </div>
         </div>
       </div>
