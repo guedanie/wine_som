@@ -4,10 +4,14 @@
 import { supabase } from './supabase.js';
 import { drinkingWindow } from './drinkingWindow.js';
 
-export async function listCellar(userId, { includeConsumed = false } = {}) {
+// sort: 'window' (drink soonest first — most actionable), 'added', or 'vintage'.
+export async function listCellar(userId, { includeConsumed = false, sort = 'window' } = {}) {
   if (!supabase || !userId) return [];
-  let q = supabase.from('cellar').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+  let q = supabase.from('cellar').select('*').eq('user_id', userId);
   if (!includeConsumed) q = q.eq('status', 'owned');
+  if (sort === 'added')        q = q.order('created_at', { ascending: false });
+  else if (sort === 'vintage') q = q.order('vintage', { ascending: false, nullsFirst: false });
+  else                         q = q.order('drink_to', { ascending: true, nullsFirst: false });  // window (default)
   const { data, error } = await q;
   return error ? [] : (data || []);
 }

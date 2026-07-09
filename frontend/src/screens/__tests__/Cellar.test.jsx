@@ -43,7 +43,7 @@ test('renders a bottle with its drinking-window label', async () => {
   renderCellar();
   await waitFor(() => expect(screen.getByText('Barolo Riserva')).toBeInTheDocument());
   expect(screen.getByText('2015')).toBeInTheDocument();
-  expect(screen.getByText(/Peak|Drink|Hold/)).toBeInTheDocument();  // window label
+  expect(screen.getByText(/Peak 20\d\d/)).toBeInTheDocument();  // window label (not the sort option)
 });
 
 test('"drank it" logs a consumed bottle', async () => {

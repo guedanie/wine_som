@@ -52,11 +52,12 @@ export default function Cellar() {
   const [bottles, setBottles] = useState(null);   // null = loading
   const [adding, setAdding] = useState(false);
   const [rating, setRating] = useState(null);     // { bottle } after "Drank it" → quick 👍/👎
+  const [sort, setSort] = useState('window');     // drink-soon-first by default
 
   const refresh = useCallback(() => {
     if (!user) { setBottles([]); return; }
-    listCellar(user.id).then(setBottles);
-  }, [user]);
+    listCellar(user.id, { sort }).then(setBottles);
+  }, [user, sort]);
   useEffect(() => { refresh(); }, [refresh]);
 
   const pad = isMobile ? '18px 16px 48px' : '28px 36px 64px';
@@ -98,10 +99,18 @@ export default function Cellar() {
           </div>
           <div style={{ fontFamily: 'var(--font-serif)', fontSize: 28, color: 'var(--ink)', marginTop: 4 }}>What you're holding</div>
         </div>
-        <button onClick={() => setAdding(true)}
-          style={{ background: 'transparent', border: '1.5px solid var(--bordeaux)', color: 'var(--bordeaux)', borderRadius: 0, padding: '9px 16px', fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 600, cursor: 'pointer', flex: 'none' }}>
-          + Add bottle
-        </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 'none' }}>
+          <select value={sort} onChange={e => setSort(e.target.value)} aria-label="Sort cellar"
+            style={{ border: '1px solid var(--border)', background: 'var(--cream)', borderRadius: 0, padding: '8px 10px', fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--ink-2)', cursor: 'pointer' }}>
+            <option value="window">Drink soonest</option>
+            <option value="added">Recently added</option>
+            <option value="vintage">Vintage</option>
+          </select>
+          <button onClick={() => setAdding(true)}
+            style={{ background: 'transparent', border: '1.5px solid var(--bordeaux)', color: 'var(--bordeaux)', borderRadius: 0, padding: '9px 16px', fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            + Add bottle
+          </button>
+        </div>
       </div>
 
       {bottles === null ? (
