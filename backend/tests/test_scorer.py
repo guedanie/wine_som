@@ -229,3 +229,36 @@ def test_disliked_wine_penalizes_similar_candidates():
     assert result[0]["name"] == "Chianti"                 # the disliked-resembling wine is pushed down
     assert next(w for w in result if w["name"] == "Napa Chardonnay")["_score"] < \
            next(w for w in result if w["name"] == "Chianti")["_score"]
+
+
+# ── Taste-profile scorer integration (profile fills what the request omits) ──
+
+def test_profile_regions_love_boosts_loved_region():
+    # favored wine listed SECOND — only the profile boost can lift it to the top
+    prof = {"regions_love": ["Rhône"], "completed_at": "x"}
+    other = _wine("Other", region="Paso Robles", varietal="Grenache", grapes=["Grenache"])
+    loved = _wine("Loved", region="Rhône", varietal="Grenache", grapes=["Grenache"])
+    res = score_candidates({**_intent(), "profile": prof}, [other, loved])
+    assert res[0]["name"] == "Loved"
+
+
+def test_profile_body_boosts_matching_body():
+    prof = {"body": "full", "completed_at": "x"}
+    res = score_candidates({**_intent(), "profile": prof}, [_wine("Light", body="light"), _wine("Full", body="full")])
+    assert res[0]["name"] == "Full"
+
+
+def test_profile_lean_boosts_matching_type():
+    prof = {"lean": "crisp_white", "completed_at": "x"}
+    res = score_candidates({**_intent(), "profile": prof},
+                           [_wine("Red", wine_type="red"), _wine("White", wine_type="white", varietal="Chardonnay")])
+    assert res[0]["name"] == "White"
+
+
+def test_profile_ignored_when_request_specifies_that_dimension():
+    # request explicitly wants white → a bold_red lean must add nothing to reds
+    prof = {"lean": "bold_red", "completed_at": "x"}
+    red = _wine("Red", wine_type="red")
+    with_prof = score_candidates({**_intent(wine_type="white"), "profile": prof}, [red])[0]["_score"]
+    without   = score_candidates({**_intent(wine_type="white")}, [red])[0]["_score"]
+    assert with_prof == without

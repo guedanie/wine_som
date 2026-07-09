@@ -19,6 +19,17 @@ _W_SIMILAR = 2.5         # max personalization boost for resembling a wine the u
 _W_DISLIKE = 2.0         # max penalty for resembling a wine the user disliked (thumbs-down)
 _SIM_FULL = 3.0          # raw-similarity value that earns the full boost/penalty
 
+# Taste-profile nudges — softer than an explicit request, and only fill a
+# dimension the request left unspecified (the request always wins).
+_W_PROFILE_REGION = 1.0
+_W_PROFILE_BODY = 1.0
+_W_PROFILE_LEAN = 0.75
+_LEAN_TYPES = {
+    "bold_red": {"red"}, "elegant_red": {"red"},
+    "crisp_white": {"white"}, "rich_white": {"white"},
+    "rose_sparkling": {"rosé", "rose", "sparkling"},
+}
+
 
 def _norm_liked(liked_wines) -> List[Dict[str, Any]]:
     """Normalize the user's liked wines once (grapes/region/flavors as sets)."""
@@ -60,6 +71,16 @@ def _body_from_structure(sp: Dict[str, Any]) -> str:
     return "light"
 
 
+def _resolve_body(wine: Dict[str, Any], tags: set) -> str:
+    """Best available body: explicit field → real numeric structure → grape+region
+    table → inferred from flavor tags."""
+    return (wine.get("body")
+            or _body_from_structure(wine.get("structure_profile"))
+            or _body_from_structure(
+                structure_for(wine.get("varietal"), wine.get("grapes"), wine.get("region")))
+            or infer_body(tags))
+
+
 def _norm(s: str) -> str:
     s = unicodedata.normalize("NFKD", s or "")
     s = "".join(ch for ch in s if not unicodedata.combining(ch))  # strip accents
@@ -80,6 +101,11 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
     liked = _norm_liked(intent.get("liked_wines"))
     disliked = _norm_liked(intent.get("disliked_wines"))
 
+    profile = intent.get("profile") or {}
+    p_regions = {_norm(r) for r in (profile.get("regions_love") or [])}
+    p_body = profile.get("body")
+    p_lean = profile.get("lean")
+
     scored = []
     for wine in candidates:
         tags = flavor_tags_for(wine.get("varietal"), wine.get("grapes"), wine.get("region"))
@@ -98,15 +124,10 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
         if want_type and wine.get("wine_type") == want_type:
             score += _W_TYPE
 
+        resolved_body = None
         if want_body:
-            # Real structure (Vivino/GrapeMinds) wins; else the deterministic
-            # grape+region table (more precise than tag-based infer_body); else tags.
-            body = (wine.get("body")
-                    or _body_from_structure(wine.get("structure_profile"))
-                    or _body_from_structure(
-                        structure_for(wine.get("varietal"), wine.get("grapes"), wine.get("region")))
-                    or infer_body(tags))
-            if body == want_body:
+            resolved_body = _resolve_body(wine, tags)
+            if resolved_body == want_body:
                 score += _W_BODY
 
         if want_grapes and (want_grapes & grapes):
@@ -133,6 +154,20 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
         rating = wine.get("vivino_rating")
         if rating and (wine.get("vivino_ratings_count") or 0) >= _MIN_RATINGS:
             score += _W_RATING * max(0.0, min(1.0, (rating - 3.5) / 1.5))
+
+        # Taste profile — soft nudges that only fill a dimension the explicit
+        # request left unspecified (the request always wins).
+        if profile:
+            if p_regions and not want_region and region and any(
+                    r and (r in region or region in r) for r in p_regions):
+                score += _W_PROFILE_REGION
+            if p_body and not want_body:
+                if resolved_body is None:
+                    resolved_body = _resolve_body(wine, tags)
+                if resolved_body == p_body:
+                    score += _W_PROFILE_BODY
+            if p_lean and not want_type and wine.get("wine_type") in _LEAN_TYPES.get(p_lean, set()):
+                score += _W_PROFILE_LEAN
 
         # Personalization: resemblance to a wine the user liked (not itself).
         similar_to = similar_source = None
