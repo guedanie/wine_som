@@ -13,6 +13,9 @@ const { listCellar, drinkBottle, removeBottle } = vi.hoisted(() => ({
 }));
 vi.mock('../../lib/cellar.js', () => ({ listCellar, drinkBottle, removeBottle }));
 
+const { postFeedback } = vi.hoisted(() => ({ postFeedback: vi.fn() }));
+vi.mock('../../lib/api.js', () => ({ postFeedback }));
+
 import Cellar from '../Cellar.jsx';
 
 const renderCellar = () => render(<MemoryRouter><Cellar /></MemoryRouter>);
@@ -49,4 +52,15 @@ test('"drank it" logs a consumed bottle', async () => {
   await waitFor(() => screen.getByText('Barolo Riserva'));
   await userEvent.click(screen.getByRole('button', { name: /drank/i }));
   expect(drinkBottle).toHaveBeenCalledWith('u1', expect.objectContaining({ id: 'c1' }));
+});
+
+test('rating the wine you just drank records feedback (catalog wine)', async () => {
+  postFeedback.mockClear();
+  listCellar.mockResolvedValue([{ ...bottle, wine_id: 'cw1' }]);
+  renderCellar();
+  await waitFor(() => screen.getByText('Barolo Riserva'));
+  await userEvent.click(screen.getByRole('button', { name: /drank/i }));
+  const up = await screen.findByRole('button', { name: /loved it/i });   // rating prompt appeared
+  await userEvent.click(up);
+  expect(postFeedback).toHaveBeenCalledWith(expect.objectContaining({ type: 'wine_card', entity_id: 'cw1', vote: 'up' }));
 });

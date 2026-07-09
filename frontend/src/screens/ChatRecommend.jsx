@@ -216,7 +216,7 @@ export default function ChatRecommend() {
     const next    = current === direction ? null : direction;
     setWineVotes(prev => ({ ...prev, [wineId]: next }));
     track('feedback_voted', { type: 'wine_card', vote: next });
-    postFeedback({ type: 'wine_card', entity_id: wineId, vote: next, session_id: sessionId, zip: prefs.zip });
+    postFeedback({ type: 'wine_card', entity_id: wineId, vote: next, session_id: sessionId, user_id: user?.id ?? null, zip: prefs.zip });
   }
 
   function handleMessageVote(messageId, direction) {
@@ -231,7 +231,7 @@ export default function ChatRecommend() {
         noFeedback: true,
       }]);
     }
-    postFeedback({ type: 'sommelier_message', entity_id: messageId, vote: next, session_id: sessionId, zip: prefs.zip });
+    postFeedback({ type: 'sommelier_message', entity_id: messageId, vote: next, session_id: sessionId, user_id: user?.id ?? null, zip: prefs.zip });
   }
 
   const handleFollowup = (text) => {

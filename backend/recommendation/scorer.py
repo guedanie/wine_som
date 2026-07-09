@@ -16,7 +16,8 @@ _W_TIER = 0.5
 _W_RATING = 1.5          # max community-rating boost (never a penalty)
 _MIN_RATINGS = 25        # below this, the rating is noise — ignore it
 _W_SIMILAR = 2.5         # max personalization boost for resembling a wine the user liked
-_SIM_FULL = 3.0          # raw-similarity value that earns the full boost
+_W_DISLIKE = 2.0         # max penalty for resembling a wine the user disliked (thumbs-down)
+_SIM_FULL = 3.0          # raw-similarity value that earns the full boost/penalty
 
 
 def _norm_liked(liked_wines) -> List[Dict[str, Any]]:
@@ -77,6 +78,7 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
     want_flavors = {_norm(f) for f in (intent.get("flavors") or [])}
     avoid = [_norm(a) for a in (intent.get("avoid") or [])]
     liked = _norm_liked(intent.get("liked_wines"))
+    disliked = _norm_liked(intent.get("disliked_wines"))
 
     scored = []
     for wine in candidates:
@@ -146,6 +148,16 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
                 score += _W_SIMILAR * min(1.0, best / _SIM_FULL)
             else:
                 similar_to = similar_source = None
+
+        # Resembling a wine the user thumbs-downed pushes it down.
+        if disliked:
+            worst = 0.0
+            for dw in disliked:
+                if dw["wine_id"] and dw["wine_id"] == wine.get("wine_id"):
+                    continue
+                worst = max(worst, _similarity(grapes, region, tags, dw))
+            if worst >= 1.0:
+                score -= _W_DISLIKE * min(1.0, worst / _SIM_FULL)
 
         scored.append({**wine, "_score": score, "_similar_to": similar_to, "_similar_source": similar_source})
 

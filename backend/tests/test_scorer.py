@@ -218,3 +218,14 @@ def test_no_liked_wines_leaves_scoring_unchanged():
     cand = _wine("Plain", varietal="Merlot", grapes=["Merlot"], region="Bordeaux")
     result = score_candidates(_intent(), [cand])
     assert result[0].get("_similar_to") is None
+
+
+def test_disliked_wine_penalizes_similar_candidates():
+    intent = _intent()
+    intent["disliked_wines"] = [{"name": "Oaky Chard", "wine_id": "d1", "varietal": "Chardonnay", "region": "Napa"}]
+    similar   = _wine("Napa Chardonnay", wine_type="white", varietal="Chardonnay", grapes=["Chardonnay"], region="Napa")
+    unrelated = _wine("Chianti", varietal="Sangiovese", grapes=["Sangiovese"], region="Tuscany")
+    result = score_candidates(intent, [similar, unrelated])
+    assert result[0]["name"] == "Chianti"                 # the disliked-resembling wine is pushed down
+    assert next(w for w in result if w["name"] == "Napa Chardonnay")["_score"] < \
+           next(w for w in result if w["name"] == "Chianti")["_score"]

@@ -34,3 +34,21 @@ test('nothing saved/owned → null', async () => {
   listCellar.mockResolvedValue([]);
   expect(await buildTasteContext('u1')).toBeNull();
 });
+
+import { _mapVotedWines } from '../taste.js';
+
+test('_mapVotedWines splits up/down, hydrates, dedups', () => {
+  const votes = [
+    { entity_id: 'w1', vote: 'up' }, { entity_id: 'w1', vote: 'up' },
+    { entity_id: 'w2', vote: 'down' }, { entity_id: 'ghost', vote: 'up' },
+  ];
+  const byId = {
+    w1: { id: 'w1', name: 'Loved', varietal: 'Nebbiolo', region: 'Piedmont' },
+    w2: { id: 'w2', name: 'Nope', varietal: 'Chardonnay', region: 'Napa' },
+  };
+  const { up, down } = _mapVotedWines(votes, byId);
+  expect(up).toHaveLength(1);
+  expect(up[0]).toMatchObject({ name: 'Loved', source: 'upvoted', varietal: 'Nebbiolo' });
+  expect(down).toHaveLength(1);
+  expect(down[0]).toMatchObject({ name: 'Nope', source: 'downvoted' });
+});

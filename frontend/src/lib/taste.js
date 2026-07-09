@@ -1,31 +1,66 @@
 import { listFavorites } from './favorites.js';
 import { listCellar } from './cellar.js';
+import { supabase } from './supabase.js';
 
 // Gather the user's liked/owned wines into a compact taste context the
 // recommendation engine uses to personalize + cite ("close to X you saved").
-// Saved (rich: varietal/grapes/region) + cellar (name/region) for now; feedback
-// thumbs later. Capped so the prompt stays lean.
-export async function buildTasteContext(userId, { cap = 12 } = {}) {
-  if (!userId) return null;
-  const [saved, cellar] = await Promise.all([listFavorites(userId), listCellar(userId)]);
+// Signals: 👍 upvoted picks (strongest) + saved + cellar → liked; 👎 downvoted
+// → disliked (scorer penalizes resemblance). Capped so the prompt stays lean.
 
-  const liked = [];
-  for (const f of saved || []) {
-    const w = f.wines || {};
-    liked.push({ name: w.name, wine_id: w.id ?? f.wine_id, varietal: w.varietal ?? null, region: w.region ?? null, grapes: w.grapes ?? null, source: 'saved' });
+// Pure: split feedback votes into liked/disliked wine objects (hydrated).
+export function _mapVotedWines(votes, winesById) {
+  const up = [], down = [], seenUp = new Set(), seenDown = new Set();
+  for (const v of votes || []) {
+    const w = winesById[v.entity_id];
+    if (!w) continue;
+    const wine = { name: w.name, wine_id: w.id, varietal: w.varietal ?? null, region: w.region ?? null, grapes: w.grapes ?? null };
+    if (v.vote === 'up' && !seenUp.has(w.id)) { seenUp.add(w.id); up.push({ ...wine, source: 'upvoted' }); }
+    if (v.vote === 'down' && !seenDown.has(w.id)) { seenDown.add(w.id); down.push({ ...wine, source: 'downvoted' }); }
   }
-  for (const b of cellar || []) {
-    liked.push({ name: b.name, wine_id: b.wine_id ?? null, varietal: null, region: b.region ?? null, grapes: null, source: 'cellar' });
-  }
+  return { up, down };
+}
 
-  const seen = new Set();
-  const out = [];
-  for (const lw of liked) {
+async function fetchVotedWines() {
+  if (!supabase) return { up: [], down: [] };
+  // RLS scopes feedback rows to the signed-in user.
+  const { data: votes, error } = await supabase
+    .from('feedback').select('entity_id, vote').eq('type', 'wine_card').not('vote', 'is', null);
+  if (error || !votes?.length) return { up: [], down: [] };
+  const ids = [...new Set(votes.map(v => v.entity_id))];
+  const { data: wines } = await supabase
+    .from('wines').select('id, name, varietal, region, grapes').in('id', ids);
+  const byId = Object.fromEntries((wines || []).map(w => [w.id, w]));
+  return _mapVotedWines(votes, byId);
+}
+
+function dedupeCap(wines, cap) {
+  const seen = new Set(), out = [];
+  for (const lw of wines) {
     const key = lw.wine_id || lw.name;
     if (!key || seen.has(key)) continue;
-    seen.add(key);
-    out.push(lw);
+    seen.add(key); out.push(lw);
     if (out.length >= cap) break;
   }
-  return out.length ? { liked_wines: out } : null;
+  return out;
+}
+
+export async function buildTasteContext(userId, { cap = 12 } = {}) {
+  if (!userId) return null;
+  const [saved, cellar, voted] = await Promise.all([
+    listFavorites(userId), listCellar(userId), fetchVotedWines(),
+  ]);
+
+  const likedRaw = [
+    ...voted.up,                                                   // 👍 strongest — keep first
+    ...(saved || []).map(f => {
+      const w = f.wines || {};
+      return { name: w.name, wine_id: w.id ?? f.wine_id, varietal: w.varietal ?? null, region: w.region ?? null, grapes: w.grapes ?? null, source: 'saved' };
+    }),
+    ...(cellar || []).map(b => ({ name: b.name, wine_id: b.wine_id ?? null, varietal: null, region: b.region ?? null, grapes: null, source: 'cellar' })),
+  ];
+
+  const liked_wines = dedupeCap(likedRaw, cap);
+  const disliked_wines = dedupeCap(voted.down, 8);
+
+  return (liked_wines.length || disliked_wines.length) ? { liked_wines, disliked_wines } : null;
 }

@@ -255,6 +255,7 @@ async def recommend(req: RecommendRequest):
     resolved = merge_intent(parsed, explicit)
     resolved["message"] = req.message
     resolved["liked_wines"] = (req.taste or {}).get("liked_wines") or []
+    resolved["disliked_wines"] = (req.taste or {}).get("disliked_wines") or []
 
     preferred_retailer = _detect_retailer(req.message)
     if preferred_retailer:
