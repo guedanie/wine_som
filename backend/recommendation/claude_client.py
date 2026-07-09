@@ -244,6 +244,24 @@ def _build_user_message(
 
     message_line = f"My request: {user_message}\n\n" if not is_default else ""
 
+    # Explicit "your wines" context so the Somm can converse about the person's
+    # cellar/saved directly ("looking at your cellar…"), not just via per-pick tags.
+    your_wines = ""
+    liked = intent.get("liked_wines") or []
+    if liked:
+        _src = {"saved": "saved", "cellar": "in your cellar", "upvoted": "you rated ↑"}
+        lines = []
+        for lw in liked[:10]:
+            desc = ", ".join(p for p in [lw.get("varietal") or "", lw.get("region") or ""] if p)
+            src = _src.get(lw.get("source"), "you liked")
+            lines.append(f"- {lw.get('name')}" + (f" ({desc})" if desc else "") + f" — {src}")
+        your_wines = (
+            "\n\n[Your wines — the person's saved bottles, cellar, and highly-rated picks]\n"
+            + "\n".join(lines)
+            + "\nYou CAN reference these directly (\"looking at your cellar…\", \"since you loved the X…\"); "
+            "use them to steer the pick and explain the fit."
+        )
+
     followup_directive = (
         _FOLLOWUP_CONVERSATIONAL_DIRECTIVE
         if conversational and conversation_history else ""
@@ -264,7 +282,7 @@ def _build_user_message(
         f"{message_line}"
         f"Budget: ${budget_min:.0f}–${budget_max:.0f}. "
         f"Looking for:{type_str} {style_str}. "
-        f"Avoiding: {avoid_str}.\n\n"
+        f"Avoiding: {avoid_str}.{your_wines}\n\n"
         f"Here are the wines currently available:\n\n{listings}\n\n"
         f"Recommend the wines from the list that genuinely fit my intent — up to 4, but "
         f"fewer is better than padding. If only one wine truly matches, recommend just "

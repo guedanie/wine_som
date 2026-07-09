@@ -304,3 +304,23 @@ def test_no_citation_instruction_without_similarity():
     cands = [{"wine_id": "w1", "name": "X", "price": 30, "retailer": "Spec's", "varietal": "Grenache"}]
     msg = _build_user_message(cands, {"message": "something bold"})
     assert "resembles the" not in msg.lower()
+
+
+# ── "Your wines" context so the Somm can converse about the cellar/saved ──
+
+def test_build_user_message_includes_your_wines_block():
+    msg = _build_user_message(_CANDS, {
+        "message": "something bold",
+        "liked_wines": [
+            {"name": "Barolo Riserva", "varietal": "Nebbiolo", "region": "Piedmont", "source": "cellar"},
+            {"name": "Esprit de Tablas", "varietal": "Grenache", "region": "Paso Robles", "source": "saved"},
+        ],
+    })
+    assert "Barolo Riserva" in msg
+    assert "cellar" in msg.lower()
+    assert "your wines" in msg.lower() or "your bottles" in msg.lower()
+
+
+def test_no_your_wines_block_without_liked():
+    msg = _build_user_message(_CANDS, {"message": "something bold"})
+    assert "your wines" not in msg.lower()

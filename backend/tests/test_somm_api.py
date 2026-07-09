@@ -136,3 +136,22 @@ async def test_somm_with_history():
     call_kwargs = mock_client.messages.stream.call_args[1]
     messages_sent = call_kwargs["messages"]
     assert any(m["role"] == "user" and "Should I decant it?" in m["content"] for m in messages_sent)
+
+
+def test_system_prompt_includes_user_wines_when_taste_present():
+    from api.routers.somm import _system_prompt
+    from api.schemas import SommWineContext
+    wine = SommWineContext(wine_name="Coudoulet de Beaucastel", region="Rhône")
+    taste = {"liked_wines": [
+        {"name": "Barolo Riserva", "varietal": "Nebbiolo", "region": "Piedmont", "source": "cellar"},
+    ]}
+    sp = _system_prompt(wine, taste)
+    assert "Barolo Riserva" in sp
+    assert "cellar" in sp.lower()
+
+
+def test_system_prompt_no_user_wines_without_taste():
+    from api.routers.somm import _system_prompt
+    from api.schemas import SommWineContext
+    sp = _system_prompt(SommWineContext(wine_name="X"), None)
+    assert "cellar" not in sp.lower()

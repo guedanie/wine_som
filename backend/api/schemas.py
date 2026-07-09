@@ -94,3 +94,4 @@ class SommRequest(BaseModel):
     wine: SommWineContext
     message: str
     history: Optional[List[Dict[str, Any]]] = None
+    taste: Optional[Dict[str, Any]] = None   # personalization: {liked_wines:[...]} — the person's cellar/saved

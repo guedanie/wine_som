@@ -74,13 +74,13 @@ export function postFeedback(payload) {
   }).catch(() => {});
 }
 
-export async function* streamSomm({ wine, message, history }) {
+export async function* streamSomm({ wine, message, history, taste }) {
   let resp;
   try {
     resp = await fetch(`${BASE}/api/somm`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ wine, message, history }),
+      body: JSON.stringify({ wine, message, history, taste }),
     });
   } catch {
     yield { type: 'error', message: 'Connection failed' };

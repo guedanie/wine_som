@@ -6,6 +6,8 @@ import useIsMobile from '../lib/useIsMobile.js';
 import uuid from '../lib/uuid.js';
 import Tag from './Tag.jsx';
 import { streamSomm, postFeedback } from '../lib/api.js';
+import { useAuth } from '../lib/auth.jsx';
+import { buildTasteContext } from '../lib/taste.js';
 
 const _EASE = 'all 140ms cubic-bezier(.25,.46,.45,.94)';
 
@@ -93,6 +95,7 @@ function UserBubble({ children }) {
 
 export default function SommOverlay({ wine }) {
   const isMobile = useIsMobile();
+  const { user } = useAuth();
   const [open,         setOpen]         = useState(false);
   const [messages,     setMessages]     = useState([]);
   const [messageVotes, setMessageVotes] = useState({});
@@ -124,7 +127,8 @@ export default function SommOverlay({ wine }) {
     setLoading(true);
     let firstToken = true;
     try {
-      for await (const event of streamSomm({ wine, message, history })) {
+      const taste = user ? await buildTasteContext(user.id) : null;
+      for await (const event of streamSomm({ wine, message, history, taste })) {
         if (event.type === 'token') {
           if (firstToken) {
             firstToken = false;

@@ -19,7 +19,25 @@ _MODEL = "claude-haiku-4-5-20251001"
 _MAX_TOKENS = 512
 
 
-def _system_prompt(wine) -> str:
+def _your_wines_block(taste) -> str:
+    """Compact list of the person's cellar/saved/rated wines so the Somm can
+    reference them directly ("looking at your cellar…")."""
+    liked = (taste or {}).get("liked_wines") or []
+    if not liked:
+        return ""
+    src = {"saved": "saved", "cellar": "in your cellar", "upvoted": "you rated up"}
+    lines = []
+    for lw in liked[:10]:
+        desc = ", ".join(p for p in [lw.get("varietal") or "", lw.get("region") or ""] if p)
+        tag = src.get(lw.get("source"), "you liked")
+        lines.append(f"- {lw.get('name')}" + (f" ({desc})" if desc else "") + f" — {tag}")
+    return (
+        "\n\nThe person's own wines (their cellar, saved bottles, and highly-rated picks) — "
+        "you can reference these directly:\n" + "\n".join(lines)
+    )
+
+
+def _system_prompt(wine, taste=None) -> str:
     parts = [f"Wine: {wine.wine_name}"]
     if wine.producer:  parts.append(f"Producer: {wine.producer}")
     if wine.vintage:   parts.append(f"Vintage: {wine.vintage}")
@@ -35,7 +53,8 @@ def _system_prompt(wine) -> str:
     return (
         "You are a sommelier assistant — knowledgeable, opinionated, direct. "
         "The user is currently viewing this wine:\n\n"
-        f"{context}\n\n"
+        f"{context}"
+        f"{_your_wines_block(taste)}\n\n"
         "Keep responses to 2–3 sentences. Lead with the wine's most distinctive characteristic. "
         "Be specific about flavors, structure, and place. Never use filler phrases."
     )
@@ -58,7 +77,7 @@ def _build_messages(req: SommRequest) -> list:
 
 @router.post("", status_code=200, dependencies=[Depends(limit_dependency(_somm_limiter, "somm"))])
 async def ask_somm(req: SommRequest):
-    system = _system_prompt(req.wine)
+    system = _system_prompt(req.wine, req.taste)
     messages = _build_messages(req)
 
     def event_gen():
