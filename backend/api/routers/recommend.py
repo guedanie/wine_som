@@ -256,6 +256,7 @@ async def recommend(req: RecommendRequest):
     resolved["message"] = req.message
     resolved["liked_wines"] = (req.taste or {}).get("liked_wines") or []
     resolved["disliked_wines"] = (req.taste or {}).get("disliked_wines") or []
+    resolved["profile"] = (req.taste or {}).get("profile") or None
 
     preferred_retailer = _detect_retailer(req.message)
     if preferred_retailer:

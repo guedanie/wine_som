@@ -1,5 +1,6 @@
 import { listFavorites } from './favorites.js';
 import { listCellar } from './cellar.js';
+import { getTasteProfile } from './profile.js';
 import { supabase } from './supabase.js';
 
 // Gather the user's liked/owned wines into a compact taste context the
@@ -46,8 +47,8 @@ function dedupeCap(wines, cap) {
 
 export async function buildTasteContext(userId, { cap = 12 } = {}) {
   if (!userId) return null;
-  const [saved, cellar, voted] = await Promise.all([
-    listFavorites(userId), listCellar(userId), fetchVotedWines(),
+  const [saved, cellar, voted, profile] = await Promise.all([
+    listFavorites(userId), listCellar(userId), fetchVotedWines(), getTasteProfile(userId),
   ]);
 
   const likedRaw = [
@@ -61,6 +62,7 @@ export async function buildTasteContext(userId, { cap = 12 } = {}) {
 
   const liked_wines = dedupeCap(likedRaw, cap);
   const disliked_wines = dedupeCap(voted.down, 8);
+  const p = profile?.completed_at ? profile : null;
 
-  return (liked_wines.length || disliked_wines.length) ? { liked_wines, disliked_wines } : null;
+  return (liked_wines.length || disliked_wines.length || p) ? { liked_wines, disliked_wines, profile: p } : null;
 }

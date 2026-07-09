@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
 import { listCellar } from '../lib/cellar.js';
+import { getTasteProfile } from '../lib/profile.js';
 import Stamp from '../components/Stamp.jsx';
 import { loadZip } from '../lib/useIsMobile.js';
 
@@ -11,9 +12,11 @@ export default function Account() {
   const { authState, user, savedIds, requireSignIn, signOut } = useAuth();
   const navigate = useNavigate();
   const [cellarCount, setCellarCount] = useState(null);
+  const [hasTaste, setHasTaste] = useState(null);
   useEffect(() => {
     if (!user) return;
     listCellar(user.id).then(rows => setCellarCount(rows.reduce((n, b) => n + (b.quantity || 1), 0)));
+    getTasteProfile(user.id).then(p => setHasTaste(!!p?.completed_at));
   }, [user]);
 
   if (authState !== 'signed_in') {
@@ -93,7 +96,7 @@ export default function Account() {
       <div style={{ borderTop: '1px solid var(--border)', marginTop: 8 }}>
         <LinkRow label="Saved bottles" value={savedIds.length} onClick={() => navigate('/saved')} />
         <LinkRow label="Cellar" value={cellar} onClick={() => navigate('/cellar')} />
-        <LinkRow label="Taste profile" value="Soon" valueColor="var(--sage)" disabled />
+        <LinkRow label="Taste profile" value={hasTaste ? 'Update' : 'Start'} valueColor="var(--bordeaux)" onClick={() => navigate('/taste')} />
       </div>
 
       {/* Sign out */}

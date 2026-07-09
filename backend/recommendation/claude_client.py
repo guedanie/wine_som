@@ -212,6 +212,35 @@ _FOLLOWUP_CONVERSATIONAL_DIRECTIVE = (
 )
 
 
+_LEAN = {"bold_red": "bold reds", "elegant_red": "elegant reds", "crisp_white": "crisp whites",
+         "rich_white": "rich whites", "rose_sparkling": "rosé & sparkling", "everything": "a bit of everything"}
+_BODY = {"light": "light-bodied", "medium": "medium-bodied", "full": "full-bodied"}
+_SWEET = {"dry": "bone dry", "offdry": "dry, a touch of sweetness ok", "sweet": "enjoys sweeter wines"}
+_ADV = {"loyal": "loyal to familiar favorites", "open": "open to a nudge", "surprise": "wants to be surprised"}
+
+
+def _taste_profile_block(profile: Optional[Dict[str, Any]]) -> str:
+    """The Somm-interview palate profile, rendered as durable context to weight
+    the pick toward (distinct from this turn's request)."""
+    if not profile:
+        return ""
+    lines = []
+    if profile.get("lean"):        lines.append(f"- Leans toward: {_LEAN.get(profile['lean'], profile['lean'])}")
+    if profile.get("body"):        lines.append(f"- Prefers: {_BODY.get(profile['body'], profile['body'])}")
+    if profile.get("sweetness"):   lines.append(f"- Sweetness: {_SWEET.get(profile['sweetness'], profile['sweetness'])}")
+    if profile.get("adventurous"): lines.append(f"- Style: {_ADV.get(profile['adventurous'], profile['adventurous'])}")
+    if profile.get("regions_love"): lines.append(f"- Loves regions: {', '.join(profile['regions_love'])}")
+    if profile.get("avoid"):       lines.append(f"- Steers clear of: {', '.join(profile['avoid'])}")
+    if not lines:
+        return ""
+    return (
+        "\n\n[Their taste profile — a durable palate they set with me]\n"
+        + "\n".join(lines)
+        + "\nWeight the pick toward this profile and honor what they avoid; "
+        "you may nod to it (\"tuned to your palate…\"). This turn's request still leads."
+    )
+
+
 def _build_user_message(
     candidates: List[Dict[str, Any]],
     intent: Dict[str, Any],
@@ -282,7 +311,7 @@ def _build_user_message(
         f"{message_line}"
         f"Budget: ${budget_min:.0f}–${budget_max:.0f}. "
         f"Looking for:{type_str} {style_str}. "
-        f"Avoiding: {avoid_str}.{your_wines}\n\n"
+        f"Avoiding: {avoid_str}.{_taste_profile_block(intent.get('profile'))}{your_wines}\n\n"
         f"Here are the wines currently available:\n\n{listings}\n\n"
         f"Recommend the wines from the list that genuinely fit my intent — up to 4, but "
         f"fewer is better than padding. If only one wine truly matches, recommend just "

@@ -324,3 +324,23 @@ def test_build_user_message_includes_your_wines_block():
 def test_no_your_wines_block_without_liked():
     msg = _build_user_message(_CANDS, {"message": "something bold"})
     assert "your wines" not in msg.lower()
+
+
+# ── Taste-profile block (the conversational interview → recommendations) ──
+
+def test_build_user_message_includes_taste_profile():
+    msg = _build_user_message(_CANDS, {
+        "message": "something for tonight",
+        "profile": {
+            "lean": "bold_red", "body": "full", "sweetness": "dry",
+            "adventurous": "open", "regions_love": ["Napa"], "avoid": ["Oaky Chardonnay"],
+        },
+    })
+    assert "palate" in msg.lower() or "taste profile" in msg.lower()
+    assert "Napa" in msg
+    assert "Oaky Chardonnay" in msg
+
+
+def test_no_taste_profile_block_without_profile():
+    msg = _build_user_message(_CANDS, {"message": "something"})
+    assert "taste profile" not in msg.lower()
