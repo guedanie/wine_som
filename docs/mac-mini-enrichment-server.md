@@ -57,3 +57,20 @@ setup and no Full Disk Access grant needed.
   blend structure/sweetness hybrid pass.
 
 See root CLAUDE.md (Local Vivino launchd job, Local LLM Extraction sections).
+
+## Handoff state (2026-07-09 — laptop jobs stopped, resume on the mini)
+Both laptop enrichment jobs were deliberately stopped 2026-07-09 to migrate here:
+
+- **Facts extraction (qwen2.5:7b)**: stopped mid-run at 2,310/6,463 (~2,054
+  written that run). Fully resumable — `--null-only` picks up exactly where it
+  left off. Catalog state at stop: **5,516 of 17,619 wines still NULL varietal**.
+  Resume: `EXTRACTOR_BACKEND=ollama python3 -m enrichment.extraction.run_extraction --null-only`
+  (from `backend/`, Ollama running, model pulled: `ollama pull qwen2.5:7b`).
+- **After extraction finishes**: run `python3 scripts/persist_structure.py` —
+  the laptop had a watcher armed for this; it was killed with the job, so on the
+  mini either chain it manually or script the same until-loop.
+- **Vivino**: launchd plist + wrapper ready (step 5 above, path edits required).
+  ~16.6k wines have never been Vivino-attempted (`vivino_enriched_at IS NULL`).
+
+Order of operations on the mini: extraction backlog first (it feeds
+persist_structure and improves Vivino name matching), Vivino launchd second.
