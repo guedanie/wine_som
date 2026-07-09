@@ -90,3 +90,14 @@ test('empty results show a friendly message', async () => {
   renderScreen('/search?q=zzz');
   await waitFor(() => expect(screen.getByText(/Nothing found/)).toBeInTheDocument());
 });
+
+test('editing the zip re-runs the search with the new zip', async () => {
+  renderScreen();
+  await userEvent.type(screen.getByLabelText('Search wines and regions'), 'tuscany');
+  await userEvent.click(screen.getByLabelText('Submit search'));
+  await waitFor(() => expect(searchWines).toHaveBeenCalledWith(expect.objectContaining({ zip: '78209' })));
+  const zipInput = screen.getByLabelText(/zip code for nearby availability/i);
+  await userEvent.clear(zipInput);
+  await userEvent.type(zipInput, '37205');   // Nashville
+  await waitFor(() => expect(searchWines).toHaveBeenCalledWith(expect.objectContaining({ q: 'tuscany', zip: '37205' })));
+});

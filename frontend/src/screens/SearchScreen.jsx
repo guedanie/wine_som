@@ -5,7 +5,7 @@ import {
 } from '../lib/regions.js';
 import { searchWines } from '../lib/api.js';
 import { track } from '../lib/analytics.js';
-import useIsMobile, { loadZip } from '../lib/useIsMobile.js';
+import useIsMobile, { loadZip, saveZip } from '../lib/useIsMobile.js';
 
 const STRIPE_BG = 'repeating-linear-gradient(135deg, var(--paper), var(--paper) 11px, #E6DAC2 11px, #E6DAC2 22px)';
 
@@ -72,7 +72,12 @@ export default function SearchScreen() {
   const { state } = useLocation();
   const [params, setParams] = useSearchParams();
 
-  const zip = state?.zip ?? loadZip();
+  const [zip, setZip] = useState(state?.zip ?? loadZip());
+  const changeZip = (v) => {
+    const digits = v.replace(/\D/g, '').slice(0, 5);
+    setZip(digits);
+    if (digits.length === 5) saveZip(digits);
+  };
   const [input, setInput]       = useState(params.get('q') ?? '');
   const [query, setQuery]       = useState(params.get('q') ?? '');
   const [styles, setStyles]     = useState(state?.prefs?.styles ?? []);
@@ -107,7 +112,7 @@ export default function SearchScreen() {
     }
   }
 
-  useEffect(() => { if (query) runSearch(query); }, [query, maxPrice, retailers, varietals]);
+  useEffect(() => { if (query && zip.length === 5) runSearch(query); }, [query, maxPrice, retailers, varietals, zip]);
 
   function submit() {
     const q = input.trim();
@@ -210,6 +215,13 @@ export default function SearchScreen() {
             </svg>
             Filters{activeFilterCount > 0 && ` · ${activeFilterCount}`}
           </button>
+          <label title="Zip code — sets nearby availability + distance"
+            style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-sans)', fontSize: 11.5, color: 'var(--ink-2)', border: '1px solid var(--border)', padding: '5px 10px', minHeight: 36, boxSizing: 'border-box' }}>
+            <span style={{ color: 'var(--sage)' }}>◎</span>
+            <input value={zip} onChange={e => changeZip(e.target.value)} inputMode="numeric" maxLength={5}
+              aria-label="Zip code for nearby availability" placeholder="zip"
+              style={{ width: 48, border: 'none', background: 'none', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: 11.5, color: 'var(--ink-2)', padding: 0 }} />
+          </label>
           <div style={{ flexShrink: 0, fontFamily: 'var(--font-sans)', fontSize: 11.5, color: 'var(--ink-2)', border: '1px solid var(--border)', padding: '5px 10px', whiteSpace: 'nowrap' }}>
             Up to <span style={{ fontFamily: 'var(--font-serif)', color: 'var(--bordeaux)', fontSize: 14 }}>{maxPrice >= 200 ? '$200+' : `$${maxPrice}`}</span>
           </div>
@@ -386,6 +398,14 @@ export default function SearchScreen() {
       <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', margin: '0 -32px' }}>
         {/* Filter sidebar */}
         <aside style={{ borderRight: '1.5px solid var(--ink)', borderTop: '1.5px solid var(--ink)', padding: '24px 20px 40px', background: 'var(--cream-raised)' }}>
+          <FilterSection label="Near you">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--border)', padding: '7px 10px', background: 'var(--cream)' }}>
+              <span style={{ color: 'var(--sage)' }}>◎</span>
+              <input value={zip} onChange={e => changeZip(e.target.value)} inputMode="numeric" maxLength={5}
+                aria-label="Zip code for nearby availability" placeholder="zip"
+                style={{ flex: 1, border: 'none', background: 'none', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--ink)', padding: 0, minWidth: 0 }} />
+            </div>
+          </FilterSection>
           <FilterSection label="Style">
             {STYLES.map(s => (
               <Chip key={s} label={s} active={styles.includes(s)}
