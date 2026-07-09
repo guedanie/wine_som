@@ -1,5 +1,7 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
+import { listCellar } from '../lib/cellar.js';
 import Stamp from '../components/Stamp.jsx';
 import { loadZip } from '../lib/useIsMobile.js';
 
@@ -8,6 +10,11 @@ import { loadZip } from '../lib/useIsMobile.js';
 export default function Account() {
   const { authState, user, savedIds, requireSignIn, signOut } = useAuth();
   const navigate = useNavigate();
+  const [cellarCount, setCellarCount] = useState(null);
+  useEffect(() => {
+    if (!user) return;
+    listCellar(user.id).then(rows => setCellarCount(rows.reduce((n, b) => n + (b.quantity || 1), 0)));
+  }, [user]);
 
   if (authState !== 'signed_in') {
     return (
@@ -31,6 +38,7 @@ export default function Account() {
   const email = user?.email ?? '';
   const name = email.split('@')[0] || 'You';
   const zip = loadZip();
+  const cellar = cellarCount ?? 0;
 
   const StatTile = ({ label, value, unit }) => (
     <div style={{ background: 'var(--cream)', padding: '16px 18px' }}>
@@ -64,7 +72,7 @@ export default function Account() {
       {/* Stat tiles */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--border)' }}>
         <StatTile label="Saved" value={savedIds.length} unit={`bottle${savedIds.length !== 1 ? 's' : ''}`} />
-        <StatTile label="Cellar" value="—" unit="coming soon" />
+        <StatTile label="Cellar" value={cellar} unit={`bottle${cellar !== 1 ? 's' : ''}`} />
       </div>
 
       {/* Preferences */}
@@ -84,7 +92,7 @@ export default function Account() {
       {/* Link rows */}
       <div style={{ borderTop: '1px solid var(--border)', marginTop: 8 }}>
         <LinkRow label="Saved bottles" value={savedIds.length} onClick={() => navigate('/saved')} />
-        <LinkRow label="Cellar" value="Soon" disabled />
+        <LinkRow label="Cellar" value={cellar} onClick={() => navigate('/cellar')} />
         <LinkRow label="Taste profile" value="Soon" valueColor="var(--sage)" disabled />
       </div>
 

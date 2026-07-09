@@ -10,6 +10,7 @@ import { REGION_POSTERS, REGION_META, REGION_DETAILS, regionSlug } from '../lib/
 import useIsMobile from '../lib/useIsMobile.js';
 import { getWine } from '../lib/api.js';
 import DossierSaveButton from '../components/DossierSaveButton.jsx';
+import DossierCellarButton from '../components/DossierCellarButton.jsx';
 
 function structureToBars(sp) {
   if (!sp) return [];
@@ -324,9 +325,12 @@ export default function RegionDossier() {
               </>
             )}
 
-            <div style={{ display: 'flex', gap: 10 }}>
-              <Btn onClick={() => navigate('/discover')} style={{ flex: 1, justifyContent: 'center' }}>More from this region</Btn>
-              <DossierSaveButton wineId={id} name={pick.name} style={{ flex: 1, justifyContent: 'center' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <DossierSaveButton wineId={id} name={pick.name} style={{ flex: 1, justifyContent: 'center' }} />
+                <DossierCellarButton wine={{ id, name: wine.name ?? pick.name, vintage_year: wine.vintage_year, region: wine.region ?? pick.region, varietal: wine.varietal, wine_type: wine.wine_type }} style={{ flex: 1, justifyContent: 'center' }} />
+              </div>
+              <Btn onClick={() => navigate('/discover')} style={{ justifyContent: 'center' }}>More from this region</Btn>
             </div>
           </div>
         </div>
@@ -479,9 +483,10 @@ export default function RegionDossier() {
             </>
           )}
 
-          <div style={{ display: 'flex', gap: 12, marginTop: 18 }}>
+          <div style={{ display: 'flex', gap: 12, marginTop: 18, flexWrap: 'wrap' }}>
             <Btn onClick={() => navigate('/discover')}>More from this region</Btn>
             <DossierSaveButton wineId={id} name={pick.name} />
+            <DossierCellarButton wine={{ id, name: wine.name ?? pick.name, vintage_year: wine.vintage_year, region: wine.region ?? pick.region, varietal: wine.varietal, wine_type: wine.wine_type }} />
           </div>
         </div>
       </div>

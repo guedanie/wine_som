@@ -43,6 +43,7 @@ export default function AuthNav() {
                 <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, border: '1px solid var(--border)', background: 'var(--paper)', padding: '2px 7px' }}>{savedIds.length}</span>
               )}
             </button>
+            <button onClick={() => { setOpen(false); navigate('/cellar'); }} style={menuItem}>Cellar</button>
             <button onClick={() => { setOpen(false); signOut(); }}
               style={{ ...menuItem, color: 'var(--bordeaux)', borderBottom: 'none' }}>
               Sign out

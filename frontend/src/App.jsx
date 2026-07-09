@@ -13,6 +13,7 @@ import RegionDetail from './screens/RegionDetail.jsx';
 import SearchScreen from './screens/SearchScreen.jsx';
 import Saved from './screens/Saved.jsx';
 import Account from './screens/Account.jsx';
+import Cellar from './screens/Cellar.jsx';
 
 function AppRoutes() {
   const { pathname } = useLocation();
@@ -29,6 +30,7 @@ function AppRoutes() {
       <Route path="/search" element={<SearchScreen />} />
       <Route path="/saved" element={<Saved />} />
       <Route path="/account" element={<Account />} />
+      <Route path="/cellar" element={<Cellar />} />
     </Routes>
   );
 }
