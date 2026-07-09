@@ -490,3 +490,37 @@ def test_enrich_picks_warns_when_dropping_mismatched_pick(caplog):
         out = _enrich_picks(raw, by_id)
     assert [p["wine_id"] for p in out] == ["good"]        # ghost dropped
     assert any("ghost" in r.message for r in caplog.records)  # and logged
+
+
+# ── Phantom-card fix: reconcile picks to what the narrative actually names ──
+
+def test_reconcile_drops_picks_absent_from_narrative():
+    from api.routers.recommend import _reconcile_picks_to_narrative
+    narrative = "The Block 906 Merlot is stellar, and Frog's Leap sings with bright cherry."
+    picks = [
+        {"wine_id": "1", "name": "Block 906 Merlot Howell Mountain"},
+        {"wine_id": "2", "name": "Frog's Leap Rutherford, Napa Valley Merlot"},
+        {"wine_id": "3", "name": "Les Lunes Black Vineyard Napa County Merlot"},  # never named
+    ]
+    out = _reconcile_picks_to_narrative(picks, narrative)
+    assert [p["wine_id"] for p in out] == ["1", "2"]
+
+
+def test_reconcile_keeps_all_when_each_is_named():
+    from api.routers.recommend import _reconcile_picks_to_narrative
+    narrative = "Elk Cove Pinot, the Lieu Dit Chenin, and the Daniele Conterno Barbera all shine."
+    picks = [
+        {"wine_id": "1", "name": "Elk Cove Vineyards Pinot Noir"},
+        {"wine_id": "2", "name": "Lieu Dit Chenin Blanc"},
+        {"wine_id": "3", "name": "Daniele Conterno Barbera d'Alba"},
+    ]
+    assert len(_reconcile_picks_to_narrative(picks, narrative)) == 3
+
+
+def test_reconcile_never_empties_and_ignores_singletons():
+    from api.routers.recommend import _reconcile_picks_to_narrative
+    one = [{"wine_id": "1", "name": "Silver Ghost Cabernet"}]
+    assert _reconcile_picks_to_narrative(one, "no names here at all") == one   # singleton untouched
+    # picks distinguishable only by generic grape/region words → keep (can't tell)
+    generic = [{"wine_id": "1", "name": "Napa Cabernet"}, {"wine_id": "2", "name": "Sonoma Merlot"}]
+    assert len(_reconcile_picks_to_narrative(generic, "a lovely evening pour")) == 2

@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 import uuid
 import logging
 import random
@@ -97,6 +98,39 @@ INVENTORY_SELECT = (
     "image_url, vivino_rating, vivino_ratings_count,"
     "wine_details(tasting_notes, flavor_profile, structure_profile, grapeminds_enriched_at))"
 )
+
+
+_GENERIC_WINE_WORDS = {
+    "cabernet", "sauvignon", "merlot", "pinot", "noir", "gris", "grigio", "chardonnay",
+    "syrah", "shiraz", "zinfandel", "malbec", "tempranillo", "sangiovese", "nebbiolo",
+    "grenache", "mourvedre", "carignan", "riesling", "blanc", "chenin", "viognier",
+    "barbera", "tannat", "red", "white", "rose", "wine", "blend", "reserve", "reserva",
+    "vineyard", "vineyards", "valley", "county", "napa", "sonoma", "paso", "robles",
+    "california", "italian", "the", "and", "estate", "old", "vine", "vines", "cuvee",
+}
+
+
+def _reconcile_picks_to_narrative(picks: List[Dict[str, Any]], narrative: str) -> List[Dict[str, Any]]:
+    """Claude sometimes returns more picks than it writes about — each extra pick
+    renders a phantom card ("2 wines described, 3 cards shown"). Drop any pick the
+    narrative never names, matched on a DISTINCTIVE token (producer/vineyard, not
+    the grape/type/region). Conservative: keep a pick if it has no distinctive
+    token or shares one with the narrative, and never drop to empty."""
+    if not narrative or len(picks) <= 1:
+        return picks
+    narr = narrative.lower()
+    kept, dropped = [], []
+    for p in picks:
+        name = (p.get("name") or "").lower()
+        tokens = [t for t in re.findall(r"[a-z0-9é]{3,}", name) if t not in _GENERIC_WINE_WORDS]
+        if not tokens or any(re.search(r"\b" + re.escape(t) + r"\b", narr) for t in tokens):
+            kept.append(p)
+        else:
+            dropped.append(p)
+    if dropped and kept:
+        logger.info("PICKS RECONCILED | dropped %d pick(s) not named in narrative: %s",
+                    len(dropped), [p.get("name") for p in dropped])
+    return kept or picks
 
 
 def _enrich_picks(raw_picks: List[Dict[str, Any]], by_id: Dict[str, Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -302,7 +336,9 @@ async def recommend(req: RecommendRequest):
                 _result["narrative"].append(data)
                 yield "data: " + json.dumps({"type": "token", "text": data}) + "\n\n"
             elif event_type == "picks":
-                enriched_picks = _enrich_picks(data, by_id)
+                # Drop phantom picks the narrative never named, then enrich.
+                reconciled = _reconcile_picks_to_narrative(data, "".join(_result["narrative"]))
+                enriched_picks = _enrich_picks(reconciled, by_id)
                 if data and not enriched_picks:
                     # Claude returned picks but none matched known wine IDs — real error
                     yield "data: " + json.dumps({"type": "error", "message": "Recommendation service unavailable"}) + "\n\n"
