@@ -44,6 +44,7 @@ export default function AuthNav() {
               )}
             </button>
             <button onClick={() => { setOpen(false); navigate('/cellar'); }} style={menuItem}>Cellar</button>
+            <button onClick={() => { setOpen(false); navigate('/taste'); }} style={menuItem}>Taste profile</button>
             <button onClick={() => { setOpen(false); signOut(); }}
               style={{ ...menuItem, color: 'var(--bordeaux)', borderBottom: 'none' }}>
               Sign out
