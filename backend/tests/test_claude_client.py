@@ -278,3 +278,29 @@ def test_format_wine_without_store_name_still_works():
     from recommendation.claude_client import _format_wine
     line = _format_wine({"name": "X", "price": 20.0, "retailer": "Spec's", "varietal": "Malbec"})
     assert "@ Spec's" in line
+
+
+# ── personalization: surface "resembles a wine you liked" to Claude ──
+
+def test_format_wine_surfaces_similarity_to_a_liked_wine():
+    from recommendation.claude_client import _format_wine
+    line = _format_wine({
+        "name": "Coudoulet de Beaucastel", "price": 30, "retailer": "Spec's",
+        "varietal": "Grenache", "region": "Rhône",
+        "_similar_to": "Esprit de Tablas", "_similar_source": "saved",
+    })
+    assert "Esprit de Tablas" in line
+    assert "saved" in line.lower()
+
+
+def test_build_user_message_adds_citation_instruction_when_similarity_present():
+    cands = [{"wine_id": "w1", "name": "X", "price": 30, "retailer": "Spec's",
+              "varietal": "Grenache", "_similar_to": "Esprit de Tablas", "_similar_source": "saved"}]
+    msg = _build_user_message(cands, {"message": "something bold"})
+    assert "resembles" in msg.lower() and "why" in msg.lower()
+
+
+def test_no_citation_instruction_without_similarity():
+    cands = [{"wine_id": "w1", "name": "X", "price": 30, "retailer": "Spec's", "varietal": "Grenache"}]
+    msg = _build_user_message(cands, {"message": "something bold"})
+    assert "resembles the" not in msg.lower()

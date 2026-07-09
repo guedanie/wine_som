@@ -15,6 +15,36 @@ _W_BUDGET = 1.0
 _W_TIER = 0.5
 _W_RATING = 1.5          # max community-rating boost (never a penalty)
 _MIN_RATINGS = 25        # below this, the rating is noise — ignore it
+_W_SIMILAR = 2.5         # max personalization boost for resembling a wine the user liked
+_SIM_FULL = 3.0          # raw-similarity value that earns the full boost
+
+
+def _norm_liked(liked_wines) -> List[Dict[str, Any]]:
+    """Normalize the user's liked wines once (grapes/region/flavors as sets)."""
+    out = []
+    for lw in liked_wines or []:
+        grapes = {_norm(g) for g in (lw.get("grapes") or [])}
+        if lw.get("varietal"):
+            grapes.add(_norm(lw["varietal"]))
+        flavors = {_norm(f) for f in (lw.get("flavors") or [])}
+        flavors |= flavor_tags_for(lw.get("varietal"), lw.get("grapes"), lw.get("region"))
+        out.append({
+            "name": lw.get("name"), "wine_id": lw.get("wine_id"), "source": lw.get("source"),
+            "grapes": grapes, "region": _norm(lw.get("region")), "flavors": flavors,
+        })
+    return out
+
+
+def _similarity(grapes: set, region: str, tags: set, liked: Dict[str, Any]) -> float:
+    """Raw resemblance of a candidate to one liked wine: shared grape (strong),
+    region (medium), flavor-tag overlap (weak)."""
+    s = 0.0
+    if grapes & liked["grapes"]:
+        s += 2.0
+    if region and liked["region"] and (region in liked["region"] or liked["region"] in region):
+        s += 1.0
+    s += 0.5 * len(tags & liked["flavors"])
+    return s
 
 
 def _body_from_structure(sp: Dict[str, Any]) -> str:
@@ -46,6 +76,7 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
     want_grapes = {_norm(g) for g in (intent.get("grapes") or [])}
     want_flavors = {_norm(f) for f in (intent.get("flavors") or [])}
     avoid = [_norm(a) for a in (intent.get("avoid") or [])]
+    liked = _norm_liked(intent.get("liked_wines"))
 
     scored = []
     for wine in candidates:
@@ -101,7 +132,22 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
         if rating and (wine.get("vivino_ratings_count") or 0) >= _MIN_RATINGS:
             score += _W_RATING * max(0.0, min(1.0, (rating - 3.5) / 1.5))
 
-        scored.append({**wine, "_score": score})
+        # Personalization: resemblance to a wine the user liked (not itself).
+        similar_to = similar_source = None
+        if liked:
+            best = 0.0
+            for lw in liked:
+                if lw["wine_id"] and lw["wine_id"] == wine.get("wine_id"):
+                    continue                       # don't rate a wine similar to itself
+                sim = _similarity(grapes, region, tags, lw)
+                if sim > best:
+                    best, similar_to, similar_source = sim, lw["name"], lw["source"]
+            if best >= 1.0:                          # at least a shared grape or region
+                score += _W_SIMILAR * min(1.0, best / _SIM_FULL)
+            else:
+                similar_to = similar_source = None
+
+        scored.append({**wine, "_score": score, "_similar_to": similar_to, "_similar_source": similar_source})
 
     scored.sort(key=lambda w: w["_score"], reverse=True)
     return scored

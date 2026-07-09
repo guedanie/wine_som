@@ -11,6 +11,8 @@ import WineCardSkeleton from '../components/WineCardSkeleton.jsx';
 import { streamRecommend, postFeedback } from '../lib/api.js';
 import { naturalChatMode } from '../lib/flags.js';
 import { track } from '../lib/analytics.js';
+import { useAuth } from '../lib/auth.jsx';
+import { buildTasteContext } from '../lib/taste.js';
 import { deriveWineCardMeta } from '../lib/regions.js';
 import useIsMobile from '../lib/useIsMobile.js';
 import uuid from '../lib/uuid.js';
@@ -127,7 +129,12 @@ export default function ChatRecommend() {
   const { state }  = useLocation();
   const navigate   = useNavigate();
   const isMobile   = useIsMobile();
+  const { user }   = useAuth();
   const { prefs, apiReq, _restored } = state ?? {};
+
+  // Personalized recommendations: gather the user's liked/owned wines so the
+  // scorer can boost + cite ("close to X you saved"). Null when signed out.
+  const tasteFor = () => (user ? buildTasteContext(user.id) : Promise.resolve(null));
 
   const [sessionId]    = useState(() => _restored?.sessionId    ?? uuid());
   const [wineVotes,    setWineVotes]    = useState(() => _restored?.wineVotes    ?? {});
@@ -151,7 +158,7 @@ export default function ChatRecommend() {
     parts.push(prefs.occasion.toLowerCase());
     if (prefs.freeText?.trim())  parts.push(prefs.freeText.trim());
     setMessages([{ id: uuid(), role: 'user', text: parts.join(' · ') }]);
-    callRecommend(apiReq);
+    tasteFor().then(taste => callRecommend({ ...apiReq, taste }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -231,7 +238,7 @@ export default function ChatRecommend() {
     if (loading || streaming || !text.trim()) return;
     const history = messages.map(m => ({ role: m.role, content: m.text }));
     setMessages(prev => [...prev, { id: uuid(), role: 'user', text }]);
-    callRecommend({ ...apiReq, message: text, conversation_history: history, conversational: naturalChatMode() });
+    tasteFor().then(taste => callRecommend({ ...apiReq, message: text, conversation_history: history, conversational: naturalChatMode(), taste }));
   };
 
   // Picks arrive as one event only after the narrative finishes generating.

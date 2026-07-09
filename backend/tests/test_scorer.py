@@ -185,3 +185,36 @@ def test_table_fills_medium_body_where_tags_cannot():
     cab["structure_profile"] = {}
     result = score_candidates(_intent(wine_type="red", body="medium"), [cab, merlot])
     assert result[0]["name"] == "Table Merlot"   # only the table gives it medium body
+
+
+# ── personalization: similarity to wines the user liked ──────────
+
+def test_similarity_boosts_and_tags_a_wine_close_to_a_liked_one():
+    intent = _intent()
+    intent["liked_wines"] = [{
+        "name": "Esprit de Tablas", "wine_id": "liked1",
+        "varietal": "Grenache", "region": "Paso Robles", "flavors": ["earthy", "garrigue"],
+    }]
+    similar   = _wine("Rhône Blend", varietal="Grenache", grapes=["Grenache"], region="Paso Robles")
+    unrelated = _wine("Cava Brut", wine_type="sparkling", varietal="Macabeo", grapes=["Macabeo"], region="Penedès")
+    result = score_candidates(intent, [unrelated, similar])
+    top = next(w for w in result if w["name"] == "Rhône Blend")
+    other = next(w for w in result if w["name"] == "Cava Brut")
+    assert top["_score"] > other["_score"]              # similar ranks higher
+    assert top["_similar_to"] == "Esprit de Tablas"     # cites the liked wine
+    assert other.get("_similar_to") is None
+
+
+def test_no_self_similarity_citation():
+    intent = _intent()
+    intent["liked_wines"] = [{"name": "My Malbec", "wine_id": "w1", "varietal": "Malbec", "region": "Mendoza"}]
+    cand = _wine("My Malbec", varietal="Malbec", grapes=["Malbec"], region="Mendoza")
+    cand["wine_id"] = "w1"
+    result = score_candidates(intent, [cand])
+    assert result[0].get("_similar_to") is None          # don't cite a wine as similar to itself
+
+
+def test_no_liked_wines_leaves_scoring_unchanged():
+    cand = _wine("Plain", varietal="Merlot", grapes=["Merlot"], region="Bordeaux")
+    result = score_candidates(_intent(), [cand])
+    assert result[0].get("_similar_to") is None

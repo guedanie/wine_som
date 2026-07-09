@@ -60,6 +60,28 @@ past + label + fill, TDD'd); `lib/cellar.js` (list/add/update/remove/drinkBottle
 screen 7 + "+ Add bottle"), the Add-bottle form (manual + catalog prefill),
 dossier "Add to cellar" button, account-screen Cellar tile/link → real count.
 
+### Personalization engine — the north star (behavioral signals first)
+**Decisions (2026-07-08):** Build behavioral personalization FIRST (saved +
+cellar, no user effort), **re-rank + cite** depth, conversational interview for
+the explicit profile later.
+
+**One `taste` pipeline, four signals:** taste profile (explicit, Phase 3) +
+saved + cellar + feedback thumbs. The frontend (RLS read) gathers the user's
+signals into a compact `taste` object and passes it to `/api/recommend`; the
+scorer boosts candidates similar to liked wines / matching the profile, and
+Claude cites the link ("close to the Esprit de Tablas you saved").
+
+**"Close to a wine you liked" = data lookup, not embeddings.** Every wine has
+grape/region/flavor-tags/structure, so similarity = shared grape (strong) +
+region (medium) + flavor-tag overlap (weak). Scorer records the closest liked
+wine per candidate (`_similar_to`) → Claude names it.
+
+**Build sequence:**
+1. Scorer similarity boost + `_similar_to` tag (backend, TDD). ← starting here
+2. `taste` field on RecommendRequest; Claude gets liked wines + citation instruction.
+3. Frontend `buildTasteContext(userId)` — saved + cellar → liked_wines with flavors; passed on every recommend.
+4. Feedback-as-signal (later): send user_id on votes + RLS read policy + merge on sign-in, then include up/downvoted wines.
+
 ### Phase 3 — Somm taste profile (conversational preference interview)
 - The Somm asks the client a guided set of questions — like a real sommelier
   interviewing you — to build a persistent taste profile (grapes loved/avoided,

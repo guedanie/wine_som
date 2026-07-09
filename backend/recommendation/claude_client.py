@@ -187,6 +187,12 @@ def _format_wine(wine: Dict[str, Any]) -> str:
         line += f"\n   Tasting notes: {notes}"
     if struct_parts:
         line += f". Structure: {', '.join(struct_parts)}."
+
+    similar_to = wine.get("_similar_to")
+    if similar_to:
+        verb = {"saved": "saved", "cellar": "own", "upvoted": "liked"}.get(
+            wine.get("_similar_source"), "liked")
+        line += f'\n   ↳ resembles the "{similar_to}" you {verb}'
     return line
 
 
@@ -243,6 +249,16 @@ def _build_user_message(
         if conversational and conversation_history else ""
     )
 
+    # If any listing is annotated as resembling a wine the user liked, tell
+    # Claude to weave that connection into the pick's why (deterministically
+    # computed by the scorer, so it's accurate to cite).
+    similarity_note = (
+        "\n\nSome listings are annotated '↳ resembles the \"X\" you saved/own/liked'. "
+        "When you pick one, work that into its why — e.g. \"right up your alley, "
+        "much like the X you saved\" — so the recommendation feels personal."
+        if any(w.get("_similar_to") for w in candidates) else ""
+    )
+
     return (
         f"{history_preamble}"
         f"{message_line}"
@@ -255,6 +271,7 @@ def _build_user_message(
         f"that one; never add a weaker or off-target pick to reach a number. If I named a "
         f"retailer or store, only recommend wines shown at that retailer/store. "
         f"Set wine_id to the exact id shown in [wine_id: ...] for each pick."
+        f"{similarity_note}"
         f"{followup_directive}"
     )
 

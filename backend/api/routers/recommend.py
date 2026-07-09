@@ -123,6 +123,8 @@ def _enrich_picks(raw_picks: List[Dict[str, Any]], by_id: Dict[str, Dict[str, An
             "image_url": cand.get("image_url"),
             "vivino_rating": cand.get("vivino_rating"),
             "vivino_ratings_count": cand.get("vivino_ratings_count"),
+            "similar_to": cand.get("_similar_to"),          # personalization: liked wine this echoes
+            "similar_source": cand.get("_similar_source"),
         })
     return enriched
 
@@ -252,6 +254,7 @@ async def recommend(req: RecommendRequest):
         "Recommend wines based on my preferences" else None
     resolved = merge_intent(parsed, explicit)
     resolved["message"] = req.message
+    resolved["liked_wines"] = (req.taste or {}).get("liked_wines") or []
 
     preferred_retailer = _detect_retailer(req.message)
     if preferred_retailer:

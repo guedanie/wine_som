@@ -50,6 +50,7 @@ class RecommendRequest(BaseModel):
     message: str = "Recommend wines based on my preferences"
     conversation_history: Optional[List[Dict[str, Any]]] = None
     conversational: bool = False             # when true, follow-ups bias to text-only (no new cards) unless clearly re-asking
+    taste: Optional[Dict[str, Any]] = None   # personalization: {liked_wines:[{name,wine_id,varietal,grapes,region,flavors,source}], profile?:{}}
 
 
 class WinePick(BaseModel):
