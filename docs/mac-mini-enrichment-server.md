@@ -74,3 +74,21 @@ Both laptop enrichment jobs were deliberately stopped 2026-07-09 to migrate here
 
 Order of operations on the mini: extraction backlog first (it feeds
 persist_structure and improves Vivino name matching), Vivino launchd second.
+
+## Twin Liquors weekly scrape (added 2026-07-10 — GitHub-blocked, mini-only)
+Twin Liquors (City Hive) is Cloudflare-1015-blocked on GitHub datacenter IPs —
+a `workflow_dispatch` test committed **0/12 stores**, same as Vivino. It was
+removed from `weekly-scrape.yml` and belongs here (residential IP).
+
+- Wrapper: `backend/scripts/run_twin_liquors_launchd.sh` (logs to
+  `~/Library/Logs/somm-twin-liquors.log`). Manual: just run the wrapper.
+- Schedule it **weekly** (matches the GitHub cron cadence). Either:
+  - a launchd `.plist` (mirror `com.somm.vivino-enrich.plist` — swap the
+    ProgramArguments to the twin wrapper, `StartCalendarInterval` weekly), or
+  - a cron line: `0 3 * * 0  /Users/<you>/dev/wine_app/backend/scripts/run_twin_liquors_launchd.sh`
+- The scraper self-paces (~1 req/s) + backs off on 1015, so a residential IP
+  should complete cleanly. 12 stores seeded; expand `STORE_MERCHANT_IDS` from
+  the store-locations page for full ~90-store TX coverage.
+- Reusable win: the same api_key + client_origin bypass likely unblocks the
+  parked Nashville City Hive shops (Corkdorks, Frugal MacDoogal) — build those
+  here too if Nashville coverage matters.

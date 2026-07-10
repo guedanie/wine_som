@@ -138,19 +138,10 @@ jobs:
           asyncio.run(SpecsScraper().run_full(SA_STORE_NUMBERS + AUSTIN_STORE_NUMBERS + DALLAS_STORE_NUMBERS))
           "
 
-      # City Hive (Cloudflare-fronted). May trip a 1015 rate-limit on GitHub's
-      # datacenter IPs — the scraper backs off + this step is continue-on-error,
-      # so a block degrades gracefully. If GitHub IPs prove blocked (like Vivino),
-      # move this to the residential-IP mini. See twinliquors_findings.md.
-      - name: Scrape Twin Liquors (Austin + SA — City Hive)
-        id: twin_liquors
-        continue-on-error: true
-        run: |
-          python3 -c "
-          import asyncio
-          from scrapers.twin_liquors import TwinLiquorsScraper
-          asyncio.run(TwinLiquorsScraper().run_full())
-          "
+      # Twin Liquors (City Hive) runs on the RESIDENTIAL-IP mini, not here:
+      # GitHub datacenter IPs are Cloudflare-1015-blocked (confirmed 2026-07-10 —
+      # workflow_dispatch test committed 0/12 stores), same as Vivino. See
+      # docs/mac-mini-enrichment-server.md.
 
       # ── extraction (Haiku, CAPPED) ────────────────────────────────────────
       # Capped at 1,500 wines/run to bound the Haiku spend now that the catalog
@@ -183,7 +174,6 @@ jobs:
             pogos=${{ steps.pogos.outcome }}
             kroger=${{ steps.kroger.outcome }}
             specs=${{ steps.specs.outcome }}
-            twin_liquors=${{ steps.twin_liquors.outcome }}
             extraction=${{ steps.extraction.outcome }}
         run: |
           [ -z "$SLACK_WEBHOOK_URL" ] && echo "no webhook configured, skipping" && exit 0
@@ -195,7 +185,7 @@ jobs:
               text = ("Weekly scrape — completed with failures: "
                       + ", ".join(failed))
           else:
-              text = "Weekly scrape — all 11 scrapers + extraction succeeded"
+              text = "Weekly scrape — all 10 scrapers + extraction succeeded"
           text += f"\n<{os.environ['RUN_URL']}|View run>"
           req = urllib.request.Request(
               os.environ["SLACK_WEBHOOK_URL"],
