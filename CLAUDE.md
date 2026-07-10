@@ -27,7 +27,7 @@ Full-stack wine recommendation app. Users enter zip code + budget + style prefer
 | Central Market scraper | `backend/scrapers/central_market.py` | Same HEB GraphQL, `central-market` client header, 2 Austin stores (61, 420); SA store 191 not e-commerce-enabled |
 | AOC Selections scraper | `backend/scrapers/aoc_selections.py` | Shopify API, SA-only (Location_SanAntonio tag filter), ~fine wine catalog, page-param pagination |
 | US Natural Wine scraper | `backend/scrapers/us_natural_wine.py` | Shopify API, Austin (~560 natural wines), normalizes inconsistent product_types |
-| Antonelli's scraper | `backend/scrapers/antonellis.py` | Shopify API, Austin (391 wines), product_type=Wine filter, slash-separated title format |
+| Antonelli's scraper | `backend/scrapers/antonellis.py` | Shopify API, Austin (**65 wines** of 391 total products — cheese shop, mostly non-wine), product_type=Wine filter (client-side; the `?product_type=` URL param is ignored by Shopify so we fetch all + filter), slash-separated title format |
 | Recommend endpoint v2 | `backend/api/routers/recommend.py` | `/api/recommend` — tiered candidate pool, knowledge-based scorer, optional NL intent parse, Claude Haiku pick+narrative, radius store lookup, session persistence |
 | BaseScraper | `backend/scrapers/base.py` | Upsert to Supabase + auto-geocodes stores on seed |
 | Wine type utils | `backend/utils/__init__.py` | `infer_wine_type()` — utils.py converted to package |
@@ -140,7 +140,7 @@ System Python is **3.9.6**. Use `Optional[str]` from `typing`, NOT `str | None` 
 - All three use same pattern as Geraldine's: `GET /products.json?limit=250&page=N`
 - **AOC** (`aocselections.com`): wine-only store, NO product_type filter; use `Location_SanAntonio` tag to filter SA inventory (store also has Houston location); wine type inferred from colour tags (`White`, `Red`, `Sparkling`, etc.)
 - **US Natural Wine** (`usnaturalwine.com`): scrape all (wine-only); normalize inconsistent `product_type` values (`Red` → `Red Wine`, etc.); `_SKIP_TYPES` excludes Non-Alcoholic and Cider
-- **Antonelli's** (`antonellischeese.com`): filter via `?product_type=Wine` URL param; title format `WINE NAME / Producer / Region / Wine` (slash-separated)
+- **Antonelli's** (`antonellischeese.com`): the `?product_type=Wine` URL param is IGNORED by Shopify (returns all 391 products), so wine is filtered client-side (`product_type=="wine"` → 65 wines); title format `WINE NAME / Producer / Region / Wine` (slash-separated)
 - Synthetic UPCs (`shopify-aoc-{handle}`, `shopify-usnw-{handle}`, `shopify-antonellis-{handle}`) — no cross-retailer dedup possible (natural wines have no barcodes)
 
 ### Spec's (REST API — pure curl, no browser)
@@ -326,7 +326,7 @@ from scrapers.us_natural_wine import USNaturalWineScraper
 asyncio.run(USNaturalWineScraper().run_full())
 "
 
-# Run Antonelli's scraper (Shopify, Austin, 391 wines)
+# Run Antonelli's scraper (Shopify, Austin, 65 wines)
 cd backend
 python3 -c "
 import asyncio
@@ -384,7 +384,7 @@ backend/
     central_market.py          — Central Market scraper (same GraphQL, CM client header, Austin stores 61+420)
     aoc_selections.py          — AOC Selections Shopify scraper (SA, Location_SanAntonio tag filter)
     us_natural_wine.py         — US Natural Wine Shopify scraper (Austin, ~560 natural wines)
-    antonellis.py              — Antonelli's Cheese Shop Shopify scraper (Austin, 391 wines)
+    antonellis.py              — Antonelli's Cheese Shop Shopify scraper (Austin, 65 wines)
     harvest_wine.py            — Harvest Wine Market Shopify scraper (Nashville TN, 1,032 wines)
     kroger.py                  — Kroger official Developer API (OAuth) — MARKETS registry, all banners (Kroger + Harris Teeter), per-location pricing
     specs.py                   — Spec's REST scraper (pure curl, 12 SA stores, wine-only)
