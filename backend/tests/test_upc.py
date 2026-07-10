@@ -48,3 +48,14 @@ def test_empty_returns_none():
 def test_short_oddball_returned_as_digits():
     # 10-digit Spec's oddball: returned as-is (digits only)
     assert canonical_upc("1234567890") == "1234567890"
+
+
+def test_alphanumeric_synthetic_ids_pass_through_unchanged():
+    # synthetic retailer-{hex} ids contain digits but must NOT be mangled into
+    # fake barcodes (they'd collide). Real barcodes are digits-only.
+    from utils.upc import canonical_upc
+    a = "twinliquors-5b1fa95e2f57ec1e10977bbb"
+    b = "twinliquors-6a3d4696f6b4800001dbde77"
+    assert canonical_upc(a) == a
+    assert canonical_upc(b) == b
+    assert canonical_upc(a) != canonical_upc(b)   # stays unique

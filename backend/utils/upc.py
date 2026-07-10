@@ -27,7 +27,10 @@ def canonical_upc(raw: Optional[str]) -> Optional[str]:
     if not raw:
         return None
     # Synthetic (non-barcode) IDs pass through untouched — they never collide.
-    if not any(c.isdigit() for c in raw) or raw.startswith("shopify-"):
+    # Real barcodes are digits-only, so ANY alphabetic char marks a synthetic id
+    # (shopify-{handle}, twinliquors-{hex}, …). Running these through digit
+    # extraction would mangle the hex into a fake, colliding UPC.
+    if any(c.isalpha() for c in raw):
         return raw
 
     d = "".join(c for c in raw if c.isdigit())
