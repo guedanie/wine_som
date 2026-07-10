@@ -108,6 +108,16 @@ jobs:
           asyncio.run(HarvestWineScraper().run_full())
           "
 
+      - name: Scrape Pogo's Wine & Spirits (Dallas)
+        id: pogos
+        continue-on-error: true
+        run: |
+          python3 -c "
+          import asyncio
+          from scrapers.pogos import PogosScraper
+          asyncio.run(PogosScraper().run_full())
+          "
+
       - name: Scrape Kroger (Nashville — official API)
         id: kroger
         continue-on-error: true
@@ -170,6 +180,7 @@ jobs:
             usnw=${{ steps.usnw.outcome }}
             antonellis=${{ steps.antonellis.outcome }}
             harvest=${{ steps.harvest.outcome }}
+            pogos=${{ steps.pogos.outcome }}
             kroger=${{ steps.kroger.outcome }}
             specs=${{ steps.specs.outcome }}
             twin_liquors=${{ steps.twin_liquors.outcome }}
@@ -184,7 +195,7 @@ jobs:
               text = ("Weekly scrape — completed with failures: "
                       + ", ".join(failed))
           else:
-              text = "Weekly scrape — all 10 scrapers + extraction succeeded"
+              text = "Weekly scrape — all 11 scrapers + extraction succeeded"
           text += f"\n<{os.environ['RUN_URL']}|View run>"
           req = urllib.request.Request(
               os.environ["SLACK_WEBHOOK_URL"],
