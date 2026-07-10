@@ -8,11 +8,11 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/danielguerrero/Documents/ai_dev/wine_app/backend/scripts/run_vivino_launchd.sh</string>
+        <string>/Users/danielguerrero/dev/wine_app/backend/scripts/run_vivino_launchd.sh</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/danielguerrero/Documents/ai_dev/wine_app/backend</string>
+    <string>/Users/danielguerrero/dev/wine_app/backend</string>
 
     <!-- Twice daily, local time. If asleep at the trigger, launchd runs it on next wake. -->
     <key>StartCalendarInterval</key>

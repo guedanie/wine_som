@@ -15,11 +15,25 @@ cd "$(dirname "$0")/.." || exit 1          # -> backend/ (so ../.env resolves)
 
 LIMIT="${VIVINO_LIMIT:-300}"
 LOG="$HOME/Library/Logs/somm-vivino.log"
-PY="$(command -v python3)"
+PY="/usr/bin/python3"
 
+source "$(dirname "$0")/lib_notify_slack.sh"
+
+START=$(date +%s)
 {
   echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') | vivino run start (limit=$LIMIT) ==="
   "$PY" scripts/run_vivino_sample.py --limit "$LIMIT"
   echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') | vivino run end (exit $?) ==="
   echo ""
 } >> "$LOG" 2>&1
+EXIT=$?
+DURATION=$(( $(date +%s) - START ))
+
+if [ $EXIT -eq 0 ]; then
+  # Parse the tail of this run's summary block for a Slack-friendly one-liner
+  SUMMARY=$(grep -E "Matched \+ written|No search hit|Fetch failures" "$LOG" | tail -3 | tr '\n' ' ' | sed 's/  */ /g')
+  notify_slack "Vivino enrichment" "OK" "duration ${DURATION}s (limit=${LIMIT}) — ${SUMMARY:-run completed}"
+else
+  notify_slack "Vivino enrichment" "FAIL" "exit ${EXIT} after ${DURATION}s (limit=${LIMIT})" "$LOG"
+fi
+exit $EXIT
