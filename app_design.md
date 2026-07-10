@@ -1,6 +1,6 @@
-# CLAUDE.md — building the Terroir wine app
+# CLAUDE.md — building the Somm wine app
 
-You are building a wine‑recommendation web app called **Terroir**. This file tells
+You are building a wine‑recommendation web app called **Somm**. This file tells
 you how to make it look and feel right. Read `README.md` for the full brand; this
 is the working brief.
 
@@ -75,7 +75,7 @@ So a Tuscany and a Paso Robles poster feel like one family:
 
 ## Don't
 - Don't use Inter/Roboto, drop shadows everywhere, purple gradients, or rounded
-  cards with a colored left border. None of that is Terroir.
+  cards with a colored left border. None of that is Somm.
 - Don't let the serif get small — it's for display sizes (23px+).
 - Don't add icons for their own sake; the brand is type‑ and line‑led (Lucide,
   thin stroke, only where genuinely useful).

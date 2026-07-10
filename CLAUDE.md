@@ -1,4 +1,4 @@
-# Terroir — Wine Recommendation App
+# Somm — Wine Recommendation App
 
 ## What This Is
 Full-stack wine recommendation app. Users enter zip code + budget + style preferences and get Claude-powered sommelier recommendations for wines available at local retailers near them.

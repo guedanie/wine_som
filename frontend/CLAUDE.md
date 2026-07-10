@@ -1,4 +1,4 @@
-# Terroir — Frontend Design System
+# Somm — Frontend Design System
 
 Read the root `CLAUDE.md` for backend context. This file covers **how the frontend
 should look and feel**. Design tokens live in `design-system/colors_and_type.css`.

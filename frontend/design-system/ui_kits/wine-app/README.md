@@ -1,7 +1,7 @@
-# Terroir — Wine App UI Kit
+# Somm — Wine App UI Kit
 
 A clickable, high-fidelity recreation of the wine‑recommendation app's core
-screens, built on the Terroir design system. It's a **prototype**, not production
+screens, built on the Somm design system. It's a **prototype**, not production
 code — components are cosmetic and the data is fake (`data.jsx`).
 
 ## Run it
