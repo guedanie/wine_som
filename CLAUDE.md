@@ -54,6 +54,8 @@ Full component table + file map: **`docs/reference/build-log.md`**.
 - **Blocked retailers** — Total Wine (Imperva), Whole Foods (Amazon auth), Publix/Costco/Trader Joe's (Akamai), Food Lion (Cloudflare), Tom Thumb/Albertsons (Incapsula), Corkdorks/Frugal MacDoogal (City Hive auth — may be unblockable via the Twin Liquors bypass).
 
 ## Reference docs
+These hold the deep detail moved out of this file — **consult the relevant one on demand when a task touches that system; don't read them preemptively.** The inline "Details: …" pointers above tell you which applies.
+
 - `docs/reference/scrapers.md` — per-retailer API notes, UPC dedup, seeding commands
 - `docs/reference/enrichment.md` — GrapeMinds, Vivino, local LLM, structure table
 - `docs/reference/recommendation.md` — scorer, personalization, intent, zip→store
