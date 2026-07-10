@@ -226,8 +226,16 @@ class TwinLiquorsScraper(BaseScraper):
         canons = list({r["upc_canonical"] for r in records if r.get("upc_canonical")})
         if not canons:
             return {}
-        rows = self.supabase.table("wines").select("id,upc_canonical").in_("upc_canonical", canons).execute().data
-        canon_to_id = {w["upc_canonical"]: w["id"] for w in rows if w.get("upc_canonical")}
+        # Chunk to keep the PostgREST URL under its request-line limit — a single
+        # in_() of ~2k UPCs returned 400 Bad Request from the gateway during the
+        # 2026-07-09 smoke test. 200/chunk is comfortably under any known limit.
+        canon_to_id: dict = {}
+        for i in range(0, len(canons), 200):
+            chunk = canons[i:i + 200]
+            rows = self.supabase.table("wines").select("id,upc_canonical").in_("upc_canonical", chunk).execute().data
+            for w in rows:
+                if w.get("upc_canonical"):
+                    canon_to_id[w["upc_canonical"]] = w["id"]
         return {p.upc: canon_to_id.get(canonical_upc(p.upc))
                 for p in products if canon_to_id.get(canonical_upc(p.upc))}
 
@@ -250,6 +258,8 @@ class TwinLiquorsScraper(BaseScraper):
         }).execute()
 
         total = 0
+        stores_ok = 0
+        stores_failed: List[str] = []
         try:
             for mid in stores:
                 by_id: dict = {}
@@ -266,19 +276,32 @@ class TwinLiquorsScraper(BaseScraper):
                     time.sleep(1.0)   # ~1 req/s — stays under Cloudflare's 1015 threshold
 
                 products = list(by_id.values())
-                if products:
-                    items = self._to_items(products, mid)
-                    upc_to_id = self._upsert_wines(products)
-                    self._upsert_inventory(items, upc_to_id)
-                    total += len(products)
                 store_label = products[0].store_name if products else mid
-                print(f"  {store_label}: {len(products)} wines committed (total: {total})")
+                # Per-store isolation: one store's DB commit failure must not nuke
+                # the rest of the run (learned 2026-07-09 — a PostgREST 400 on
+                # store N took down stores N+1..12 in the smoke test).
+                try:
+                    if products:
+                        items = self._to_items(products, mid)
+                        upc_to_id = self._upsert_wines(products)
+                        self._upsert_inventory(items, upc_to_id)
+                        total += len(products)
+                    stores_ok += 1
+                    print(f"  {store_label}: {len(products)} wines committed (total: {total})")
+                except Exception as store_err:
+                    stores_failed.append(mid)
+                    print(f"  {store_label}: COMMIT FAILED — {store_err}")
 
+            status = "success" if not stores_failed else "partial"
             self.supabase.table("scraper_runs").update({
-                "status": "success", "records_updated": total,
+                "status": status, "records_updated": total,
+                "error_message": (f"failed stores: {','.join(stores_failed)}" if stores_failed else None),
                 "completed_at": datetime.now(timezone.utc).isoformat(),
             }).eq("id", run_id).execute()
-            return {"wines_committed": total, "stores": len(stores)}
+            print(f"  DONE — {stores_ok}/{len(stores)} stores OK, {total} wines committed"
+                  + (f", failed: {stores_failed}" if stores_failed else ""))
+            return {"wines_committed": total, "stores": len(stores),
+                    "stores_ok": stores_ok, "stores_failed": stores_failed}
 
         except Exception as e:
             self.supabase.table("scraper_runs").update({

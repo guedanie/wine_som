@@ -12,11 +12,24 @@ set -u
 cd "$(dirname "$0")/.." || exit 1          # -> backend/ (so ../.env resolves)
 
 LOG="$HOME/Library/Logs/somm-twin-liquors.log"
-PY="$(command -v python3)"
+PY="/usr/bin/python3"
 
+source "$(dirname "$0")/lib_notify_slack.sh"
+
+START=$(date +%s)
 {
   echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') | twin liquors scrape start ==="
   "$PY" -c "import asyncio; from scrapers.twin_liquors import TwinLiquorsScraper; print(asyncio.run(TwinLiquorsScraper().run_full()))"
   echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') | twin liquors scrape end (exit $?) ==="
   echo ""
 } >> "$LOG" 2>&1
+EXIT=$?
+DURATION=$(( $(date +%s) - START ))
+
+if [ $EXIT -eq 0 ]; then
+  SUMMARY=$(tail -20 "$LOG" | grep -oE "\{[^}]*\}" | tail -1)
+  notify_slack "Twin Liquors scrape" "OK" "duration ${DURATION}s — ${SUMMARY:-run completed}"
+else
+  notify_slack "Twin Liquors scrape" "FAIL" "exit ${EXIT} after ${DURATION}s" "$LOG"
+fi
+exit $EXIT
