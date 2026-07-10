@@ -292,7 +292,11 @@ class TwinLiquorsScraper(BaseScraper):
                     stores_failed.append(mid)
                     print(f"  {store_label}: COMMIT FAILED — {store_err}")
 
-            status = "success" if not stores_failed else "partial"
+            # scraper_runs.status CHECK enum only allows success|failed|running.
+            # A run that committed *some* wines is called "success" so the row
+            # writes cleanly; partial failures are recorded via error_message.
+            # A migration to add 'partial' to the enum is a future improvement.
+            status = "failed" if total == 0 else "success"
             self.supabase.table("scraper_runs").update({
                 "status": status, "records_updated": total,
                 "error_message": (f"failed stores: {','.join(stores_failed)}" if stores_failed else None),
