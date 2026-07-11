@@ -143,16 +143,11 @@ jobs:
       # workflow_dispatch test committed 0/12 stores), same as Vivino. See
       # docs/mac-mini-enrichment-server.md.
 
-      # ── extraction (Haiku, CAPPED) ────────────────────────────────────────
-      # Capped at 1,500 wines/run to bound the Haiku spend now that the catalog
-      # is large (SA+Austin+Nashville+NC+Dallas). A local LLM (Ollama) will take
-      # over the bulk enrichment — see What's Next in CLAUDE.md. Backlog drains
-      # ~1,500/week meanwhile; UPC dedup already makes national brands
-      # recommendable without extraction.
-      - name: Extract facts for new wines (--null-only, capped)
-        id: extraction
-        continue-on-error: true
-        run: python3 -m enrichment.extraction.run_extraction --null-only --limit 1500
+      # Extraction runs on the residential-IP Mac mini via the weekly
+      # com.somm.extraction-enrich LaunchAgent (Sun 03:00 CT, one hour after
+      # this workflow fires). Local qwen2.5:7b — Haiku-parity on facts, free.
+      # Initial 5,516-wine backlog drained 2026-07-10 (5,974 written, 66%
+      # structure coverage). See docs/reference/enrichment.md.
 
       # Vivino enrichment runs in its own workflow (daily-vivino.yml — PAUSED,
       # IP-blocked; moving local). Kept out of this job to avoid overlap.
@@ -174,7 +169,6 @@ jobs:
             pogos=${{ steps.pogos.outcome }}
             kroger=${{ steps.kroger.outcome }}
             specs=${{ steps.specs.outcome }}
-            extraction=${{ steps.extraction.outcome }}
         run: |
           [ -z "$SLACK_WEBHOOK_URL" ] && echo "no webhook configured, skipping" && exit 0
           python3 - <<'PYEOF'
@@ -185,7 +179,7 @@ jobs:
               text = ("Weekly scrape — completed with failures: "
                       + ", ".join(failed))
           else:
-              text = "Weekly scrape — all 10 scrapers + extraction succeeded"
+              text = "Weekly scrape — all 10 scrapers succeeded"
           text += f"\n<{os.environ['RUN_URL']}|View run>"
           req = urllib.request.Request(
               os.environ["SLACK_WEBHOOK_URL"],
