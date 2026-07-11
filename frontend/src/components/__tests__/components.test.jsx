@@ -41,6 +41,22 @@ describe('WineCard', () => {
     render(<WineCard wine={{ ...wine, flavors: [] }} />);
     expect(screen.getByText('Esprit de Tablas')).toBeInTheDocument();
   });
+  it('shows distance next to the retailer when provided', () => {
+    render(<WineCard wine={{ ...wine, distance_miles: 4.4 }} />);
+    expect(screen.getByText("Spec's · 4.4 mi")).toBeInTheDocument();
+  });
+  it('drops the trailing .0 on whole-mile distances', () => {
+    render(<WineCard wine={{ ...wine, distance_miles: 3.0 }} />);
+    expect(screen.getByText("Spec's · 3 mi")).toBeInTheDocument();
+  });
+  it('shows just the retailer when distance is missing', () => {
+    render(<WineCard wine={wine} />);
+    expect(screen.getByText("Spec's")).toBeInTheDocument();
+  });
+  it('shows distance in the landscape variant too', () => {
+    render(<WineCard variant="landscape" wine={{ ...wine, distance_miles: 0.8 }} />);
+    expect(screen.getByText("Spec's · 0.8 mi")).toBeInTheDocument();
+  });
 
   describe('WineCard feedback thumbs', () => {
     it('renders thumb buttons when onVote is provided', () => {

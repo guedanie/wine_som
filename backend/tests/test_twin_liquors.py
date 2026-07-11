@@ -45,6 +45,7 @@ def test_wine_is_parsed_with_enriched_facts():
     assert p.in_stock is True
     assert p.upc == "twinliquors-prod123"
     assert (p.city, p.state, p.zip_code) == ("San Antonio", "TX", "78223")
+    assert p.address == "3850 S New Braunfels Ave #113"
 
 
 def test_non_wine_is_rejected():
@@ -68,6 +69,24 @@ def test_pick_option_prefers_default_750ml():
 
 
 def test_parse_address_and_abv_helpers():
-    assert _parse_address("123 Main St, Austin, TX 78701, USA") == ("Austin", "TX", "78701")
+    assert _parse_address("123 Main St, Austin, TX 78701, USA") == ("123 Main St", "Austin", "TX", "78701")
     assert _parse_abv("13.5%") == 13.5
     assert _parse_abv(None) is None
+
+
+def test_parse_address_unmatched_has_no_street():
+    street, city, state, zip_code = _parse_address("garbage")
+    assert street is None
+    assert (city, state, zip_code) == ("Austin", "TX", "78701")
+
+
+def test_to_items_carries_street_address():
+    """stores.address stays NULL (and the UI shows no address) unless the
+    street from full_address rides through to RetailInventoryItem."""
+    from unittest.mock import MagicMock
+    from scrapers.twin_liquors import TwinLiquorsScraper
+    scraper = TwinLiquorsScraper.__new__(TwinLiquorsScraper)
+    scraper.supabase = MagicMock()
+    p = _parse_product(_wine_raw(), MID)
+    items = scraper._to_items([p], MID)
+    assert items[0].address == "3850 S New Braunfels Ave #113"

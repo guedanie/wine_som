@@ -12,7 +12,7 @@ from db import get_supabase_client, get_service_client
 from recommendation.scorer import score_candidates
 from recommendation.claude_client import stream_recommendations
 from recommendation.intent import parse_message, merge_intent, intent_from_request
-from utils.geo import zip_to_centroid, find_nearby_store_ids
+from utils.geo import zip_to_centroid, find_nearby_store_ids, haversine
 from api.ratelimit import RateLimiter, limit_dependency
 
 logger = logging.getLogger(__name__)
@@ -93,7 +93,7 @@ def _detect_retailer(message: str) -> Optional[str]:
 
 INVENTORY_SELECT = (
     "price, curbside_price, wine_id,"
-    "stores!inner(retailer_name, name, zip_code, address),"
+    "stores!inner(retailer_name, name, zip_code, address, latitude, longitude),"
     "wines(id, name, varietal, region, country, wine_type, grapes, abv, body,"
     "image_url, vivino_rating, vivino_ratings_count,"
     "wine_details(tasting_notes, flavor_profile, structure_profile, grapeminds_enriched_at))"
@@ -153,6 +153,7 @@ def _enrich_picks(raw_picks: List[Dict[str, Any]], by_id: Dict[str, Dict[str, An
             "price": cand.get("price") if cand.get("price") is not None else p.get("price"),
             "retailer": cand.get("retailer") or p.get("retailer"),
             "store_address": cand.get("store_address"),
+            "distance_miles": cand.get("distance_miles"),
             "why": p.get("why", ""),
             "image_url": cand.get("image_url"),
             "vivino_rating": cand.get("vivino_rating"),
@@ -228,9 +229,15 @@ async def recommend(req: RecommendRequest):
         has_extract = bool(wine.get("varietal") or wine.get("region"))
         if not enriched and not has_extract:
             continue
-        retailer = (row.get("stores") or {}).get("retailer_name") or "unknown"
-        store_address = (row.get("stores") or {}).get("address") or None
-        store_name = (row.get("stores") or {}).get("name") or None
+        store = row.get("stores") or {}
+        retailer = store.get("retailer_name") or "unknown"
+        store_address = store.get("address") or None
+        store_name = store.get("name") or None
+        slat, slon = store.get("latitude"), store.get("longitude")
+        distance_miles = (
+            round(haversine(centroid[0], centroid[1], float(slat), float(slon)), 1)
+            if slat is not None and slon is not None else None
+        )
         by_retailer.setdefault(retailer, []).append({
             "wine_id": wine.get("id"),
             "name": wine.get("name"),
@@ -247,6 +254,7 @@ async def recommend(req: RecommendRequest):
             "retailer": retailer,
             "store_address": store_address,
             "store_name": store_name,
+            "distance_miles": distance_miles,
             "image_url": wine.get("image_url"),
             "vivino_rating": wine.get("vivino_rating"),
             "vivino_ratings_count": wine.get("vivino_ratings_count"),

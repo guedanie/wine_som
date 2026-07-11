@@ -9,6 +9,14 @@ from httpx import AsyncClient, ASGITransport
 from api.main import app
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """The module-level limiter (15/hr) outlives tests — without a reset the
+    suite 429s as soon as it crosses 15 endpoint calls."""
+    from api.routers.recommend import _recommend_limiter
+    _recommend_limiter._hits.clear()
+
+
 WINE_ROW = {
     "price": 22.0,
     "curbside_price": None,
@@ -375,6 +383,51 @@ async def test_recommend_picks_include_store_address():
     assert response.status_code == 200
     pick = _sse_picks(response.text)[0]
     assert pick["store_address"] == "1000 Austin Hwy, San Antonio, TX 78209"
+
+
+@pytest.mark.asyncio
+async def test_recommend_picks_include_distance_miles():
+    """Distance from the user's zip centroid to the store rides through to the pick,
+    rounded to one decimal, so the card can show '4.4 mi'."""
+    from utils.geo import haversine
+    user = (29.47, -98.46)
+    row = _wine_row()
+    row["stores"]["latitude"] = 29.5334
+    row["stores"]["longitude"] = -98.46
+    expected = round(haversine(user[0], user[1], 29.5334, -98.46), 1)
+    with patch("api.routers.recommend.stream_recommendations", side_effect=_make_stream_mock()), \
+         patch("api.routers.recommend.zip_to_centroid", return_value=user), \
+         patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([row])), \
+         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/recommend", json={
+                "zip_code": "78209", "budget_min": 15.0, "budget_max": 35.0})
+    assert response.status_code == 200
+    pick = _sse_picks(response.text)[0]
+    assert pick["distance_miles"] == expected
+
+
+@pytest.mark.asyncio
+async def test_recommend_distance_none_when_store_has_no_coords():
+    row = _wine_row()   # mock store rows carry no latitude/longitude
+    with patch("api.routers.recommend.stream_recommendations", side_effect=_make_stream_mock()), \
+         patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([row])), \
+         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/recommend", json={
+                "zip_code": "78209", "budget_min": 15.0, "budget_max": 35.0})
+    assert response.status_code == 200
+    assert _sse_picks(response.text)[0]["distance_miles"] is None
+
+
+def test_enrich_picks_carries_distance():
+    from api.routers.recommend import _enrich_picks
+    by_id = {"w1": {"wine_id": "w1", "name": "X", "price": 10.0,
+                    "retailer": "H-E-B", "store_address": None, "distance_miles": 4.4}}
+    picks = _enrich_picks([{"wine_id": "w1", "why": "y"}], by_id)
+    assert picks[0]["distance_miles"] == 4.4
 
 
 def test_enrich_picks_carries_image_and_rating():

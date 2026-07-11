@@ -14,6 +14,7 @@ import { track } from '../lib/analytics.js';
 import { useAuth } from '../lib/auth.jsx';
 import { buildTasteContext } from '../lib/taste.js';
 import { deriveWineCardMeta } from '../lib/regions.js';
+import { formatMiles } from '../lib/format.js';
 import useIsMobile from '../lib/useIsMobile.js';
 import uuid from '../lib/uuid.js';
 
@@ -94,7 +95,9 @@ function PickMessage({ pick, vote, onVote, onClick }) {
             </button>
             {price && <span style={{ fontFamily: 'var(--font-serif)', fontSize: 16, color: 'var(--ink)' }}>{price}</span>}
             {pick.retailer && (
-              <span style={{ borderRadius: 999, border: '0.75px solid var(--sage)', color: 'var(--sage)', fontFamily: 'var(--font-sans)', fontSize: 10.5, padding: '2px 9px' }}>◎ {pick.retailer}</span>
+              <span style={{ borderRadius: 999, border: '0.75px solid var(--sage)', color: 'var(--sage)', fontFamily: 'var(--font-sans)', fontSize: 10.5, padding: '2px 9px' }}>
+                ◎ {[pick.retailer, formatMiles(pick.distance_miles)].filter(Boolean).join(' · ')}
+              </span>
             )}
             {hasRating && (
               <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10.5, color: 'var(--brass)', whiteSpace: 'nowrap' }}

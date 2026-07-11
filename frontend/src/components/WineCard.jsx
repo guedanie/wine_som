@@ -1,6 +1,10 @@
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
 import Tag from './Tag.jsx';
 import SaveBookmark from './SaveBookmark.jsx';
+import { formatMiles } from '../lib/format.js';
+
+const storeLine = wine =>
+  [wine.retailer, formatMiles(wine.distance_miles)].filter(Boolean).join(' · ');
 
 const _THUMB_EASE = 'all 140ms cubic-bezier(.25,.46,.45,.94)';
 
@@ -61,7 +65,7 @@ function LandscapeCard({ wine, onClick, vote, onVote }) {
       <div style={{ padding: '14px 16px', flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div>
           <div style={{ fontFamily: 'var(--font-serif)', fontSize: 20, lineHeight: 1.1, color: 'var(--ink)' }}>{wine.name}</div>
-          <div style={{ fontSize: 11.5, color: 'var(--ink-2)', marginTop: 3 }}>{wine.retailer}</div>
+          <div style={{ fontSize: 11.5, color: 'var(--ink-2)', marginTop: 3 }}>{storeLine(wine)}</div>
           {wine.vivino_rating && wine.vivino_ratings_count > 0 && (
             <div style={{ fontSize: 11, color: 'var(--sage)', marginTop: 3 }}>
               {wine.vivino_rating.toFixed(1)} ★ · {wine.vivino_ratings_count >= 1000
@@ -115,7 +119,7 @@ export default function WineCard({ wine, onClick, vote, onVote, variant, voteSiz
       </div>
       <div style={{ padding: '13px 14px 14px' }}>
         <div style={{ fontFamily: 'var(--font-serif)', fontSize: 23, lineHeight: 1.05, color: 'var(--ink)' }}>{wine.name}</div>
-        <div style={{ fontSize: 11.5, color: 'var(--ink-2)', marginTop: 3 }}>{wine.retailer}</div>
+        <div style={{ fontSize: 11.5, color: 'var(--ink-2)', marginTop: 3 }}>{storeLine(wine)}</div>
         {wine.flavors?.length > 0 && (
           <div style={{ display: 'flex', gap: 6, marginTop: 11, flexWrap: 'wrap' }}>
             {wine.flavors.map(t => <Tag key={t}>{t}</Tag>)}

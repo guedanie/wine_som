@@ -226,15 +226,26 @@ def test_upsert_wine_details_skips_when_all_empty():
 def test_parse_store_detail_extracts_city_zip():
     from scrapers.specs import _parse_store_detail
     data = {"name": "Northwest Highway",
-            "address": {"city": "Dallas", "postcode": "75220", "provinceCode": "US-TX"}}
+            "address": {"city": "Dallas", "postcode": "75220", "provinceCode": "US-TX",
+                        "street": "9500 N Central Expy"}}
     d = _parse_store_detail(data, 115)
-    assert d == {"name": "Northwest Highway", "city": "Dallas", "zip": "75220"}
+    assert d == {"name": "Northwest Highway", "city": "Dallas", "zip": "75220",
+                 "address": "9500 N Central Expy"}
+
+
+def test_parse_store_detail_joins_street2():
+    from scrapers.specs import _parse_store_detail
+    data = {"name": "X",
+            "address": {"city": "Dallas", "postcode": "75220",
+                        "street": "9500 N Central Expy", "street2": "Ste 100"}}
+    assert _parse_store_detail(data, 115)["address"] == "9500 N Central Expy, Ste 100"
 
 
 def test_parse_store_detail_falls_back_on_missing_address():
     from scrapers.specs import _parse_store_detail
     d = _parse_store_detail({"name": "X"}, 999)
     assert d["city"] == "San Antonio" and d["zip"] == "78209"
+    assert d["address"] is None
 
 
 def test_inventory_item_uses_per_store_city_zip():
@@ -245,10 +256,11 @@ def test_inventory_item_uses_per_store_city_zip():
     product = _parse_product(_raw_product())
     items = SpecsScraper._products_to_inventory_items(
         scraper, [product], store_number=115, store_name="Northwest Highway",
-        store_zip="75220", store_city="Dallas")
+        store_zip="75220", store_city="Dallas", store_address="9500 N Central Expy")
     assert items[0].zip_code == "75220"
     assert items[0].city == "Dallas"
     assert items[0].state == "TX"
+    assert items[0].address == "9500 N Central Expy"
 
 
 def test_inventory_item_defaults_to_sa():

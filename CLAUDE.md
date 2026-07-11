@@ -96,7 +96,7 @@ Done unless noted. Detailed history: `docs/reference/build-log.md`.
 15. ✅ **Feedback-as-scoring-signal** — votes carry `user_id` + RLS read; `buildTasteContext` folds 👍→liked / 👎→disliked; scorer boosts/penalizes. Niche remaining: merge anon session votes on sign-in (needs backend JWT verify).
 16. **Price alerts + promo** — ⚙️ Phase 1 done (`price_history` + delta trigger). REMAINING: `price_watches` + notifier (depends on accounts).
 17. ✅ **Ratings badge** in WineCard + mobile pick messages.
-18. **Per-pick distance** — add store→zip distance to the Option C store pill.
+18. ✅ **Per-pick distance** — `distance_miles` (user-zip centroid → store, haversine) flows recommend endpoint → pick → mobile store pill + desktop WineCard retailer line. Also fixed: Spec's + Twin Liquors scrapers now write `stores.address` (street was parsed then dropped; every other retailer already had it).
 19. **Analytics** — ⚙️ foundation shipped; PostHog live in Vercel.
 20. **Kroger banner expansion** — Memphis/Houston/other NC-VA cities (config-only via `MARKETS`).
 21. Local MCP server for Claude Desktop (parked — memory `mcp-desktop-parked`).
@@ -104,3 +104,4 @@ Done unless noted. Detailed history: `docs/reference/build-log.md`.
 23. Blocked probes (headless-browser only): Total Wine, WFM, Publix, Food Lion, Tom Thumb/Albertsons.
 24. ✅ **Twin Liquors scraper** — live on the mini (Sun 04:00 CT). GitHub IPs Cloudflare-blocked. **Reusable: the api_key + client_origin bypass likely unblocks Corkdorks / Frugal MacDoogal (Nashville).**
 25. **Personalization follow-ons (parked)** — anon-vote merge; `similar_to` badge in pick UI; consumed-cellar as taste signal; profile avoids as mechanical scorer penalties; smarter top-10 for the "[Your wines]" block.
+26. **Bottle photo identification (future)** — user snaps a photo of a bottle label; app identifies the wine, then either (a) shows where to buy it locally (match against `retail_inventory`) or (b) one-tap adds it to saved/cellar. Likely Claude vision on the label image → match to `wines` (name/producer/vintage fuzzy match, or barcode scan as a cheaper first pass). UI needs design collaboration before any build.

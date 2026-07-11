@@ -87,6 +87,7 @@ class TwinProduct:
     price: float
     in_stock: bool
     store_name: str
+    address: Optional[str]
     city: str
     state: str
     zip_code: str
@@ -104,11 +105,11 @@ def _parse_abv(content) -> Optional[float]:
 
 
 def _parse_address(full_address: str):
-    """'3850 S New Braunfels Ave #113, San Antonio, TX 78223, USA' → (city, state, zip)."""
+    """'3850 S New Braunfels Ave #113, San Antonio, TX 78223, USA' → (street, city, state, zip)."""
     m = _ADDR_RE.match(full_address or "")
     if not m:
-        return ("Austin", "TX", "78701")
-    return (m.group("city").strip(), m.group("state"), m.group("zip"))
+        return (None, "Austin", "TX", "78701")
+    return (m.group("street").strip(), m.group("city").strip(), m.group("state"), m.group("zip"))
 
 
 def _pick_option(product_options: List[dict]) -> Optional[dict]:
@@ -148,7 +149,7 @@ def _parse_product(raw: dict, merchant_id: str) -> Optional[TwinProduct]:
     if option is None or option.get("price") is None:
         return None
 
-    city, state, zip_code = _parse_address(full_address or "")
+    street, city, state, zip_code = _parse_address(full_address or "")
     subtype = ap.get("subtype") or ap.get("varietal") or ""
     return TwinProduct(
         product_id=raw.get("id"),
@@ -164,7 +165,7 @@ def _parse_product(raw: dict, merchant_id: str) -> Optional[TwinProduct]:
         price=float(option["price"]),
         in_stock=(option.get("quantity") or 0) > 0,
         store_name=store_name or f"Twin Liquors {merchant_id[:6]}",
-        city=city, state=state, zip_code=zip_code,
+        address=street, city=city, state=state, zip_code=zip_code,
     )
 
 
@@ -245,7 +246,7 @@ class TwinLiquorsScraper(BaseScraper):
             store_id=merchant_id, store_name=p.store_name,
             upc=p.upc, price=p.price, in_stock=p.in_stock,
             varietal=p.varietal, brand=p.brand, image_url=p.image_url,
-            zip_code=p.zip_code, city=p.city, state=p.state,
+            address=p.address, zip_code=p.zip_code, city=p.city, state=p.state,
         ) for p in products]
 
     async def run_full(self, merchant_ids: Optional[List[str]] = None) -> dict:

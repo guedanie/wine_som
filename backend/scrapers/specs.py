@@ -99,10 +99,12 @@ def _parse_product(raw: dict) -> Optional[SpecsProduct]:
 
 
 def _parse_store_detail(data: dict, store_number: int) -> dict:
-    """Extract {name, city, zip} from a /api/store/number/N/ response."""
+    """Extract {name, address, city, zip} from a /api/store/number/N/ response."""
     addr = data.get("address") or {}
+    street = ", ".join(s for s in (addr.get("street"), addr.get("street2")) if s) or None
     return {
         "name": data.get("name") or f"Spec's Store {store_number}",
+        "address": street,
         "city": addr.get("city") or "San Antonio",
         "zip": addr.get("postcode") or "78209",
     }
@@ -141,6 +143,7 @@ class SpecsScraper(BaseScraper):
         store_name: str,
         store_zip: str = "78209",
         store_city: str = "San Antonio",
+        store_address: Optional[str] = None,
     ) -> List[RetailInventoryItem]:
         items = []
         for p in products:
@@ -157,6 +160,7 @@ class SpecsScraper(BaseScraper):
                 varietal=p.category_group,
                 brand=p.brand,
                 image_url=p.image_url,
+                address=store_address,
                 zip_code=store_zip,   # per-store; geocoded by BaseScraper._upsert_stores
                 city=store_city,
                 state="TX",
@@ -193,7 +197,8 @@ class SpecsScraper(BaseScraper):
         try:
             return _parse_store_detail(json.loads(result.stdout), store_number)
         except Exception:
-            return {"name": f"Spec's Store {store_number}", "city": "San Antonio", "zip": "78209"}
+            return {"name": f"Spec's Store {store_number}", "address": None,
+                    "city": "San Antonio", "zip": "78209"}
 
     async def run_full(self, store_numbers: Optional[List[int]] = None) -> dict:
         """
@@ -218,6 +223,7 @@ class SpecsScraper(BaseScraper):
             for store_number in stores:
                 detail = self._fetch_store_detail(store_number)
                 store_name, store_zip, store_city = detail["name"], detail["zip"], detail["city"]
+                store_address = detail["address"]
                 print(f"\n  Store {store_number} — {store_name} ({store_city} {store_zip})")
 
                 page = 1
@@ -243,6 +249,7 @@ class SpecsScraper(BaseScraper):
                         items = self._products_to_inventory_items(
                             products, store_number=store_number, store_name=store_name,
                             store_zip=store_zip, store_city=store_city,
+                            store_address=store_address,
                         )
                         upc_to_id = self._upsert_wines(items)
                         self._upsert_inventory(items, upc_to_id)

@@ -156,6 +156,34 @@ it('shows the Vivino rating badge in a mobile pick message', async () => {
   window.matchMedia = undefined;
 });
 
+it('shows store distance in the mobile store pill when provided', async () => {
+  window.matchMedia = vi.fn().mockImplementation(q => ({
+    matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
+  }));
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'One pick.' };
+    yield { type: 'picks', picks: [{ wine_id: 'uuid-1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's", why: 'Great.', distance_miles: 2.1 }], session_id: 'sess-1' };
+  });
+  renderScreen();
+  await waitFor(() => screen.getByText('Esprit de Tablas'));
+  expect(screen.getByText(/◎ Spec's · 2\.1 mi/)).toBeInTheDocument();
+  window.matchMedia = undefined;
+});
+
+it('mobile store pill shows just the retailer when distance is missing', async () => {
+  window.matchMedia = vi.fn().mockImplementation(q => ({
+    matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
+  }));
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'One pick.' };
+    yield { type: 'picks', picks: [{ wine_id: 'uuid-1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's", why: 'Great.' }], session_id: 'sess-1' };
+  });
+  renderScreen();
+  await waitFor(() => screen.getByText('Esprit de Tablas'));
+  expect(screen.getByText("◎ Spec's")).toBeInTheDocument();
+  window.matchMedia = undefined;
+});
+
 it('omits the rating badge when a mobile pick has no Vivino rating', async () => {
   window.matchMedia = vi.fn().mockImplementation(q => ({
     matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
