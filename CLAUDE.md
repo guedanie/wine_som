@@ -89,7 +89,7 @@ Done unless noted. Detailed history: `docs/reference/build-log.md`.
 
 1–10. ✅ Sommelier routing · scheduled scrape · HEB CSV expansion · feedback loop · Somm overlay · deploy · mobile/PWA · structure table · chat naturalness · **Mac mini enrichment server** (Vivino + weekly extraction + Twin Liquors launchd, all live).
 
-11. **Local LLM extraction cutover** — ⚙️ in flight: `EXTRACTOR_BACKEND=ollama` on the mini's weekly launchd; initial 5,516-wine backlog drain running (watcher chains `persist_structure.py`). REMAINING: once steady-state confirmed, drop Haiku from `weekly-scrape.yml` (capped 1500/run as fallback meanwhile).
+11. ✅ **Local LLM extraction cutover** — done 2026-07-10: initial 6,298-wine drain wrote 5,974 (~5% loss to malformed-UUID echoes, non-corrupting); persist_structure landed 11,899 new structure rows. Haiku extraction step removed from `weekly-scrape.yml` 2026-07-11. Mini's weekly `com.somm.extraction-enrich` LaunchAgent (Sun 03:00 CT) is now the only extraction path. Steady-state NULL: 16.9% varietal / 19.1% region / 10.9% both (of 19,254 wines).
 12. **Blend structure/sweetness LLM pass** — table→LLM hybrid for the ~3% of blends the table can't anchor + LLM sweetness.
 13. **Extraction pass on new Nashville/NC/Dallas wines** — `--null-only` to make them recommendable (also grows structure coverage).
 14. ✅ **User accounts Phases 0–3** — magic-link auth, saved favorites, mobile account home, cellar (drinking windows + drank-rating), taste-profile interview. REMAINING: **Phase 4 price-alert watches** (`price_watches` + notifier). Roadmap: `docs/user-accounts-roadmap.md`.
