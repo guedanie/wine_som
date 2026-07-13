@@ -293,11 +293,24 @@ export default function ChatRecommend() {
       </p>
     ));
 
+  // While the answer is still streaming, hold back per-wine paragraphs (they
+  // open with a bold **Wine Name** and are destined to become PickMessages) so
+  // the bubble never collapses when the cards arrive. The first paragraph (the
+  // framing line) always shows; a held paragraph in a no-picks answer reveals
+  // at stream end — an addition, never a collapse.
+  const holdWineParas = text => {
+    const paras = text.split('\n\n');
+    return [paras[0], ...paras.slice(1).filter(p => !p.trimStart().startsWith('**'))].join('\n\n');
+  };
+
   const messageList = messages.flatMap((m, i) => {
     if (m.role === 'user') return [<UserBubble key={m.id ?? i}>{m.text}</UserBubble>];
     const hasPicks = m.picks?.length;
+    const isLive = streaming && !hasPicks && i === messages.length - 1;
     // when picks exist, the intro bubble shows only the framing paragraph
-    const introText = hasPicks ? (m.text.split('\n\n')[0] || m.text) : m.text;
+    const introText = hasPicks ? (m.text.split('\n\n')[0] || m.text)
+                    : isLive   ? holdWineParas(m.text)
+                    : m.text;
     const intro = (
       <SommelierBubble
         key={m.id ?? i}

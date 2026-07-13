@@ -156,6 +156,64 @@ it('shows the Vivino rating badge in a mobile pick message', async () => {
   window.matchMedia = undefined;
 });
 
+it('suppresses per-wine paragraphs while streaming on mobile, so nothing collapses when cards arrive', async () => {
+  window.matchMedia = vi.fn().mockImplementation(q => ({
+    matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
+  }));
+  let release;
+  const gate = new Promise(r => { release = r; });
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'Weight and grip tonight.\n\n**Hall Napa** is structured cassis.\n\n**Jadot Beaujolais** is the value play.' };
+    await gate;   // hold the stream open — narrative done, picks not yet arrived
+    yield { type: 'picks', picks: [
+      { wine_id: 'uuid-1', name: 'Hall Napa', price: 99, retailer: 'H-E-B', why: 'Structured.' },
+      { wine_id: 'uuid-2', name: 'Jadot Beaujolais', price: 13, retailer: 'Twin Liquors', why: 'Value.' },
+    ], session_id: 'sess-1' };
+  });
+  renderScreen();
+  await waitFor(() => screen.getByText(/Weight and grip/));   // framing line streams
+  expect(screen.queryByText('Hall Napa')).toBeNull();          // per-wine paras held back
+  expect(screen.queryByText('Jadot Beaujolais')).toBeNull();
+  release();
+  // cards arrive; wine names now exist only as card name-links (one each, no collapse-remnant text)
+  await waitFor(() => expect(screen.getAllByText('Hall Napa')).toHaveLength(1));
+  expect(screen.getAllByText('Jadot Beaujolais')).toHaveLength(1);
+  expect(screen.getByText(/Weight and grip/)).toBeInTheDocument();  // framing line intact
+  window.matchMedia = undefined;
+});
+
+it('reveals held-back paragraphs when the stream ends without picks (education answers)', async () => {
+  window.matchMedia = vi.fn().mockImplementation(q => ({
+    matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
+  }));
+  let release;
+  const gate = new Promise(r => { release = r; });
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'Two things matter here.\n\n**Tannins** dry the palate.' };
+    await gate;
+    // stream ends with no picks event — an education-mode answer
+  });
+  renderScreen();
+  await waitFor(() => screen.getByText(/Two things matter/));
+  expect(screen.queryByText('Tannins')).toBeNull();
+  release();
+  await waitFor(() => expect(screen.getByText('Tannins')).toBeInTheDocument());
+  window.matchMedia = undefined;
+});
+
+it('never suppresses the first paragraph even when it opens with a bold name', async () => {
+  window.matchMedia = vi.fn().mockImplementation(q => ({
+    matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
+  }));
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: '**Esprit de Tablas** is my first call.' };
+    await new Promise(() => {});   // still streaming
+  });
+  renderScreen();
+  await waitFor(() => expect(screen.getByText('Esprit de Tablas')).toBeInTheDocument());
+  window.matchMedia = undefined;
+});
+
 it('renders a card from a progressive pick event, before the final picks array', async () => {
   window.matchMedia = vi.fn().mockImplementation(q => ({
     matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},

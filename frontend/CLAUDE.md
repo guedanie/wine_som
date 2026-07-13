@@ -128,6 +128,9 @@ Portrait 3:4 aspect ratio.
    **mobile**: Option C — each wine is a conversational message (tasting note + tappable
    wine-name link + inline price + `◎ store` pill + thumbs), no card chrome. Follow-up
    questions answer conversationally by default (natural mode); only an explicit re-ask spawns new picks.
+   While streaming, mobile holds back per-wine paragraphs (those opening with a bold
+   `**Wine Name**`) so the bubble never collapses when the cards arrive; no-picks answers
+   reveal any held paragraph at stream end.
 3. **Wine dossier** — region poster hero, wine detail, structure bars, contour divider,
    local store availability with map pins, "More from this region" grid
 4. **Discover** — region poster grid, click → wine dossier
