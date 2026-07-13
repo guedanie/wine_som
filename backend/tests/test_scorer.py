@@ -65,6 +65,37 @@ def test_price_proximity_scores_midrange_higher():
     assert result[0]["name"] == "Mid Red"
 
 
+def test_big_budget_pulls_toward_the_top_of_the_window():
+    """A $150 budget should read as appetite to spend: the pull targets
+    0.75×max (~$112), not the window midpoint ($80). The $80 wine is exactly
+    the OLD midpoint target and comes first, so only the new target can pass."""
+    old_target = _wine("Midpoint Red", price=80.0)
+    splurge = _wine("Splurge Red", price=110.0)
+    result = score_candidates(_intent(budget_min=10.0, budget_max=150.0), [old_target, splurge])
+    assert result[0]["name"] == "Splurge Red"
+
+
+def test_style_match_still_beats_price_target():
+    """The budget pull stays a tiebreaker — a cheap bottle matching the
+    requested type outranks an on-target-price bottle that doesn't."""
+    off_style = _wine("Pricey White", wine_type="white", price=110.0)
+    value = _wine("Value Red", wine_type="red", price=20.0)
+    result = score_candidates(
+        _intent(wine_type="red", budget_min=10.0, budget_max=150.0),
+        [off_style, value])
+    assert result[0]["name"] == "Value Red"
+
+
+def test_price_target_clamps_into_narrow_window():
+    """0.75×max can fall below budget_min on narrow windows (e.g. $10–$12 →
+    $9); the target clamps to the floor so in-window wines aren't all
+    penalized toward an unreachable price."""
+    low = _wine("Ten Dollar Red", price=10.0)
+    high = _wine("Twelve Dollar Red", price=12.0)
+    result = score_candidates(_intent(budget_min=10.0, budget_max=12.0), [high, low])
+    assert result[0]["name"] == "Ten Dollar Red"
+
+
 def test_earthy_intent_ranks_gsm_over_fruit_bomb_via_grape_inference():
     # Neither wine's notes literally say "earthy"; the GSM wins on grape/region knowledge.
     gsm = _wine("Rhône GSM", varietal="Grenache",

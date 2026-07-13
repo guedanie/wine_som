@@ -91,7 +91,11 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
     """Knowledge-based deterministic scoring. `intent` is the resolved-intent dict."""
     budget_min = float(intent.get("budget_min", 10.0))
     budget_max = float(intent.get("budget_max", 50.0))
-    budget_mid = (budget_min + budget_max) / 2.0
+    # The budget pull targets 0.75×max, not the window midpoint — a $150 budget
+    # reads as appetite to spend (~$112), not "anything under $150 is equally
+    # fine". Clamped to the floor so narrow windows don't target an unreachable
+    # price below budget_min.
+    budget_target = max(budget_min, 0.75 * budget_max)
     want_type = intent.get("wine_type")
     want_body = intent.get("body")
     want_region = _norm(intent.get("region")) if intent.get("region") else None
@@ -143,7 +147,7 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
 
         price = float(wine.get("price") or 0.0)
         if budget_max > budget_min:
-            distance = abs(price - budget_mid) / (budget_max - budget_min)
+            distance = abs(price - budget_target) / (budget_max - budget_min)
             score += _W_BUDGET * max(0.0, 1.0 - distance)
 
         if wine.get("tier") == 1:

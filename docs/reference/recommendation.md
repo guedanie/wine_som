@@ -17,6 +17,13 @@
   `score_candidates(intent: dict, candidates: list)`) — maps grape/region → flavor tags
   via `recommendation/flavor_profiles.py` so it can score even Tier-2 wines without
   GrapeMinds structure data. No LLM call in the scorer.
+- **Budget = hard window + soft pull toward 0.75×max** — the inventory fetch is a
+  hard `[budget_min, budget_max]` filter (frontend sends a fixed $10 floor + the
+  slider as ceiling). Inside the window the scorer adds up to `_W_BUDGET=1.0` for
+  proximity to `max(budget_min, 0.75×budget_max)` — a $150 budget reads as appetite
+  to spend (~$112 target), not "everything under $150 is equal" — while staying a
+  tiebreaker (style/type/personalization weights are 2–3×), so a great-value bottle
+  still beats a mediocre expensive one.
 - **Vivino rating boost** — `_W_RATING=1.5` max, boost-only above a 3.5 baseline,
   ignored when `vivino_ratings_count < 25` (`_MIN_RATINGS`). Never penalizes unrated
   wines — obscure natural wines aren't punished for having no Vivino presence.
@@ -66,6 +73,9 @@ input JSON in field order: `narrative` → `picks` → `followup_suggestions`.
 - **Optional NL `message`** — `recommendation/intent.py.parse_message()` (Haiku tool-use)
   turns free text into structured intent, then `merge_intent()` merges it with the
   explicit request fields. Explicit fields win on scalar conflicts; lists (flavors/avoid)
-  union; budget is always explicit. Fail-soft: parse errors return `None` and the request
-  proceeds on explicit fields only. The router skips parsing the default placeholder
-  message (`"Recommend wines based on my preferences"`).
+  union. A spoken price cap ("under $20") TIGHTENS the scoring window — `budget_max`
+  drops to the stated max (and `budget_min` clamps below it if needed) so the scorer's
+  budget pull re-centers on what was asked; it never widens the window since the
+  inventory fetch already capped candidates at the slider max. Fail-soft: parse errors
+  return `None` and the request proceeds on explicit fields only. The router skips
+  parsing the default placeholder message (`"Recommend wines based on my preferences"`).

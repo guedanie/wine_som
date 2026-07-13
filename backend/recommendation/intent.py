@@ -77,7 +77,9 @@ def intent_from_request(wine_type: Optional[str], style_preferences: List[str],
 
 def merge_intent(parsed: Optional[Dict[str, Any]], explicit: Dict[str, Any]) -> Dict[str, Any]:
     """Merge parsed NL intent into the explicit-field intent. Explicit wins on scalar
-    conflicts; flavors/avoid are unioned; budget always from explicit."""
+    conflicts; flavors/avoid are unioned. A spoken price cap ("under $20") TIGHTENS
+    the scoring window so the budget pull re-centers on what was asked — it never
+    widens it (the inventory fetch already capped candidates at the slider max)."""
     if not parsed:
         return explicit
     out = dict(explicit)
@@ -91,5 +93,9 @@ def merge_intent(parsed: Optional[Dict[str, Any]], explicit: Dict[str, Any]) -> 
     # list unions
     out["flavors"] = list({*(out.get("flavors") or []), *(parsed.get("flavors") or [])})
     out["avoid"] = list({*(out.get("avoid") or []), *(parsed.get("avoid") or [])})
-    # budget always explicit (already in `out`)
+    max_price = parsed.get("max_price")
+    if isinstance(max_price, (int, float)) and max_price > 0:
+        if max_price < float(out.get("budget_max", 50.0)):
+            out["budget_max"] = float(max_price)
+            out["budget_min"] = min(float(out.get("budget_min", 10.0)), float(max_price))
     return out

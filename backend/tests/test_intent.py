@@ -29,7 +29,59 @@ def test_merge_intent_explicit_wine_type_wins():
     assert merged["body"] == "light"              # filled from parsed
     assert merged["grapes"] == ["Chardonnay"]     # filled from parsed
     assert merged["region"] == "Burgundy"         # filled from parsed
-    assert merged["budget_max"] == 50.0           # explicit budget always wins
+    assert merged["budget_max"] == 20.0           # spoken "under $20" tightens the window
+
+
+def _explicit(bmin=10.0, bmax=50.0):
+    return intent_from_request(wine_type=None, style_preferences=[], avoid=[],
+                               budget_min=bmin, budget_max=bmax)
+
+
+def _parsed(max_price):
+    return {"wine_type": None, "body": None, "flavors": [], "grapes": [],
+            "region": None, "max_price": max_price, "avoid": []}
+
+
+def test_max_price_tightens_scoring_window():
+    merged = merge_intent(_parsed(20.0), _explicit(10.0, 60.0))
+    assert merged["budget_max"] == 20.0
+    assert merged["budget_min"] == 10.0
+
+
+def test_max_price_never_widens_the_window():
+    """The fetch already capped candidates at the slider max — a spoken price
+    above it must not pretend the window is wider than the pool."""
+    merged = merge_intent(_parsed(80.0), _explicit(10.0, 50.0))
+    assert merged["budget_max"] == 50.0
+
+
+def test_max_price_below_floor_clamps_min_too():
+    merged = merge_intent(_parsed(8.0), _explicit(10.0, 50.0))
+    assert merged["budget_max"] == 8.0
+    assert merged["budget_min"] == 8.0    # window stays valid (min <= max)
+
+
+def test_max_price_absent_or_invalid_leaves_budget_alone():
+    assert merge_intent(_parsed(None), _explicit())["budget_max"] == 50.0
+    assert merge_intent(_parsed(0), _explicit())["budget_max"] == 50.0
+    assert merge_intent(_parsed(-5), _explicit())["budget_max"] == 50.0
+    assert merge_intent(_parsed("cheap"), _explicit())["budget_max"] == 50.0
+
+
+def test_scorer_recenters_on_spoken_max_price():
+    """With slider 10-60 but a spoken 'under $20', the budget pull re-centers on
+    $15 — a $15 bottle must now outscore an otherwise-identical $35 one. The $35
+    wine comes FIRST so a stable-sort tie can't fake a pass."""
+    from recommendation.scorer import score_candidates
+    wines = [
+        {"wine_id": "w-35", "name": "A", "price": 35.0, "wine_type": "red", "grapes": [],
+         "flavor_profile": [], "structure_profile": {}, "tier": 2},
+        {"wine_id": "w-15", "name": "B", "price": 15.0, "wine_type": "red", "grapes": [],
+         "flavor_profile": [], "structure_profile": {}, "tier": 2},
+    ]
+    merged = merge_intent(_parsed(20.0), _explicit(10.0, 60.0))
+    scored = sorted(score_candidates(merged, wines), key=lambda w: w["_score"], reverse=True)
+    assert scored[0]["wine_id"] == "w-15"
 
 
 def test_merge_intent_unions_flavors_and_avoid():
