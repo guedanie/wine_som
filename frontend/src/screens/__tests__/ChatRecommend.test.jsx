@@ -156,6 +156,37 @@ it('shows the Vivino rating badge in a mobile pick message', async () => {
   window.matchMedia = undefined;
 });
 
+it('renders a card from a progressive pick event, before the final picks array', async () => {
+  window.matchMedia = vi.fn().mockImplementation(q => ({
+    matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
+  }));
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'My first call.' };
+    yield { type: 'pick', pick: { wine_id: 'uuid-1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's", why: 'Great.' } };
+    // no final picks event — the progressive pick alone must render
+  });
+  renderScreen();
+  await waitFor(() => screen.getByText('Esprit de Tablas'));
+  expect(screen.getByText('$55')).toBeInTheDocument();
+  window.matchMedia = undefined;
+});
+
+it('final picks event replaces progressive picks without duplicating cards', async () => {
+  window.matchMedia = vi.fn().mockImplementation(q => ({
+    matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
+  }));
+  const pick = { wine_id: 'uuid-1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's", why: 'Great.' };
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'My first call.' };
+    yield { type: 'pick', pick };
+    yield { type: 'picks', picks: [pick], session_id: 'sess-1' };
+  });
+  renderScreen();
+  await waitFor(() => screen.getByText('Esprit de Tablas'));
+  expect(screen.getAllByText('Esprit de Tablas')).toHaveLength(1);
+  window.matchMedia = undefined;
+});
+
 it('shows store distance in the mobile store pill when provided', async () => {
   window.matchMedia = vi.fn().mockImplementation(q => ({
     matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},

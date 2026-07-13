@@ -1,4 +1,6 @@
+import json
 import logging
+import re
 from typing import List, Dict, Any, Optional, Tuple
 import anthropic
 from config import settings
@@ -11,6 +13,10 @@ _anthropic_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 _TOOL = {
     "name": "recommend_wines",
     "description": "Return wine recommendations with narrative, structured picks, and followup suggestions.",
+    # Fine-grained tool streaming (GA, no beta header): without this the API
+    # buffers input_json_delta into coarse chunks, so the narrative bursts and
+    # all picks land at once instead of streaming.
+    "eager_input_streaming": True,
     "input_schema": {
         "type": "object",
         "properties": {
@@ -19,16 +25,16 @@ _TOOL = {
                 "type": "array",
                 "description": "Wine picks from the inventory. In Recommend Mode return up to 4 wines that GENUINELY fit — fewer is better; a single standout beats padding, and one perfect match should be returned alone. Never add a weaker or off-target wine (wrong retailer/store, wrong style) to reach a number. Return an empty array [] in Education Mode (when answering a knowledge question) or Pairing Mode (when the user asks what food goes with a wine already shown).",
                 "minItems": 0,
+                # Slim on purpose: name/price/retailer are re-attached
+                # authoritatively from the candidate pool by wine_id
+                # (_enrich_picks), so echoing them only delays the cards.
                 "items": {
                     "type": "object",
                     "properties": {
                         "wine_id":  {"type": "string"},
-                        "name":     {"type": "string"},
-                        "price":    {"type": "number"},
-                        "retailer": {"type": "string"},
                         "why":      {"type": "string"},
                     },
-                    "required": ["wine_id", "name", "price", "retailer", "why"],
+                    "required": ["wine_id", "why"],
                 },
             },
             "followup_suggestions": {
@@ -323,12 +329,87 @@ def _build_user_message(
     )
 
 
+class _PicksScanner:
+    """Incrementally parses the picks array from post-narrative tool JSON.
+
+    Fed the raw text that follows the narrative's closing quote (in arbitrary
+    fragment sizes), it emits each pick dict the moment its closing brace
+    arrives — so cards can stream one at a time instead of waiting for the
+    whole array — then the full list when the array's closing ] is seen.
+    """
+
+    def __init__(self):
+        self._pre_buf = ""      # text seen before the array's opening [
+        self._started = False
+        self._done = False
+        self._obj: List[str] = []   # chars of the in-progress pick object
+        self._depth = 0
+        self._in_obj = False
+        self._in_str = False
+        self._esc = False
+        self._picks: List[dict] = []
+
+    def feed(self, text: str):
+        """Consume a fragment; return newly completed events:
+        ("pick", dict) per finished object, ("picks", list) at array close."""
+        events = []
+        if self._done or not text:
+            return events
+        if not self._started:
+            self._pre_buf += text
+            m = re.search(r'"picks"\s*:\s*\[', self._pre_buf)
+            if not m:
+                return events
+            self._started = True
+            text = self._pre_buf[m.end():]
+            self._pre_buf = ""
+        for ch in text:
+            if self._done:
+                break
+            if self._in_obj:
+                self._obj.append(ch)
+                if self._esc:
+                    self._esc = False
+                elif ch == "\\" and self._in_str:
+                    self._esc = True
+                elif ch == '"':
+                    self._in_str = not self._in_str
+                elif not self._in_str:
+                    if ch in "{[":
+                        self._depth += 1
+                    elif ch in "}]":
+                        self._depth -= 1
+                        if self._depth == 0:
+                            try:
+                                pick = json.loads("".join(self._obj))
+                                self._picks.append(pick)
+                                events.append(("pick", pick))
+                            except json.JSONDecodeError:
+                                logger.warning("PICK SKIPPED | malformed object in stream: %r",
+                                               "".join(self._obj)[:120])
+                            self._in_obj = False
+                            self._obj = []
+            else:
+                # between objects: only '{' (next pick) or ']' (array end) matter
+                if ch == "{":
+                    self._in_obj = True
+                    self._obj = [ch]
+                    self._depth = 1
+                    self._in_str = False
+                    self._esc = False
+                elif ch == "]":
+                    self._done = True
+                    events.append(("picks", self._picks))
+        return events
+
+
 def _parse_narrative_fragments(fragments):
     """Parse a sequence of input_json_delta fragment strings from the streaming tool call.
 
     Yields (type, value) tuples:
       ("token", str)   — decoded narrative characters
-      ("picks", list)  — picks array, as soon as its closing ] is seen
+      ("pick", dict)   — each pick object, the moment its closing brace is seen
+      ("picks", list)  — the full picks array, as soon as its closing ] is seen
 
     Extracted from _gen() so it can be unit-tested without any Anthropic API calls.
     Handles standard JSON escape sequences including \\uXXXX (B2 fix).
@@ -343,42 +424,7 @@ def _parse_narrative_fragments(fragments):
     unicode_buf = None
     MARKERS = ['"narrative":"', '"narrative": "']
 
-    post_buf = ""
-    picks_yielded = False
-
-    def _try_extract_picks(buf):
-        import json as _json
-        marker = '"picks":'
-        pos = buf.find(marker)
-        if pos == -1:
-            return None
-        rest = buf[pos + len(marker):].lstrip()
-        if not rest or rest[0] != '[':
-            return None
-        depth = 0
-        in_str = False
-        esc = False
-        for i, ch in enumerate(rest):
-            if esc:
-                esc = False
-                continue
-            if ch == '\\' and in_str:
-                esc = True
-                continue
-            if ch == '"':
-                in_str = not in_str
-                continue
-            if not in_str:
-                if ch == '[':
-                    depth += 1
-                elif ch == ']':
-                    depth -= 1
-                    if depth == 0:
-                        try:
-                            return _json.loads(rest[:i + 1])
-                        except _json.JSONDecodeError:
-                            return None
-        return None
+    scanner = _PicksScanner()
 
     def _process_char(ch, chunk, escape_next, unicode_buf):
         """Process one character inside the narrative string.
@@ -415,12 +461,7 @@ def _parse_narrative_fragments(fragments):
 
     for fragment in fragments:
         if narrative_done:
-            if not picks_yielded:
-                post_buf += fragment
-                early_picks = _try_extract_picks(post_buf)
-                if early_picks is not None:
-                    picks_yielded = True
-                    yield ("picks", early_picks)
+            yield from scanner.feed(fragment)
             continue
 
         if not in_narrative:
@@ -446,13 +487,7 @@ def _parse_narrative_fragments(fragments):
             if chunk:
                 yield ("token", "".join(chunk))
             if narrative_done and post_start is not None:
-                remaining = chars[post_start:]
-                if remaining and not picks_yielded:
-                    post_buf += remaining
-                    early_picks = _try_extract_picks(post_buf)
-                    if early_picks is not None:
-                        picks_yielded = True
-                        yield ("picks", early_picks)
+                yield from scanner.feed(chars[post_start:])
         else:
             chunk = []
             post_start = None
@@ -465,19 +500,9 @@ def _parse_narrative_fragments(fragments):
             if chunk:
                 yield ("token", "".join(chunk))
             if narrative_done and post_start is not None:
-                remaining = fragment[post_start:]
-                if remaining and not picks_yielded:
-                    post_buf += remaining
-                    early_picks = _try_extract_picks(post_buf)
-                    if early_picks is not None:
-                        picks_yielded = True
-                        yield ("picks", early_picks)
-
-    # Yield empty picks if we never found a closing bracket (degenerate case)
-    if not picks_yielded:
-        picks = _try_extract_picks(post_buf)
-        if picks is not None:
-            yield ("picks", picks)
+                yield from scanner.feed(fragment[post_start:])
+    # If the array never closed (degenerate stream), no ("picks", …) was yielded;
+    # stream_recommendations falls back to the final message's tool block.
 
 
 def stream_recommendations(
@@ -489,7 +514,8 @@ def stream_recommendations(
     """
     Returns a generator that yields (type, data) tuples:
       ("token", str)   — narrative character(s) extracted from input_json_delta
-      ("picks", list)  — raw model picks (unenriched)
+      ("pick", dict)   — one raw model pick, as soon as its object completes
+      ("picks", list)  — the full raw picks list (unenriched), at array close
 
     With forced tool use the model writes everything inside the tool JSON.
     We extract the narrative string by watching input_json_delta fragments

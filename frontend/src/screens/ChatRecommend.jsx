@@ -192,6 +192,20 @@ export default function ChatRecommend() {
               return msgs;
             });
           }
+        } else if (event.type === 'pick') {
+          // Progressive card — render as soon as the model finishes this pick.
+          // The final 'picks' event replaces the list wholesale, so any pick
+          // reconciled away later disappears and nothing duplicates.
+          const one = deriveWineCardMeta(event.pick);
+          const appendPick = list => list.some(p => p.wine_id === one.wine_id) ? list : [...list, one];
+          setPicks(appendPick);                       // desktop side panel
+          setMessages(prev => {                       // mobile inline: attach to last sommelier msg
+            const msgs = [...prev];
+            for (let k = msgs.length - 1; k >= 0; k--) {
+              if (msgs[k].role === 'sommelier') { msgs[k] = { ...msgs[k], picks: appendPick(msgs[k].picks ?? []) }; break; }
+            }
+            return msgs;
+          });
         } else if (event.type === 'picks') {
           if (event.picks.length > 0) {
             const enriched = event.picks.map(deriveWineCardMeta);

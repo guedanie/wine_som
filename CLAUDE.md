@@ -9,7 +9,7 @@ Full-stack wine recommendation app. Users enter zip code + budget + style prefer
 - **Database + Auth**: Supabase (cloud project `knpldhksfsetujbcfrsj`)
 - **Backend**: Python 3.9, FastAPI, supabase-py
 - **Frontend**: React 19 + Vite + Tailwind v3 (desktop + mobile/PWA)
-- **AI**: Anthropic Claude (Haiku — recommendations + fact extraction)
+- **AI**: Anthropic Claude — Sonnet 4.6 (recommendations, streamed) + Haiku 4.5 (Somm overlay chat, NL intent parse); fact extraction runs on the mini's local qwen
 - **Scraping**: urllib (Shopify), curl subprocess (HEB/CM GraphQL, Spec's, City Hive), OAuth REST (Kroger) — no Playwright
 - **Geo**: `pgeocode` (offline US zip centroids)
 - **Hosting**: Vercel (web) + Railway (api) + Supabase (db)
@@ -49,7 +49,7 @@ Full component table + file map: **`docs/reference/build-log.md`**.
 
 - **Retail data** — 11 scrapers live (H-E-B, Central Market, Spec's, Kroger, Harris Teeter, Twin Liquors, Pogo's, Geraldine's, AOC, US Natural Wine, Antonelli's, Harvest) across TX/TN/NC. Weekly GitHub cron runs 10; **Twin Liquors + Vivino + local-LLM extraction run on the residential-IP Mac mini** (datacenter IPs are Cloudflare/Vivino-blocked). Details: `docs/reference/scrapers.md`, `docs/mac-mini-enrichment-server.md`.
 - **Enrichment** — layered: retailer data → Vivino (ratings/facts/image) → local LLM (qwen2.5:7b, Haiku-parity) → deterministic grape+region structure table. Details: `docs/reference/enrichment.md`.
-- **Recommendation** — deterministic knowledge-based scorer shortlists; Claude (Haiku) picks + narrates. Personalization (saved + cellar + 👍/👎 votes + taste-profile interview) re-ranks and is cited. Details: `docs/reference/recommendation.md`.
+- **Recommendation** — deterministic knowledge-based scorer shortlists; Claude (Sonnet 4.6) picks + narrates, streamed progressively (narrative word-by-word, then cards one at a time). Personalization (saved + cellar + 👍/👎 votes + taste-profile interview) re-ranks and is cited. Details: `docs/reference/recommendation.md`.
 - **Frontend** — React SPA + installable PWA; anonymous-first with optional magic-link accounts (saved bottles, cellar, taste profile). Design system: `frontend/CLAUDE.md`.
 - **Blocked retailers** — Total Wine (Imperva), Whole Foods (Amazon auth), Publix/Costco/Trader Joe's (Akamai), Food Lion (Cloudflare), Tom Thumb/Albertsons (Incapsula), Corkdorks/Frugal MacDoogal (City Hive auth — may be unblockable via the Twin Liquors bypass).
 
@@ -105,3 +105,4 @@ Done unless noted. Detailed history: `docs/reference/build-log.md`.
 24. ✅ **Twin Liquors scraper** — live on the mini (Sun 04:00 CT). GitHub IPs Cloudflare-blocked. **Reusable: the api_key + client_origin bypass likely unblocks Corkdorks / Frugal MacDoogal (Nashville).**
 25. **Personalization follow-ons (parked)** — anon-vote merge; `similar_to` badge in pick UI; consumed-cellar as taste signal; profile avoids as mechanical scorer penalties; smarter top-10 for the "[Your wines]" block.
 26. **Bottle photo identification (future)** — user snaps a photo of a bottle label; app identifies the wine, then either (a) shows where to buy it locally (match against `retail_inventory`) or (b) one-tap adds it to saved/cellar. Likely Claude vision on the label image → match to `wines` (name/producer/vintage fuzzy match, or barcode scan as a cheaper first pass). UI needs design collaboration before any build.
+27. ✅ **Progressive pick streaming** — fixed the "paragraph sits alone, cards arrive late" gap (measured 6.5s to first text + 4.4s narrative→cards). Three parts: `eager_input_streaming` on the tool (narrative truly streams, first text ~1s), per-pick SSE `pick` events as each object closes (first card ~1.5s after narrative), slim pick schema (model sends only `wine_id`+`why`; name/price/retailer re-attached from candidates). Details: `docs/reference/recommendation.md` (Streaming pipeline).

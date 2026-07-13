@@ -39,6 +39,30 @@
   to inventory listings so picks can cite community credibility in their `why`.
 - **Picks carry media** — `_enrich_picks` passes `image_url` + `vivino_rating`/`count`
   through to the frontend (WineCard badge rendering is a pending frontend task).
+### Streaming pipeline (2026-07-12)
+One forced tool-use call to **Sonnet 4.6**; everything arrives inside the tool's
+input JSON in field order: `narrative` → `picks` → `followup_suggestions`.
+
+- **`eager_input_streaming: True`** on `_TOOL` (GA fine-grained tool streaming, no
+  beta header) — without it the API buffers `input_json_delta` into coarse chunks,
+  so the narrative used to land in one burst after ~6.5s and all picks at once.
+  With it: first narrative char ~1s, word-by-word streaming.
+- **Per-pick events** — `_PicksScanner` (claude_client.py) incrementally parses the
+  picks array and emits `("pick", dict)` the moment each object's closing brace
+  arrives, then `("picks", list)` at array close. The router enriches each pick and
+  emits an SSE `{"type":"pick","pick":{…}}` — but only if the (already complete)
+  narrative names it (`_pick_named_in_narrative`); unnamed picks are held back. The
+  final `picks` event stays authoritative: the frontend appends on `pick` (dedupe by
+  wine_id) and replaces wholesale on `picks`.
+- **Slim pick schema** — the model sends only `wine_id` + `why`; name/price/retailer
+  are re-attached from the candidate pool by `_enrich_picks` (they were echoed before,
+  ~40% of the picks JSON, pure latency). Consequence: reconcile-to-narrative now runs
+  AFTER enrichment, since the name it matches on comes from the candidate.
+- If the array never closes (degenerate stream), no `picks` event is emitted and
+  `stream_recommendations` falls back to `get_final_message()`'s tool block.
+- Measured (5-candidate prompt): first text 1.0s; narrative done 5.2s; cards at
+  6.7/7.8/8.6s. Before: first text 6.5s (burst), all cards at 11.0s.
+
 - **Optional NL `message`** — `recommendation/intent.py.parse_message()` (Haiku tool-use)
   turns free text into structured intent, then `merge_intent()` merges it with the
   explicit request fields. Explicit fields win on scalar conflicts; lists (flavors/avoid)

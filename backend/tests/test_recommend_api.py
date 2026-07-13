@@ -422,6 +422,81 @@ async def test_recommend_distance_none_when_store_has_no_coords():
     assert _sse_picks(response.text)[0]["distance_miles"] is None
 
 
+def _sse_pick_events(text):
+    return [e["pick"] for e in _sse_events(text) if e.get("type") == "pick"]
+
+
+@pytest.mark.asyncio
+async def test_recommend_streams_pick_events_progressively():
+    """A ('pick', …) from the stream becomes an enriched SSE 'pick' event —
+    name/price/retailer re-attached from the candidate — before the final
+    'picks' event, so cards can render one at a time."""
+    def gen(*a, **k):
+        yield ("token", "**Test Malbec** is my first call.")
+        yield ("pick", {"wine_id": "abc-123", "why": "Classic Mendoza."})
+        yield ("picks", [{"wine_id": "abc-123", "why": "Classic Mendoza."}])
+    with patch("api.routers.recommend.stream_recommendations", side_effect=gen), \
+         patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([WINE_ROW])), \
+         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/recommend", json={
+                "zip_code": "78209", "budget_min": 15.0, "budget_max": 35.0})
+    assert response.status_code == 200
+    events = _sse_events(response.text)
+    types = [e.get("type") for e in events]
+    assert "pick" in types and "picks" in types
+    assert types.index("pick") < types.index("picks")
+    pick = _sse_pick_events(response.text)[0]
+    assert pick["name"] == "Test Malbec"          # enriched from candidate
+    assert pick["price"] == 22.0
+    assert pick["retailer"] == "Geraldine's"
+    assert pick["why"] == "Classic Mendoza."
+
+
+@pytest.mark.asyncio
+async def test_progressive_pick_not_named_in_narrative_is_held_back():
+    """A pick the narrative never names is NOT streamed progressively (it may be
+    a phantom); the final 'picks' event remains the authority on what shows."""
+    def gen(*a, **k):
+        yield ("token", "Here is a thought on pairing.")
+        yield ("pick", {"wine_id": "abc-123", "why": "Great."})
+        yield ("picks", [{"wine_id": "abc-123", "why": "Great."}])
+    with patch("api.routers.recommend.stream_recommendations", side_effect=gen), \
+         patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([WINE_ROW])), \
+         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/recommend", json={
+                "zip_code": "78209", "budget_min": 15.0, "budget_max": 35.0})
+    assert response.status_code == 200
+    assert _sse_pick_events(response.text) == []
+    # final picks still delivered (all-dropped reconcile falls back to keeping them)
+    assert len(_sse_picks(response.text)) == 1
+
+
+@pytest.mark.asyncio
+async def test_reconcile_uses_candidate_name_for_slim_model_picks():
+    """With the slim pick schema the model sends no name — reconciliation must
+    use the candidate's name (via enrichment), not the raw model pick."""
+    named = _wine_row(name="Château Fable", wine_id="w-named")
+    phantom = _wine_row(name="Zinfandel Surprise", wine_id="w-phantom")
+    def gen(*a, **k):
+        yield ("token", "**Château Fable** is the one to get.")
+        yield ("picks", [{"wine_id": "w-named", "why": "Yes."},
+                         {"wine_id": "w-phantom", "why": "Padding."}])
+    with patch("api.routers.recommend.stream_recommendations", side_effect=gen), \
+         patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([named, phantom])), \
+         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/recommend", json={
+                "zip_code": "78209", "budget_min": 15.0, "budget_max": 35.0})
+    assert response.status_code == 200
+    picks = _sse_picks(response.text)
+    assert [p["name"] for p in picks] == ["Château Fable"]   # phantom reconciled away
+
+
 def test_enrich_picks_carries_distance():
     from api.routers.recommend import _enrich_picks
     by_id = {"w1": {"wine_id": "w1", "name": "X", "price": 10.0,

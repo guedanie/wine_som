@@ -110,6 +110,15 @@ _GENERIC_WINE_WORDS = {
 }
 
 
+def _pick_named_in_narrative(pick: Dict[str, Any], narr_lower: str) -> bool:
+    """True when the narrative mentions a DISTINCTIVE token of the pick's name
+    (producer/vineyard, not grape/type/region) — or the name has none, in which
+    case we keep it (conservative)."""
+    name = (pick.get("name") or "").lower()
+    tokens = [t for t in re.findall(r"[a-z0-9é]{3,}", name) if t not in _GENERIC_WINE_WORDS]
+    return not tokens or any(re.search(r"\b" + re.escape(t) + r"\b", narr_lower) for t in tokens)
+
+
 def _reconcile_picks_to_narrative(picks: List[Dict[str, Any]], narrative: str) -> List[Dict[str, Any]]:
     """Claude sometimes returns more picks than it writes about — each extra pick
     renders a phantom card ("2 wines described, 3 cards shown"). Drop any pick the
@@ -121,9 +130,7 @@ def _reconcile_picks_to_narrative(picks: List[Dict[str, Any]], narrative: str) -
     narr = narrative.lower()
     kept, dropped = [], []
     for p in picks:
-        name = (p.get("name") or "").lower()
-        tokens = [t for t in re.findall(r"[a-z0-9é]{3,}", name) if t not in _GENERIC_WINE_WORDS]
-        if not tokens or any(re.search(r"\b" + re.escape(t) + r"\b", narr) for t in tokens):
+        if _pick_named_in_narrative(p, narr):
             kept.append(p)
         else:
             dropped.append(p)
@@ -343,14 +350,25 @@ async def recommend(req: RecommendRequest):
             if event_type == "token":
                 _result["narrative"].append(data)
                 yield "data: " + json.dumps({"type": "token", "text": data}) + "\n\n"
+            elif event_type == "pick":
+                # Progressive card: the narrative is fully streamed before any
+                # pick arrives (JSON field order), so we can vet it now. Picks
+                # the narrative never named are held back — the final "picks"
+                # event stays the authority on what ultimately shows.
+                enriched_one = _enrich_picks([data], by_id)
+                if enriched_one and _pick_named_in_narrative(
+                        enriched_one[0], "".join(_result["narrative"]).lower()):
+                    yield "data: " + json.dumps({"type": "pick", "pick": enriched_one[0]}) + "\n\n"
             elif event_type == "picks":
-                # Drop phantom picks the narrative never named, then enrich.
-                reconciled = _reconcile_picks_to_narrative(data, "".join(_result["narrative"]))
-                enriched_picks = _enrich_picks(reconciled, by_id)
-                if data and not enriched_picks:
+                # Enrich BEFORE reconciling: slim model picks carry only
+                # wine_id + why, so the name reconcile matches on comes from
+                # the candidate.
+                enriched_all = _enrich_picks(data, by_id)
+                if data and not enriched_all:
                     # Claude returned picks but none matched known wine IDs — real error
                     yield "data: " + json.dumps({"type": "error", "message": "Recommendation service unavailable"}) + "\n\n"
                 else:
+                    enriched_picks = _reconcile_picks_to_narrative(enriched_all, "".join(_result["narrative"]))
                     _result["picks"] = enriched_picks
                     yield "data: " + json.dumps({"type": "picks", "picks": enriched_picks, "session_id": session_id}) + "\n\n"
             elif event_type == "suggestions":

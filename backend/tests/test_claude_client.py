@@ -157,6 +157,69 @@ def test_narrative_with_escaped_quote_inside():
     assert "".join(tokens) == 'She said "cheers"'
 
 
+# ── Progressive per-pick streaming ────────────────────────────────────────────
+
+def test_each_pick_emitted_as_it_completes():
+    """Each pick object streams out the moment its closing brace arrives —
+    the card shouldn't wait for the rest of the array."""
+    import json
+    p1 = {"wine_id": "w1", "why": "Bold."}
+    p2 = {"wine_id": "w2", "why": "Bright."}
+    full = json.dumps({"narrative": "Two picks.", "picks": [p1, p2],
+                       "followup_suggestions": ["Q1?", "Q2?", "Q3?"]})
+    # split right after p1's closing brace: p1 complete, p2 not yet started
+    cut = full.find('"w2"') - 2
+    events = list(_parse_narrative_fragments([full[:cut], full[cut:]]))
+    pick_events = [v for t, v in events if t == "pick"]
+    assert pick_events == [p1, p2]
+    # first pick must be emitted from the FIRST fragment (before p2 exists)
+    first_frag_events = list(_parse_narrative_fragments([full[:cut]]))
+    assert [v for t, v in first_frag_events if t == "pick"] == [p1]
+
+
+def test_pick_events_precede_final_picks_list():
+    import json
+    p1 = {"wine_id": "w1", "why": "Nice."}
+    full = json.dumps({"narrative": "One.", "picks": [p1],
+                       "followup_suggestions": ["Q1?", "Q2?", "Q3?"]})
+    events = list(_parse_narrative_fragments([full]))
+    types = [t for t, _ in events]
+    assert "pick" in types and "picks" in types
+    assert types.index("pick") < types.index("picks")
+    picks_events = [v for t, v in events if t == "picks"]
+    assert picks_events == [[p1]]
+
+
+def test_pick_with_braces_and_brackets_inside_why():
+    """Braces/brackets inside the why string must not confuse object detection."""
+    import json
+    p1 = {"wine_id": "w1", "why": 'He said "try {this} [now]" loudly.'}
+    full = json.dumps({"narrative": "Hi.", "picks": [p1],
+                       "followup_suggestions": ["Q1?", "Q2?", "Q3?"]})
+    # feed one char at a time — worst-case fragmentation
+    events = list(_parse_narrative_fragments(list(full)))
+    assert [v for t, v in events if t == "pick"] == [p1]
+    assert [v for t, v in events if t == "picks"] == [[p1]]
+
+
+def test_empty_picks_array_emits_no_pick_events():
+    import json
+    full = json.dumps({"narrative": "Education answer.", "picks": [],
+                       "followup_suggestions": ["Q1?", "Q2?", "Q3?"]})
+    events = list(_parse_narrative_fragments([full]))
+    assert [v for t, v in events if t == "pick"] == []
+    assert [v for t, v in events if t == "picks"] == [[]]
+
+
+def test_tool_schema_only_requires_wine_id_and_why():
+    """The model should not burn tokens echoing name/price/retailer — those are
+    re-attached authoritatively from candidates by _enrich_picks."""
+    from recommendation.claude_client import _TOOL
+    item = _TOOL["input_schema"]["properties"]["picks"]["items"]
+    assert item["required"] == ["wine_id", "why"]
+    assert set(item["properties"].keys()) == {"wine_id", "why"}
+
+
 # ── B6: picks in same fragment as narrative closing quote ─────────────────────
 
 def test_picks_yielded_when_narrative_and_picks_in_same_fragment():
