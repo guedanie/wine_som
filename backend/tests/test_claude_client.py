@@ -267,6 +267,22 @@ def test_stream_recommendations_error_message_is_generic():
     assert "credit_balance" not in error_events[0]
 
 
+def test_format_wine_names_the_price_drop():
+    from recommendation.claude_client import _format_wine
+    line = _format_wine({"name": "Test Malbec", "price": 22.0, "retailer": "H-E-B",
+                         "price_drop": {"amount": 5.0, "from_price": 27.0, "to_price": 22.0}})
+    assert "↓ dropped $5 this week (was $27.00)" in line
+
+
+def test_user_message_carries_drop_directive_only_when_drops_exist():
+    from recommendation.claude_client import _build_user_message
+    base = {"wine_id": "w1", "name": "A", "price": 20.0, "retailer": "H-E-B"}
+    with_drop = dict(base, price_drop={"amount": 5.0, "from_price": 25.0, "to_price": 20.0})
+    intent = {"flavors": [], "avoid": [], "budget_min": 10.0, "budget_max": 50.0}
+    assert "dropped $X this week" in _build_user_message([with_drop], intent)
+    assert "dropped $X this week" not in _build_user_message([base], intent)
+
+
 def test_format_wine_includes_vivino_rating():
     """Claude's inventory listing must show the community rating so it can cite
     credibility in picks ('a crowd favorite at 4.3 on Vivino')."""

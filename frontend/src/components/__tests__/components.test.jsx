@@ -187,3 +187,19 @@ describe('Eyebrow', () => {
     expect(screen.getByText('The sommelier')).toBeInTheDocument();
   });
 });
+
+
+describe('WineCard price-drop chip', () => {
+  it('drop chip leads the chip row when the pick carries a price_drop', () => {
+    render(<WineCard wine={{ ...wine, price_drop: { amount: 5, from_price: 60 } }} />);
+    expect(screen.getByText(/\$5 this week/)).toBeInTheDocument();
+  });
+  it('landscape variant shows the chip too', () => {
+    render(<WineCard variant="landscape" wine={{ ...wine, price_drop: { amount: 3, from_price: 58 } }} />);
+    expect(screen.getByText(/\$3 this week/)).toBeInTheDocument();
+  });
+  it('no movement means no chip at all', () => {
+    render(<WineCard wine={wine} />);
+    expect(screen.queryByText(/this week/)).toBeNull();
+  });
+});

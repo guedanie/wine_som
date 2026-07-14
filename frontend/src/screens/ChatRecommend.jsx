@@ -15,6 +15,7 @@ import { useAuth } from '../lib/auth.jsx';
 import { buildTasteContext } from '../lib/taste.js';
 import { deriveWineCardMeta } from '../lib/regions.js';
 import { formatMiles } from '../lib/format.js';
+import PriceMarker from '../components/PriceMarker.jsx';
 import useIsMobile from '../lib/useIsMobile.js';
 import uuid from '../lib/uuid.js';
 
@@ -99,6 +100,7 @@ function PickMessage({ pick, vote, onVote, onClick }) {
                 ◎ {[pick.retailer, formatMiles(pick.distance_miles)].filter(Boolean).join(' · ')}
               </span>
             )}
+            {pick.price_drop && <PriceMarker variant="drop" small amount={pick.price_drop.amount} />}
             {hasRating && (
               <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10.5, color: 'var(--brass)', whiteSpace: 'nowrap' }}
                 title={`${pick.vivino_ratings_count.toLocaleString()} ratings on Vivino`}>

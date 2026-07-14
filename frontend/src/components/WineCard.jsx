@@ -1,10 +1,22 @@
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
 import Tag from './Tag.jsx';
 import SaveBookmark from './SaveBookmark.jsx';
+import PriceMarker from './PriceMarker.jsx';
 import { formatMiles } from '../lib/format.js';
 
 const storeLine = wine =>
   [wine.retailer, formatMiles(wine.distance_miles)].filter(Boolean).join(' · ');
+
+// The drop chip leads the chip row (design: price-intelligence handoff). The
+// header price already shows the new number; the chip carries the "was" story.
+// No movement → no chip; the store is omitted (the card names the retailer).
+const chipRow = (wine, marginTop, gap) =>
+  (wine.price_drop || wine.flavors?.length > 0) && (
+    <div style={{ display: 'flex', gap, marginTop, flexWrap: 'wrap', alignItems: 'center' }}>
+      {wine.price_drop && <PriceMarker variant="drop" amount={wine.price_drop.amount} />}
+      {(wine.flavors ?? []).map(t => <Tag key={t}>{t}</Tag>)}
+    </div>
+  );
 
 const _THUMB_EASE = 'all 140ms cubic-bezier(.25,.46,.45,.94)';
 
@@ -73,11 +85,7 @@ function LandscapeCard({ wine, onClick, vote, onVote }) {
                 : wine.vivino_ratings_count} on Vivino
             </div>
           )}
-          {wine.flavors?.length > 0 && (
-            <div style={{ display: 'flex', gap: 5, marginTop: 10, flexWrap: 'wrap' }}>
-              {wine.flavors.map(t => <Tag key={t}>{t}</Tag>)}
-            </div>
-          )}
+          {chipRow(wine, 10, 5)}
         </div>
         {onVote && (
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 5, marginTop: 'auto', paddingTop: 6 }}>
@@ -120,11 +128,7 @@ export default function WineCard({ wine, onClick, vote, onVote, variant, voteSiz
       <div style={{ padding: '13px 14px 14px' }}>
         <div style={{ fontFamily: 'var(--font-serif)', fontSize: 23, lineHeight: 1.05, color: 'var(--ink)' }}>{wine.name}</div>
         <div style={{ fontSize: 11.5, color: 'var(--ink-2)', marginTop: 3 }}>{storeLine(wine)}</div>
-        {wine.flavors?.length > 0 && (
-          <div style={{ display: 'flex', gap: 6, marginTop: 11, flexWrap: 'wrap' }}>
-            {wine.flavors.map(t => <Tag key={t}>{t}</Tag>)}
-          </div>
-        )}
+        {chipRow(wine, 11, 6)}
       </div>
       {onVote && (
         <div style={{ padding: '7px 12px 10px', borderTop: '0.75px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 6 }}>

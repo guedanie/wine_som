@@ -182,6 +182,10 @@ def _format_wine(wine: Dict[str, Any]) -> str:
     if rating and count:
         line += f" — {rating}★ ({count:,} ratings on Vivino)"
 
+    drop = wine.get("price_drop")
+    if drop:
+        line += f" — ↓ dropped ${drop['amount']:g} this week (was ${drop['from_price']:.2f})"
+
     notes = wine.get("tasting_notes") or ""
     structure = wine.get("structure_profile") or {}
     struct_parts = [
@@ -312,6 +316,17 @@ def _build_user_message(
         if any(w.get("_similar_to") for w in candidates) else ""
     )
 
+    # Price drops are week-anchored facts, not sales pitches — the somm names
+    # them like a cellar note ("it slipped $5 at H-E-B this week"), never as
+    # discount hype.
+    drop_note = (
+        "\n\nSome listings are marked '↓ dropped $X this week'. If you pick one, "
+        "mention the drop naturally in its why — grounded in the wine and the store "
+        "(e.g. \"it slipped $5 at H-E-B this week — worth grabbing before it climbs "
+        "back\"). Say \"this week\", never \"today\"; no discount hype."
+        if any(w.get("price_drop") for w in candidates) else ""
+    )
+
     return (
         f"{history_preamble}"
         f"{message_line}"
@@ -325,6 +340,7 @@ def _build_user_message(
         f"retailer or store, only recommend wines shown at that retailer/store. "
         f"Set wine_id to the exact id shown in [wine_id: ...] for each pick."
         f"{similarity_note}"
+        f"{drop_note}"
         f"{followup_directive}"
     )
 

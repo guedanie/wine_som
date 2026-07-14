@@ -123,6 +123,40 @@ def derive_price_context(
     return context, annotated
 
 
+def fresh_drops_for(
+    history: List[Dict[str, Any]],
+    now: Optional[datetime] = None,
+) -> Dict[Tuple[str, str], Dict[str, float]]:
+    """Map (wine_id, store_ref) -> fresh drop {amount, from_price, to_price}.
+
+    Used to annotate the recommendation shortlist: one price_history fetch for
+    the top candidates, then this picks out the pairs whose latest change is a
+    drop within FRESH_DAYS. Rises, old drops, and rows missing ids are ignored.
+    """
+    now = now or datetime.now(timezone.utc)
+    by_pair: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+    for row in history:
+        if row.get("wine_id") and row.get("store_ref") and row.get("price") is not None:
+            by_pair.setdefault((row["wine_id"], row["store_ref"]), []).append(row)
+    drops: Dict[Tuple[str, str], Dict[str, float]] = {}
+    for pair, rows in by_pair.items():
+        if len(rows) < 2:
+            continue
+        rows.sort(key=lambda r: r["recorded_at"])
+        prev, last = rows[-2], rows[-1]
+        amount = round(float(prev["price"]) - float(last["price"]), 2)
+        if amount <= 0:
+            continue
+        if (now - _parse_ts(last["recorded_at"])) > timedelta(days=FRESH_DAYS):
+            continue
+        drops[pair] = {
+            "amount": amount,
+            "from_price": float(prev["price"]),
+            "to_price": float(last["price"]),
+        }
+    return drops
+
+
 def _weekly_strip(rows: List[Dict[str, Any]], now: datetime) -> List[float]:
     """Carried-forward price per week for the last STRIP_WEEKS weeks — the
     week-marker glyph's data. Oldest first, current week last."""

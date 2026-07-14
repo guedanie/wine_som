@@ -245,6 +245,21 @@ it('final picks event replaces progressive picks without duplicating cards', asy
   window.matchMedia = undefined;
 });
 
+it('mobile pick shows the drop chip beside the store pill when the price dropped', async () => {
+  window.matchMedia = vi.fn().mockImplementation(q => ({
+    matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
+  }));
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'One pick.' };
+    yield { type: 'picks', picks: [{ wine_id: 'uuid-1', name: 'Esprit de Tablas', price: 50, retailer: "Spec's", why: 'Weight and grip, and it just got cheaper.', price_drop: { amount: 5, from_price: 55, to_price: 50 } }], session_id: 'sess-1' };
+  });
+  renderScreen();
+  await waitFor(() => screen.getByText('Esprit de Tablas'));
+  expect(screen.getByText(/\$5 this week/)).toBeInTheDocument();
+  expect(screen.getByText(/◎ Spec's/)).toBeInTheDocument();
+  window.matchMedia = undefined;
+});
+
 it('shows store distance in the mobile store pill when provided', async () => {
   window.matchMedia = vi.fn().mockImplementation(q => ({
     matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},

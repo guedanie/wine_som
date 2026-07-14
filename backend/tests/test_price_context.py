@@ -122,6 +122,30 @@ def test_supabase_fractional_seconds_parse():
     assert ctx["variant"] == "drop"
 
 
+def test_fresh_drops_for_maps_pairs():
+    from utils.price_context import fresh_drops_for
+    history = [
+        _h("s1", 24.99, "2026-06-07T10:00:00+00:00"), _h("s1", 19.99, "2026-07-12T10:00:00+00:00"),
+        _h("s2", 30.0, "2026-06-07T10:00:00+00:00"),                       # steady
+        _h("s3", 20.0, "2026-06-07T10:00:00+00:00"), _h("s3", 18.0, "2026-06-14T10:00:00+00:00"),  # old drop
+    ]
+    for row in history:
+        row["wine_id"] = "w1"
+    drops = fresh_drops_for(history, now=NOW)
+    assert drops == {("w1", "s1"): {"amount": 5.0, "from_price": 24.99, "to_price": 19.99}}
+
+
+def test_fresh_drops_for_ignores_rises_and_junk():
+    from utils.price_context import fresh_drops_for
+    history = [
+        {"wine_id": "w1", "store_ref": "s1", "price": 10.0, "recorded_at": "2026-06-07T10:00:00+00:00"},
+        {"wine_id": "w1", "store_ref": "s1", "price": 14.0, "recorded_at": "2026-07-12T10:00:00+00:00"},  # rise
+        {"wine_id": None, "store_ref": "s2", "price": 9.0, "recorded_at": "2026-07-12T10:00:00+00:00"},
+        {"wine_id": "w2", "store_ref": None, "price": 9.0, "recorded_at": "2026-07-12T10:00:00+00:00"},
+    ]
+    assert fresh_drops_for(history, now=NOW) == {}
+
+
 def test_no_history_is_safe():
     ctx, rows = derive_price_context([], [_avail("s1", "H-E-B", 15.0)], now=NOW)
     assert ctx["variant"] == "steady"

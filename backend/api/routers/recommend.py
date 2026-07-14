@@ -97,7 +97,7 @@ def _detect_retailer(message: str) -> Optional[str]:
 
 INVENTORY_SELECT = (
     "price, curbside_price, wine_id,"
-    "stores!inner(retailer_name, name, zip_code, address, latitude, longitude),"
+    "stores!inner(id, retailer_name, name, zip_code, address, latitude, longitude),"
     "wines(id, name, varietal, region, country, wine_type, grapes, abv, body,"
     "image_url, vivino_rating, vivino_ratings_count,"
     "wine_details(tasting_notes, flavor_profile, structure_profile, grapeminds_enriched_at))"
@@ -165,6 +165,7 @@ def _enrich_picks(raw_picks: List[Dict[str, Any]], by_id: Dict[str, Dict[str, An
             "retailer": cand.get("retailer") or p.get("retailer"),
             "store_address": cand.get("store_address"),
             "distance_miles": cand.get("distance_miles"),
+            "price_drop": cand.get("price_drop"),
             "why": p.get("why", ""),
             "image_url": cand.get("image_url"),
             "vivino_rating": cand.get("vivino_rating"),
@@ -173,6 +174,34 @@ def _enrich_picks(raw_picks: List[Dict[str, Any]], by_id: Dict[str, Dict[str, An
             "similar_source": cand.get("_similar_source"),
         })
     return enriched
+
+
+def _annotate_price_drops(supabase, candidates: List[Dict[str, Any]]) -> None:
+    """Attach price_drop {amount, from_price, to_price} to shortlist candidates
+    whose (wine, store) price dropped this week — one price_history fetch for
+    the whole shortlist. The somm cites it; the card renders the chip."""
+    from utils.price_context import fresh_drops_for
+    wine_ids = [c["wine_id"] for c in candidates if c.get("wine_id") and c.get("store_ref")]
+    if not wine_ids:
+        return
+    try:
+        history = (
+            supabase.table("price_history")
+            .select("wine_id,store_ref,price,recorded_at")
+            .in_("wine_id", wine_ids)
+            .order("recorded_at")
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        logger.warning("PRICE DROPS | history fetch failed — skipping annotation", exc_info=True)
+        return
+    drops = fresh_drops_for(history)
+    for c in candidates:
+        drop = drops.get((c.get("wine_id"), c.get("store_ref")))
+        if drop:
+            c["price_drop"] = drop
 
 
 @router.post("/recommend", dependencies=[Depends(limit_dependency(_recommend_limiter, "recommend"))])
@@ -274,6 +303,7 @@ async def recommend(req: RecommendRequest):
             "retailer": retailer,
             "store_address": store_address,
             "store_name": store_name,
+            "store_ref": store.get("id"),
             "distance_miles": distance_miles,
             "image_url": wine.get("image_url"),
             "vivino_rating": wine.get("vivino_rating"),
@@ -341,6 +371,7 @@ async def recommend(req: RecommendRequest):
         w["_score"] += rng.uniform(-0.4, 0.4)
     scored.sort(key=lambda w: w["_score"], reverse=True)
     top = _select_diverse_top(scored, _MAX_CANDIDATES, _RETAILER_CAP, _VARIETAL_CAP)
+    _annotate_price_drops(supabase, top)
 
     logger.info(
         "RECOMMEND | zip=%s budget=%.0f-%.0f message=%r candidates=%d history=%d",

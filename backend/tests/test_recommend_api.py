@@ -77,6 +77,7 @@ def _make_db_mock(data):
     qb.in_.return_value = qb
     qb.limit.return_value = qb
     qb.insert.return_value = qb
+    qb.order.return_value = qb
     execute_result = MagicMock()
     execute_result.data = data
     qb.execute.return_value = execute_result
@@ -540,6 +541,50 @@ async def test_reconcile_uses_candidate_name_for_slim_model_picks():
     assert response.status_code == 200
     picks = _sse_picks(response.text)
     assert [p["name"] for p in picks] == ["Château Fable"]   # phantom reconciled away
+
+
+@pytest.mark.asyncio
+async def test_picks_carry_price_drop_when_history_has_fresh_drop():
+    """A shortlist candidate whose (wine, store) dropped this week carries
+    price_drop through to the pick — the card chip and the somm's why both
+    read from it."""
+    from datetime import datetime, timedelta, timezone
+    row = _wine_row()
+    row["stores"]["id"] = "store-uuid-1"
+    fresh = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    db = _make_db_mock([row])
+    meta = MagicMock(); meta.data = []
+    inv = MagicMock(); inv.data = [row]
+    hist = MagicMock(); hist.data = [
+        {"wine_id": "abc-123", "store_ref": "store-uuid-1", "price": 27.0,
+         "recorded_at": "2026-06-07T10:00:00+00:00"},
+        {"wine_id": "abc-123", "store_ref": "store-uuid-1", "price": 22.0,
+         "recorded_at": fresh},
+    ]
+    db.execute.side_effect = [meta, inv, hist]
+    with patch("api.routers.recommend.stream_recommendations", side_effect=_make_stream_mock()), \
+         patch("api.routers.recommend.get_supabase_client", return_value=db), \
+         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/recommend", json={
+                "zip_code": "78209", "budget_min": 15.0, "budget_max": 35.0})
+    assert response.status_code == 200
+    pick = _sse_picks(response.text)[0]
+    assert pick["price_drop"] == {"amount": 5.0, "from_price": 27.0, "to_price": 22.0}
+
+
+@pytest.mark.asyncio
+async def test_picks_price_drop_none_without_movement():
+    with patch("api.routers.recommend.stream_recommendations", side_effect=_make_stream_mock()), \
+         patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([_wine_row()])), \
+         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/recommend", json={
+                "zip_code": "78209", "budget_min": 15.0, "budget_max": 35.0})
+    assert response.status_code == 200
+    assert _sse_picks(response.text)[0]["price_drop"] is None
 
 
 def test_enrich_picks_carries_distance():
