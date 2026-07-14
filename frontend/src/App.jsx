@@ -8,6 +8,7 @@ import PreferenceCapture from './screens/PreferenceCapture.jsx';
 import ChatRecommend from './screens/ChatRecommend.jsx';
 import RegionDossier from './screens/RegionDossier.jsx';
 import Discovery from './screens/Discovery.jsx';
+import Deals from './screens/Deals.jsx';
 import RegionBrowse from './screens/RegionBrowse.jsx';
 import RegionDetail from './screens/RegionDetail.jsx';
 import SearchScreen from './screens/SearchScreen.jsx';
@@ -26,6 +27,7 @@ function AppRoutes() {
       <Route path="/recommend" element={<ChatRecommend />} />
       <Route path="/wine/:id" element={<RegionDossier />} />
       <Route path="/discover" element={<Discovery />} />
+      <Route path="/deals" element={<Deals />} />
       <Route path="/region/:slug" element={<RegionBrowse />} />
       <Route path="/regions/:slug" element={<RegionDetail />} />
       <Route path="/search" element={<SearchScreen />} />

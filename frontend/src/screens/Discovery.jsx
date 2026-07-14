@@ -1,9 +1,48 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Eyebrow from '../components/Eyebrow.jsx';
 import Poster from '../components/Poster.jsx';
+import DealCard from '../components/DealCard.jsx';
 import { DISCOVERY_REGIONS, regionSlug } from '../lib/regions.js';
+import { getDeals } from '../lib/api.js';
 import { track } from '../lib/analytics.js';
-import useIsMobile from '../lib/useIsMobile.js';
+import useIsMobile, { loadZip } from '../lib/useIsMobile.js';
+
+// The weekly deals rail — a curated cut on Discover, not a destination you
+// must seek. Renders nothing when the week has no cut (absence is the design).
+function DealsRail({ compact }) {
+  const navigate = useNavigate();
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    getDeals(loadZip(), 10).then(setData).catch(() => {});
+  }, []);
+  if (!data || data.deals.length === 0) return null;
+  const open = deal => {
+    track('deal_opened', { wine_id: deal.wine_id, retailer: deal.retailer, source: 'rail' });
+    navigate(`/wine/${deal.wine_id}`, {
+      state: { pick: {
+        wine_id: deal.wine_id, name: deal.name, price: deal.price, retailer: deal.retailer,
+        region: deal.region, varietal: deal.varietal, image_url: deal.image_url,
+        vivino_rating: deal.vivino_rating, vivino_ratings_count: deal.vivino_ratings_count,
+        store_address: deal.store_address,
+        price_drop: { amount: deal.amount, from_price: deal.was_price, to_price: deal.price },
+      } },
+    });
+  };
+  return (
+    <div style={{ margin: compact ? '0 0 28px' : '36px 0 0' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
+        <Eyebrow>Worth grabbing · Week of {data.week_of}</Eyebrow>
+        <button onClick={() => navigate('/deals')} style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0, fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--bordeaux)', whiteSpace: 'nowrap' }}>
+          See all {data.count} →
+        </button>
+      </div>
+      <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 6, WebkitOverflowScrolling: 'touch' }}>
+        {data.deals.map(d => <DealCard key={d.wine_id} deal={d} onClick={() => open(d)} />)}
+      </div>
+    </div>
+  );
+}
 
 function RegionCard({ region, onClick }) {
   return (
@@ -36,6 +75,7 @@ export default function Discovery() {
           <p style={{ fontFamily: 'var(--font-sans)', fontSize: 14, lineHeight: 1.6, color: 'var(--ink-2)', margin: '0 0 22px' }}>
             Every region is a poster. Start somewhere.
           </p>
+          <DealsRail compact />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 18 }}>
             {tier1.map(r => <RegionCard key={r.name} region={r} onClick={() => openRegion(r)} />)}
           </div>
@@ -60,6 +100,8 @@ export default function Discovery() {
       <p className="t-body" style={{ marginTop: 12, maxWidth: 520 }}>
         Every region is a poster; every poster is a map. Start somewhere and follow the wine home.
       </p>
+
+      <DealsRail />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 24, marginTop: 36 }}>
         {tier1.map(r => <RegionCard key={r.name} region={r} onClick={() => openRegion(r)} />)}

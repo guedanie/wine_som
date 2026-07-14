@@ -29,6 +29,13 @@ export async function* streamRecommend(req) {
   }
 }
 
+
+export async function getDeals(zip, limit = 12) {
+  const res = await fetch(`${BASE}/api/deals?zip=${encodeURIComponent(zip)}&limit=${limit}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
 export async function getWine(id, zip) {
   const url = zip
     ? `${BASE}/api/wines/${id}?zip=${encodeURIComponent(zip)}`
