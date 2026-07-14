@@ -153,3 +153,28 @@ of silent drift.
 - Unit tests for the run-row lifecycle (mock supabase, success + failure paths).
 
 </details>
+
+---
+
+## Task 3 — Wine-type + region backfills (handed off mid-flight 2026-07-13)
+
+Code is already on main (word-boundary + Portuguese-vocabulary
+`infer_wine_type` in `utils/__init__.py`; extraction gazetteer + evidence gate
+in `enrichment/extraction/`). What remains is applying it to EXISTING rows:
+
+1. **Portuguese dessert-typed rows** — 12 of 28 already retyped from the
+   laptop (2026-07-13). Remaining: re-run the retype over
+   `wine_type='dessert' AND name ilike '%portug%'` with the new vocabulary
+   (catches Touriga/Loureiro/Encruzado/Espumante rows). 8 genuine
+   Ports/Madeiras will correctly stay dessert; ~2 with no textual signal
+   (Chryseia, Quinta Maria Izabel — actually Douro table reds) may need a
+   manual call.
+2. **Rhône region fragments** — `region IN ('Rhone','Rhone Valley','Rhône
+   Valley')` → `'Rhône'` (~24 rows), and `region='Châteauneuf-du-Pape'`
+   (4 rows) → `region='Rhône', sub_region='Châteauneuf-du-Pape'`.
+3. **The bigger one (CLAUDE.md item 27)**: a validation/re-extraction pass
+   over existing rows with the new evidence gate + gazetteer — nulls
+   hallucinated regions (a Savoie white and a Prosecco are filed under Rhône
+   today) and fixes Requingua-class producer misattributions in bulk. Run
+   `_post_process(rec, source_text=name+description)` over rows with a
+   region set; write back only changed fields; count + Slack-report changes.

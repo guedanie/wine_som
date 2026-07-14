@@ -7,16 +7,18 @@ RED_VARIETALS = {
     "malbec", "zinfandel", "sangiovese", "tempranillo", "grenache", "red blend",
     "petit verdot", "petite sirah", "mourvedre", "nebbiolo", "barbera", "dolcetto",
     "montepulciano", "primitivo", "carmenere", "tannat",
+    "touriga nacional", "touriga", "baga", "trincadeira", "tinto",
 }
 WHITE_VARIETALS = {
     "chardonnay", "sauvignon blanc", "pinot grigio", "pinot gris", "riesling",
     "albarino", "albariño", "viognier", "white blend", "moscato", "muscat",
     "gewurztraminer", "chenin blanc", "gruner veltliner", "vermentino",
     "torrontes", "torrontés", "roussanne", "marsanne", "verdejo",
+    "loureiro", "encruzado", "rabigato", "arinto", "alvarinho", "branco", "blanco",
 }
-SPARKLING_TERMS = {"prosecco", "champagne", "cava", "sparkling", "cremant", "crémant", "frizzante"}
+SPARKLING_TERMS = {"prosecco", "champagne", "cava", "sparkling", "cremant", "crémant", "frizzante", "espumante", "spumante"}
 ROSE_TERMS = {"rosé", "rose", "rosado", "rosato"}
-DESSERT_TERMS = {"port", "sherry", "madeira", "sauternes", "ice wine", "icewine", "late harvest"}
+DESSERT_TERMS = {"port", "porto", "tawny", "sherry", "madeira", "sauternes", "ice wine", "icewine", "late harvest"}
 
 
 def infer_wine_type(text: str) -> Optional[str]:
