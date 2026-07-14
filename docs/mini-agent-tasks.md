@@ -83,10 +83,13 @@ resume) and consider raising the polite `time.sleep(0.5)` between pages.
 - Store rows keep their addresses (the scraper now writes `stores.address`).
 - `cd backend && python3 -m scripts.verify_scrape_runs --since-hours 24`
   exits 0 after the run.
-- Optional: have the wrapper also run
-  `python3 -m scripts.sweep_delisted --since-hours 6` after the scrape so
-  delisted items flip to out-of-stock immediately (otherwise the Sunday GitHub
-  workflow's sweep step catches them within its 24h window).
+- **Required — the wrapper must run its own sweep + verify after the scrape:**
+  `python3 -m scripts.sweep_delisted --since-hours 6 && python3 -m scripts.verify_scrape_runs --since-hours 6`.
+  The Sunday GitHub workflow runs these too, but only over runs already
+  FINISHED when it fires (~10:30 UTC last week) — a Spec's job at 05:00 CT
+  (10:00 UTC) races it and would miss its weekly sweep/verify entirely. Both
+  scripts are idempotent, so double coverage is harmless; self-running them
+  makes the job self-contained regardless of GH cron delays.
 
 ---
 
