@@ -56,6 +56,47 @@ it('shows pick price immediately', () => {
   expect(screen.getByText('$55')).toBeInTheDocument();
 });
 
+it('renders the price-context module + cheapest/was-price row treatment', async () => {
+  getWine.mockResolvedValue({
+    ...wineDetail,
+    availability: [
+      { store_ref: 's1', retailer: 'H-E-B', address: '123 Main', price: 19.99, is_cheapest: true, was_price: 24.99 },
+      { store_ref: 's2', retailer: "Spec's", address: '9 Elm', price: 22.99, is_cheapest: false, was_price: null },
+    ],
+    price_context: {
+      variant: 'drop', amount: 5, from_price: 24.99, to_price: 19.99,
+      store: 'H-E-B', since_label: 'this week', weeks_tracked: 6,
+      strip: [24.99, 24.99, 24.99, 24.99, 24.99, 19.99],
+      cheapest: { retailer: 'H-E-B', price: 19.99, delta_vs_next: 3.0 },
+    },
+  });
+  renderScreen();
+  await waitFor(() => expect(screen.getByText(/Down to/)).toBeInTheDocument());
+  expect(screen.getByText(/at H-E-B/)).toBeInTheDocument();
+  expect(screen.getByText('· CHEAPEST')).toBeInTheDocument();
+  expect(screen.getByText('$24.99')).toBeInTheDocument();   // struck was-price on the row
+});
+
+
+it('dossier without price movement renders the steady module, resolved not empty', async () => {
+  getWine.mockResolvedValue({
+    ...wineDetail,
+    availability: [
+      { store_ref: 's1', retailer: "Spec's", address: '9 Elm', price: 28, is_cheapest: true, was_price: null },
+    ],
+    price_context: {
+      variant: 'steady', amount: null, from_price: null, to_price: null,
+      store: null, since_label: 'since June', weeks_tracked: 6,
+      strip: [28, 28, 28, 28, 28, 28],
+      cheapest: { retailer: "Spec's", price: 28, delta_vs_next: null },
+    },
+  });
+  renderScreen();
+  await waitFor(() => expect(screen.getByText(/steady so far/)).toBeInTheDocument());
+  expect(screen.getByText(/the week it drops/)).toBeInTheDocument();
+});
+
+
 it('shows tasting notes after getWine resolves', async () => {
   getWine.mockResolvedValue(wineDetail);
   renderScreen();

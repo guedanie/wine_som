@@ -12,6 +12,7 @@ import { getWine } from '../lib/api.js';
 import DossierSaveButton from '../components/DossierSaveButton.jsx';
 import DossierCellarButton from '../components/DossierCellarButton.jsx';
 import DossierRateButton from '../components/DossierRateButton.jsx';
+import PriceContextModule from '../components/PriceContextModule.jsx';
 
 function structureToBars(sp) {
   if (!sp) return [];
@@ -296,32 +297,40 @@ export default function RegionDossier() {
               </div>
             )}
 
-            {/* Store list */}
+            {/* Price context + store list */}
             {availRows.length > 0 && (
               <>
+                <PriceContextModule ctx={wine.price_context} compact />
                 <Eyebrow style={{ display: 'block', marginBottom: 10 }}>Available near you</Eyebrow>
                 <div style={{ border: '1.5px solid var(--ink)', background: 'var(--cream)', marginBottom: 18 }}>
-                  {availRows.map((loc, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderTop: i ? '1px solid var(--border)' : 'none' }}>
+                  {availRows.map((loc, i) => {
+                    const cheapest = loc.is_cheapest ?? i === 0;
+                    return (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderTop: i ? '1px solid var(--border)' : 'none', background: cheapest ? 'var(--bordeaux-tint)' : 'transparent' }}>
                       <div style={{
                         width: 26, height: 26, borderRadius: '50%', border: '1px solid var(--brass)',
-                        background: i === 0 ? 'var(--bordeaux-tint)' : 'var(--paper)',
+                        background: cheapest ? 'var(--cream)' : 'var(--paper)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                       }}>
                         <svg width="10" height="10" viewBox="0 0 10 10">
-                          <circle cx="5" cy="5" r="2" fill={i === 0 ? 'var(--bordeaux)' : 'var(--brass)'} />
+                          <circle cx="5" cy="5" r="2" fill={cheapest ? 'var(--bordeaux)' : 'var(--brass)'} />
                         </svg>
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                           {loc.retailer}
-                          {i === 0 && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--sage)' }}>BEST PRICE</span>}
+                          {cheapest && <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--bordeaux)' }}>· CHEAPEST</span>}
                         </div>
                         {loc.address && <div style={{ fontSize: 11, color: 'var(--faded)', marginTop: 1 }}>{loc.address}</div>}
                       </div>
-                      <div style={{ fontFamily: 'var(--font-serif)', fontSize: 20, color: 'var(--bordeaux)', flexShrink: 0 }}>${loc.price}</div>
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        {loc.was_price != null && (
+                          <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--faded-2, var(--faded))', textDecoration: 'line-through' }}>${loc.was_price}</div>
+                        )}
+                        <div style={{ fontFamily: 'var(--font-serif)', fontSize: 20, color: 'var(--bordeaux)' }}>${loc.price}</div>
+                      </div>
                     </div>
-                  ))}
+                  );})}
                 </div>
               </>
             )}
@@ -443,6 +452,9 @@ export default function RegionDossier() {
                   cfg={{ cx: 260, cy: 18, r0: 5, step: 5, count: 7, wob: 4, seed: 1.4, sx: 5 }} />
               </div>
 
+              <div style={{ maxWidth: 520 }}>
+                <PriceContextModule ctx={wine.price_context} />
+              </div>
               <Eyebrow style={{ display: 'block', marginBottom: 10 }}>Available near you</Eyebrow>
               <div style={{ border: '1.5px solid var(--ink)', background: 'var(--cream)', maxWidth: 520 }}>
                 {(wine.availability?.length > 0
@@ -450,27 +462,29 @@ export default function RegionDossier() {
                   : pick.retailer
                     ? [{ retailer: pick.retailer, address: pick.store_address, price: pick.price }]
                     : []
-                ).map((loc, i) => (
+                ).map((loc, i) => {
+                  const cheapest = loc.is_cheapest ?? i === 0;
+                  return (
                   <div key={i} style={{
                     display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px',
                     borderTop: i > 0 ? '1px solid var(--border)' : 'none',
+                    background: cheapest ? 'var(--bordeaux-tint)' : 'transparent',
                   }}>
                     <div style={{
-                      width: 26, height: 26, borderRadius: '50%',
-                      border: i === 0 ? '1px solid var(--brass)' : '1px solid var(--brass)',
-                      background: i === 0 ? 'var(--bordeaux-tint)' : 'var(--paper)',
+                      width: 26, height: 26, borderRadius: '50%', border: '1px solid var(--brass)',
+                      background: cheapest ? 'var(--cream)' : 'var(--paper)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none',
                     }}>
                       <svg width="10" height="10" viewBox="0 0 10 10">
-                        <circle cx="5" cy="5" r="2" fill={i === 0 ? 'var(--bordeaux)' : 'var(--brass)'} />
+                        <circle cx="5" cy="5" r="2" fill={cheapest ? 'var(--bordeaux)' : 'var(--brass)'} />
                       </svg>
                     </div>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 600, color: 'var(--ink)' }}>
                         {loc.retailer}
-                        {i === 0 && (
-                          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', color: 'var(--sage)', marginLeft: 6 }}>
-                            BEST PRICE
+                        {cheapest && (
+                          <span style={{ fontFamily: 'var(--font-sans)', fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', color: 'var(--bordeaux)', marginLeft: 6 }}>
+                            · CHEAPEST
                           </span>
                         )}
                       </div>
@@ -480,9 +494,14 @@ export default function RegionDossier() {
                         </div>
                       )}
                     </div>
-                    <div style={{ fontFamily: 'var(--font-serif)', fontSize: 20, color: 'var(--bordeaux)' }}>${loc.price}</div>
+                    <div style={{ textAlign: 'right' }}>
+                      {loc.was_price != null && (
+                        <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--faded-2, var(--faded))', textDecoration: 'line-through' }}>${loc.was_price}</div>
+                      )}
+                      <div style={{ fontFamily: 'var(--font-serif)', fontSize: 20, color: 'var(--bordeaux)' }}>${loc.price}</div>
+                    </div>
                   </div>
-                ))}
+                );})}
               </div>
             </>
           )}

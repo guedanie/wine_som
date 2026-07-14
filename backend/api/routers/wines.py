@@ -79,9 +79,25 @@ async def get_wine(
             continue
         seen.add(key)
         availability.append({
+            "store_ref": store.get("id"),
             "retailer": retailer,
             "address":  address,
             "price":    float(row.get("price") or 0),
         })
+
+    # Price context for the dossier module: weekly movement (delta-only
+    # price_history log) + cheapest-nearby, anchored to the stores above.
+    from utils.price_context import derive_price_context
+    history = (
+        client.table("price_history")
+        .select("store_ref,price,recorded_at")
+        .eq("wine_id", wine_id)
+        .order("recorded_at")
+        .execute()
+        .data
+        or []
+    )
+    price_context, availability = derive_price_context(history, availability)
     data["availability"] = availability
+    data["price_context"] = price_context
     return data
