@@ -67,3 +67,14 @@ def test_extract_facts_batches_calls():
         extract_facts(wines, batch_size=15)
     # 32 wines / 15 per batch = 3 calls
     assert cls.return_value.messages.create.call_count == 3
+
+
+def test_infer_wine_type_uses_word_boundaries():
+    """'Portuguese' is not Port (28 prod wines were dessert-typed by this
+    substring), and 'Primrose' is not rosé."""
+    from utils import infer_wine_type
+    assert infer_wine_type('Portuguese Red Wine') == 'red'
+    assert infer_wine_type('Patio Pounder Vino Verde Portuguese White Wine') == 'white'
+    assert infer_wine_type('Primrose Hill Chardonnay') == 'white'
+    assert infer_wine_type('Ruby Port') == 'dessert'
+    assert infer_wine_type('Rosé of Pinot Noir') == 'rosé'

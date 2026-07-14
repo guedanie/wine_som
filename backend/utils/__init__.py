@@ -1,4 +1,5 @@
 """Shared utilities used across scrapers and enrichment modules."""
+import re
 from typing import Optional
 
 RED_VARIETALS = {
@@ -38,15 +39,25 @@ def infer_wine_type(text: str) -> Optional[str]:
         return "fortified"
     if s in ("dessert wine",):
         return "dessert"
-    # Varietal / keyword matching
-    if any(t in s for t in SPARKLING_TERMS):
+    # Varietal / keyword matching — WORD boundaries, not substrings: 'port' in
+    # 'Portuguese' classified 28 Portuguese table wines as dessert, and 'rose'
+    # in 'Primrose' made a Chardonnay rosé.
+    def _has(term: str) -> bool:
+        return bool(re.search(rf"\b{re.escape(term)}\b", s))
+
+    if any(_has(t) for t in SPARKLING_TERMS):
         return "sparkling"
-    if any(t in s for t in ROSE_TERMS):
+    if any(_has(t) for t in ROSE_TERMS):
         return "rosé"
-    if any(t in s for t in DESSERT_TERMS):
+    if any(_has(t) for t in DESSERT_TERMS):
         return "dessert"
-    if any(t in s for t in RED_VARIETALS):
+    if any(_has(t) for t in RED_VARIETALS):
         return "red"
-    if any(t in s for t in WHITE_VARIETALS):
+    if any(_has(t) for t in WHITE_VARIETALS):
+        return "white"
+    # generic color words as a last resort ('Portuguese Red Wine')
+    if _has("red"):
+        return "red"
+    if _has("white"):
         return "white"
     return None

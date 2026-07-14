@@ -36,3 +36,12 @@ def test_cheat_sheets_are_populated():
     assert "Cabernet Sauvignon" in CORE_GRAPES["red"]
     assert "Chardonnay" in CORE_GRAPES["white"]
     assert len(FEW_SHOT) >= 4
+
+
+def test_unaccented_rhone_canonicalizes():
+    """21 prod wines sit under region 'Rhone' (no accent) fragmenting the
+    catalog — plus 'Rhone Valley' variants."""
+    from enrichment.extraction.reference import canonical_region
+    assert canonical_region('Rhone') == 'Rhône'
+    assert canonical_region('rhone valley') == 'Rhône'
+    assert canonical_region('Côtes du Rhône') == 'Rhône'

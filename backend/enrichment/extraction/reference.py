@@ -165,7 +165,8 @@ REGION_COUNTRY = {
 REGION_ALIASES = {
     "toscana": "Tuscany", "toskana": "Tuscany",
     "piemonte": "Piedmont", "piedmonte": "Piedmont",
-    "rhone valley": "Rhône", "cotes du rhone": "Rhône", "cote du rhone": "Rhône",
+    "rhone": "Rhône", "rhone valley": "Rhône", "cotes du rhone": "Rhône", "cote du rhone": "Rhône",
+    "southern rhone": "Rhône", "northern rhone": "Rhône",
     "bourgogne": "Burgundy", "borgogna": "Burgundy",
     "napa": "Napa Valley", "sonoma county": "Sonoma", "sonoma coast": "Sonoma",
     "sud de france": "Languedoc", "south of france": "Languedoc",
@@ -219,3 +220,184 @@ def country_for_region(region: Optional[str]) -> Optional[str]:
     if not region:
         return None
     return REGION_COUNTRY.get(_norm(region))
+
+
+# ── Château / producer gazetteer ─────────────────────────────────────────────
+# Producer names carry the place signal a 7B model can't reliably use — and
+# hallucinates around (Merlot → "Bordeaux"). Matched DETERMINISTICALLY against
+# the wine's name+description; a hit overrides the model. Curated: classified
+# growths + crus bourgeois + brands common in TX/TN/NC retail. The prompt gets
+# only the famous subset (_CHATEAUX_PROMPT_LIMIT) to keep token cost sane.
+
+CHATEAUX = {
+    "Pauillac": ["Lafite Rothschild", "Mouton Rothschild", "Latour",
+                 "Pichon Baron", "Pichon Longueville", "Pichon Lalande",
+                 "Lynch-Bages", "Pontet-Canet", "Duhart-Milon", "Clerc Milon",
+                 "d'Armailhac", "Grand-Puy-Lacoste", "Haut-Batailley", "Batailley",
+                 "Croizet-Bages", "Haut-Bages Libéral"],
+    "Margaux": ["Palmer", "Brane-Cantenac", "Rauzan-Ségla", "Rauzan-Gassies",
+                "Giscours", "Malescot St. Exupéry", "Cantenac Brown", "Kirwan",
+                "d'Issan", "Lascombes", "Prieuré-Lichine", "du Tertre",
+                "Marquis de Terme", "Labégorce", "Siran", "Angludet"],
+    "Saint-Julien": ["Léoville Las Cases", "Léoville Barton", "Léoville Poyferré",
+                     "Ducru-Beaucaillou", "Beychevelle", "Talbot", "Gruaud Larose",
+                     "Branaire-Ducru", "Lagrange", "Langoa Barton", "Gloria",
+                     "Saint-Pierre"],
+    "Saint-Estèphe": ["Cos d'Estournel", "Montrose", "Calon-Ségur", "Lafon-Rochet",
+                      "Cos Labory", "Phélan Ségur", "Ormes de Pez", "de Pez",
+                      "Meyney", "Le Crock", "Capbern"],
+    "Haut-Médoc": ["La Lagune", "Cantemerle", "La Tour Carnet", "Belgrave",
+                   "Camensac", "Sociando-Mallet", "Citran", "Coufran",
+                   "Larose-Trintaudon", "Cambon la Pelouse", "Beaumont"],
+    "Médoc": ["Greysac", "Potensac", "La Cardonne", "Rollan de By", "Tour Haut-Caussan",
+              "Loudenne", "Patache d'Aux", "Goulée"],
+    "Moulis-en-Médoc": ["Chasse-Spleen", "Poujeaux", "Maucaillou"],
+    "Pessac-Léognan": ["Haut-Brion", "La Mission Haut-Brion", "Pape Clément",
+                       "Smith Haut Lafitte", "Haut-Bailly", "Domaine de Chevalier",
+                       "Carbonnieux", "de Fieuzal", "Malartic-Lagravière",
+                       "Latour-Martillac", "Larrivet Haut-Brion", "Les Carmes Haut-Brion"],
+    "Saint-Émilion": ["Cheval Blanc", "Ausone", "Angélus", "Pavie", "Figeac",
+                      "Canon la Gaffelière", "Troplong Mondot", "Valandraud",
+                      "Beau-Séjour Bécot", "Beauséjour", "La Gaffelière",
+                      "Larcis Ducasse", "Monbousquet", "Fombrauge", "Simard",
+                      "Quinault l'Enclos", "Grand Mayne", "La Dominique"],
+    "Pomerol": ["Pétrus", "Le Pin", "La Conseillante", "L'Évangile", "L'Eglise-Clinet",
+                "Trotanoy", "Vieux Château Certan", "Clinet", "Gazin", "La Pointe",
+                "Beauregard", "Bonalgue", "Petit-Village", "Nénin", "de Sales"],
+    "Sauternes": ["d'Yquem", "Climens", "Coutet", "Suduiraut", "Guiraud",
+                  "Rieussec", "La Tour Blanche", "Doisy-Védrines", "Doisy-Daëne",
+                  "Lafaurie-Peyraguey", "Rayne Vigneau"],
+}
+
+# Producer/brand -> (region, country). For names that place a wine without any
+# appellation word — the exact class that produced the Requingua/"Bordeaux" bug.
+PRODUCERS = {
+    # Bordeaux négociant brands (region only, no appellation)
+    "Mouton Cadet": ("Bordeaux", "France"),
+    "Michel Lynch": ("Bordeaux", "France"),
+    "Dourthe": ("Bordeaux", "France"),
+    # Rhône houses
+    "Guigal": ("Rhône", "France"),
+    "Chapoutier": ("Rhône", "France"),
+    "Jaboulet": ("Rhône", "France"),
+    "Vidal-Fleury": ("Rhône", "France"),
+    "La Vieille Ferme": ("Rhône", "France"),
+    "Famille Perrin": ("Rhône", "France"),
+    "Beaucastel": ("Rhône", "France"),
+    "Saint Cosme": ("Rhône", "France"),
+    "Ferraton": ("Rhône", "France"),
+    "Delas": ("Rhône", "France"),
+    # Chile
+    "Viña Requingua": ("Curicó Valley", "Chile"),
+    "Vina Requingua": ("Curicó Valley", "Chile"),
+    "Puerto Viejo": ("Curicó Valley", "Chile"),
+    "Concha y Toro": ("Central Valley", "Chile"),
+    "Casillero del Diablo": ("Central Valley", "Chile"),
+    "Santa Rita": ("Maipo Valley", "Chile"),
+    "Cousiño-Macul": ("Maipo Valley", "Chile"),
+    "Los Vascos": ("Colchagua Valley", "Chile"),
+    "Montes": ("Colchagua Valley", "Chile"),
+    # Argentina / Spain
+    "Trapiche": ("Mendoza", "Argentina"),
+    "Campo Viejo": ("Rioja", "Spain"),
+    "Marqués de Cáceres": ("Rioja", "Spain"),
+    "Marques de Caceres": ("Rioja", "Spain"),
+}
+
+# Appellation law → default blend when the model returned no grapes.
+# Order matters: first grape becomes the varietal.
+_LEFT_BANK = ["Médoc", "Haut-Médoc", "Margaux", "Pauillac", "Saint-Julien",
+              "Saint-Estèphe", "Listrac-Médoc", "Moulis-en-Médoc",
+              "Pessac-Léognan", "Graves"]
+_RIGHT_BANK = ["Saint-Émilion", "Pomerol", "Lalande-de-Pomerol", "Fronsac",
+               "Canon-Fronsac"]
+_GSM = ["Châteauneuf-du-Pape", "Gigondas", "Vacqueyras", "Côtes du Rhône"]
+
+APPELLATION_DEFAULT_GRAPES = {}
+for _a in _LEFT_BANK:
+    APPELLATION_DEFAULT_GRAPES[_norm(_a)] = ["Cabernet Sauvignon", "Merlot", "Cabernet Franc"]
+for _a in _RIGHT_BANK:
+    APPELLATION_DEFAULT_GRAPES[_norm(_a)] = ["Merlot", "Cabernet Franc", "Cabernet Sauvignon"]
+for _a in _GSM:
+    APPELLATION_DEFAULT_GRAPES[_norm(_a)] = ["Grenache", "Syrah", "Mourvèdre"]
+APPELLATION_DEFAULT_GRAPES[_norm("Sauternes")] = ["Sémillon", "Sauvignon Blanc"]
+APPELLATION_DEFAULT_GRAPES[_norm("Barsac")] = ["Sémillon", "Sauvignon Blanc"]
+
+
+def default_grapes_for(appellation) -> Optional[list]:
+    if not appellation:
+        return None
+    return APPELLATION_DEFAULT_GRAPES.get(_norm(appellation))
+
+
+# Longest-match-first index over château + producer names, normalized.
+_GAZETTEER_INDEX = []
+for _app, _names in CHATEAUX.items():
+    for _n in _names:
+        _GAZETTEER_INDEX.append((_norm(_n), {"sub_region": _app, "region": "Bordeaux",
+                                             "country": "France"}))
+for _name, (_region, _country) in PRODUCERS.items():
+    _GAZETTEER_INDEX.append((_norm(_name), {"sub_region": None, "region": _region,
+                                            "country": _country}))
+_GAZETTEER_INDEX.sort(key=lambda t: len(t[0]), reverse=True)   # longest match wins
+
+
+def _fold(s: str) -> str:
+    """Normalize for matching: accents stripped, lowercased, punctuation → space."""
+    return re.sub(r"[^a-z0-9]+", " ", _norm(s)).strip()
+
+
+def gazetteer_hit(source_text: Optional[str]) -> Optional[dict]:
+    """Deterministic place fix from a producer/château name in the wine's
+    name+description. Longest match wins ('Latour-Martillac' before 'Latour')."""
+    if not source_text:
+        return None
+    hay = f" {_fold(source_text)} "
+    for needle, place in _GAZETTEER_INDEX:
+        if f" {_fold(needle)} " in hay:
+            return dict(place)
+    return None
+
+
+def region_evidenced(region: Optional[str], source_text: str) -> bool:
+    """Does the source text actually support this region? True when the region
+    name, one of its appellations, an alias, or a distinctive token of the
+    region name appears. A grape name alone NEVER evidences a region."""
+    if not region:
+        return False
+    hay = f" {_fold(source_text)} "
+    reg_fold = _fold(region)
+    if f" {reg_fold} " in hay:
+        return True
+    # aliases that canonicalize to this region ("Rhone Valley" → Rhône)
+    for alias, canon in REGION_ALIASES.items():
+        if canon == region and f" {_fold(alias)} " in hay:
+            return True
+    # any of the region's appellations
+    for app in APPELLATIONS.get(region, []):
+        if f" {_fold(app)} " in hay:
+            return True
+    # distinctive token of a multiword region ("Willamette" for Willamette Valley)
+    _GENERIC = {"valley", "coast", "hills", "hill", "mountains", "mountain",
+                "county", "central", "other", "southern", "northern", "new",
+                "creek", "river"}
+    for tok in reg_fold.split():
+        if len(tok) >= 4 and tok not in _GENERIC and f" {tok} " in hay:
+            return True
+    return False
+
+
+def country_evidenced(country: Optional[str], source_text: str) -> bool:
+    if not country:
+        return False
+    hay = f" {_fold(source_text)} "
+    if f" {_fold(country)} " in hay:
+        return True
+    # adjectival forms common on labels ("Portuguese", "Chilean", "French"…)
+    _ADJ = {"France": "french", "Italy": "italian", "Spain": "spanish",
+            "Portugal": "portuguese", "Chile": "chilean", "Argentina": "argentine",
+            "Germany": "german", "Australia": "australian",
+            "New Zealand": "new zealand", "United States": "american",
+            "South Africa": "south african"}
+    adj = _ADJ.get(country)
+    return bool(adj and f" {adj} " in hay)

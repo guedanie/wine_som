@@ -8,8 +8,9 @@ import anthropic
 from typing import List, Dict, Any, Optional
 from config import settings
 from enrichment.extraction.reference import (
-    APPELLATIONS, CORE_GRAPES, FEW_SHOT, parent_region_for,
+    APPELLATIONS, CHATEAUX, CORE_GRAPES, FEW_SHOT, parent_region_for,
     canonical_region, canonical_country, canonical_grape, country_for_region,
+    gazetteer_hit, region_evidenced, country_evidenced, default_grapes_for,
 )
 
 MODEL = "claude-haiku-4-5-20251001"
@@ -46,6 +47,17 @@ _TOOL = {
 }
 
 
+_CHATEAUX_PROMPT_LIMIT = 8   # famous names only — the full list lives in the
+                             # deterministic gazetteer matcher (reference.py)
+
+
+def _chateaux_prompt() -> str:
+    return "\n".join(
+        f"  {app}: {', '.join(names[:_CHATEAUX_PROMPT_LIMIT])}"
+        for app, names in CHATEAUX.items()
+    )
+
+
 def _system_prompt() -> str:
     appellations = "\n".join(
         f"  {region}: {', '.join(apps)}" for region, apps in APPELLATIONS.items() if apps
@@ -67,9 +79,16 @@ def _system_prompt() -> str:
         "For a classic appellation whose grape is fixed by law, give that grape as `varietal` "
         "even if unstated (Chianti/Brunello -> Sangiovese; Barolo/Barbaresco -> Nebbiolo; "
         "Sancerre/Pouilly-Fumé -> Sauvignon Blanc; Rioja red -> Tempranillo; red Burgundy -> "
-        "Pinot Noir; Côtes du Rhône -> Grenache).\n\n"
+        "Pinot Noir; Côtes du Rhône -> Grenache).\n"
+        "A grape name alone NEVER determines region or country — 'Merlot' does not mean "
+        "Bordeaux; a Chilean Merlot is just as likely. No place evidence -> region null. "
+        "Brand words are not wine styles: 'Puerto'/'Porto' in a producer name is not Port "
+        "wine; 'Rose' in a producer name is not rosé.\n\n"
         "APPELLATION -> REGION reference (if you see the appellation, the region is the group):\n"
         f"{appellations}\n\n"
+        "CHÂTEAU -> APPELLATION reference (a producer name places the wine even when no "
+        "appellation is stated; all are Bordeaux, France):\n"
+        f"{_chateaux_prompt()}\n\n"
         "CORE GRAPES by color (prefer these spellings; other grapes are allowed):\n"
         f"{grapes}\n\n"
         "EXAMPLES:\n"
@@ -77,8 +96,32 @@ def _system_prompt() -> str:
     )
 
 
-def _post_process(rec: Dict[str, Any]) -> Dict[str, Any]:
+def _post_process(rec: Dict[str, Any], source_text: Optional[str] = None) -> Dict[str, Any]:
     out = dict(rec)
+    # 0. gazetteer + evidence gate (only when the caller passes the wine's
+    #    name+description). A producer/château hit fixes the place outright;
+    #    otherwise a region/sub_region the source doesn't support is NULLED —
+    #    the model free-associates grape→region (Merlot → "Bordeaux"), and an
+    #    honest NULL beats a confident hallucination (Vivino can fill it later).
+    if source_text:
+        hit = gazetteer_hit(source_text)
+        if hit:
+            out["sub_region"] = hit["sub_region"] or out.get("sub_region")
+            out["region"] = hit["region"]
+            out["country"] = hit["country"]
+        else:
+            if out.get("sub_region") and not region_evidenced(out["sub_region"], source_text):
+                out["sub_region"] = None
+            region_ok = out.get("region") and (
+                region_evidenced(out["region"], source_text)
+                or (out.get("sub_region")
+                    and parent_region_for(out["sub_region"]) == canonical_region(out["region"]))
+            )
+            if out.get("region") and not region_ok:
+                out["region"] = None
+            if out.get("country") and not out.get("region") \
+                    and not country_evidenced(out["country"], source_text):
+                out["country"] = None
     # 1. appellation -> parent region (deterministic, overrides the model)
     parent = parent_region_for(out.get("sub_region"))
     if parent:
@@ -88,6 +131,13 @@ def _post_process(rec: Dict[str, Any]) -> Dict[str, Any]:
     # 3. grape synonyms -> canonical spelling (Fume Blanc -> Sauvignon Blanc)
     out["varietal"] = canonical_grape(out.get("varietal"))
     out["grapes"] = [canonical_grape(g) for g in (out.get("grapes") or [])]
+    # 3b. appellation law -> default blend when the model gave no grapes
+    #     (left bank Cab-led, right bank Merlot-led, S. Rhône GSM, Sauternes
+    #     Sémillon). Never overwrites model-supplied grapes.
+    if not out.get("grapes"):
+        blend = default_grapes_for(out.get("sub_region"))
+        if blend:
+            out["grapes"] = list(blend)
     # 4. country: canonicalize what the model gave, else derive from region
     country = canonical_country(out.get("country"))
     if not country:
@@ -126,6 +176,8 @@ def extract_facts(wines: List[Dict[str, Any]], batch_size: int = 15) -> List[Dic
             f'| desc="{(w.get("description") or w.get("description_long") or "")[:400]}"'
             for w in batch
         )
+        sources = {w["id"]: f'{w.get("name","")} {w.get("description") or w.get("description_long") or ""}'
+                   for w in batch}
         try:
             resp = _anthropic_client.messages.create(
                 model=MODEL,
@@ -142,7 +194,7 @@ def extract_facts(wines: List[Dict[str, Any]], batch_size: int = 15) -> List[Dic
                 continue
             for rec in block.input.get("wines", []):
                 if rec.get("wine_id"):
-                    results.append(_post_process(rec))
+                    results.append(_post_process(rec, source_text=sources.get(rec["wine_id"])))
         except Exception as e:
             print(f"  extraction batch {i // batch_size} failed: {e}")
     return results
