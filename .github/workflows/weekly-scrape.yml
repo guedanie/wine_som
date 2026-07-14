@@ -152,6 +152,17 @@ jobs:
       # Vivino enrichment runs in its own workflow (daily-vivino.yml — PAUSED,
       # IP-blocked; moving local). Kept out of this job to avoid overlap.
 
+      # A scraper can exit cleanly having written NOTHING (IP block, API
+      # change) — step outcomes stay green. This reads the actual scraper_runs
+      # rows (including the mini's Twin Liquors run when it's already fired),
+      # flips silent-zero successes to failed, alerts Slack, and fails the
+      # job. Spec's hid a 3.5-week outage behind success/0 before this existed.
+      - name: Verify runs wrote records
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: python3 -m scripts.verify_scrape_runs --since-hours 24
+
       # No-op until the SLACK_WEBHOOK_URL secret is configured.
       - name: Notify Slack
         if: always()
