@@ -61,6 +61,7 @@ These hold the deep detail moved out of this file — **consult the relevant one
 - `docs/reference/recommendation.md` — scorer, personalization, intent, zip→store
 - `docs/reference/build-log.md` — full component status table + file map
 - `docs/mac-mini-enrichment-server.md` — the residential-IP enrichment runbook
+- `docs/mini-agent-tasks.md` — queued mini work: Spec's migration (+ its two known landmines) and extraction run-logging
 - `docs/product-family-key.md` — vintage-agnostic wine identity (future)
 - `data/exploration/*_findings.md` — how each retailer API was reverse-engineered
 - `frontend/CLAUDE.md` — design system (type, color, components, voice)
