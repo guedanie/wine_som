@@ -427,6 +427,51 @@ def _sse_pick_events(text):
 
 
 @pytest.mark.asyncio
+async def test_inventory_fetch_filters_stale_rows():
+    """Rows not re-scraped within the staleness window are excluded — a dead
+    scraper (Spec's, silent since 06-19) must not keep serving 3-week-old
+    prices into recommendations."""
+    db = _make_db_mock([WINE_ROW])
+    with patch("api.routers.recommend.stream_recommendations", side_effect=_make_stream_mock()), \
+         patch("api.routers.recommend.get_supabase_client", return_value=db), \
+         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/recommend", json={
+                "zip_code": "78209", "budget_min": 15.0, "budget_max": 35.0})
+    assert response.status_code == 200
+    stale_filters = [c for c in db.gte.call_args_list if c[0][0] == "last_scraped_at"]
+    assert stale_filters, "inventory query never filtered on last_scraped_at"
+    from datetime import datetime, timedelta, timezone
+    cutoff = datetime.fromisoformat(stale_filters[0][0][1])
+    age = datetime.now(timezone.utc) - cutoff
+    assert timedelta(days=9) < age < timedelta(days=11)   # 10-day window
+
+
+@pytest.mark.asyncio
+async def test_stale_filter_fails_open_when_pool_empties():
+    """If nothing survives the staleness filter (e.g. a missed scrape week),
+    refetch unfiltered — stale bottles beat a blank app."""
+    db = _make_db_mock([WINE_ROW])
+    meta = MagicMock(); meta.data = []          # stores_meta lookup
+    empty = MagicMock(); empty.data = []        # filtered inventory: nothing fresh
+    full = MagicMock(); full.data = [WINE_ROW]  # unfiltered fallback
+    db.execute.side_effect = [meta, empty, full]
+    with patch("api.routers.recommend.stream_recommendations", side_effect=_make_stream_mock()), \
+         patch("api.routers.recommend.get_supabase_client", return_value=db), \
+         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post("/api/recommend", json={
+                "zip_code": "78209", "budget_min": 15.0, "budget_max": 35.0})
+    assert response.status_code == 200
+    assert len(_sse_picks(response.text)) == 1  # fallback rows produced picks
+    # exactly one query carried the staleness filter (the fallback dropped it)
+    stale_filters = [c for c in db.gte.call_args_list if c[0][0] == "last_scraped_at"]
+    assert len(stale_filters) == 1
+
+
+@pytest.mark.asyncio
 async def test_recommend_streams_pick_events_progressively():
     """A ('pick', …) from the stream becomes an enriched SSE 'pick' event —
     name/price/retailer re-attached from the candidate — before the final

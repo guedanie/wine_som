@@ -17,6 +17,13 @@
   `score_candidates(intent: dict, candidates: list)`) — maps grape/region → flavor tags
   via `recommendation/flavor_profiles.py` so it can score even Tier-2 wines without
   GrapeMinds structure data. No LLM call in the scorer.
+- **Staleness bench** — the inventory fetch excludes rows whose `last_scraped_at`
+  is older than `_STALE_INVENTORY_DAYS` (10 — weekly cadence + grace), so a dead
+  scraper (Spec's, silent 06-19→07-13) or zombie rows that dropped off a
+  retailer's feed can't keep serving old prices. Fails open: if the filter
+  empties the pool (e.g. a missed scrape week), it refetches unfiltered and logs
+  a warning — stale bottles beat a blank app. Fresh scrapes re-include a
+  retailer automatically.
 - **Budget = hard window + soft pull toward 0.75×max** — the inventory fetch is a
   hard `[budget_min, budget_max]` filter (frontend sends a fixed $10 floor + the
   slider as ceiling). Inside the window the scorer adds up to `_W_BUDGET=1.0` for

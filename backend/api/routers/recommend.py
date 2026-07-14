@@ -4,6 +4,7 @@ import re
 import uuid
 import logging
 import random
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
@@ -24,6 +25,9 @@ _recommend_limiter = RateLimiter(limit=15, window_seconds=3600)
 
 _MAX_CANDIDATES = 12
 _FETCH_PER_RETAILER = 500
+# Inventory not re-scraped within this window is benched from recommendations.
+# Weekly scrape cadence + 3-day grace; the fetch fails open if nothing survives.
+_STALE_INVENTORY_DAYS = 10
 _RETAILER_CAP = 5    # max slots one retailer can take in the Claude candidate list
 _VARIETAL_CAP = 4    # max slots one grape can take — spreads grocery-heavy markets
 
@@ -198,32 +202,41 @@ async def recommend(req: RecommendRequest):
         if sid and rname:
             retailer_to_stores.setdefault(rname, []).append(sid)
 
-    if retailer_to_stores:
-        raw_rows: list = []
-        for store_ids in retailer_to_stores.values():
-            res = (
+    def _fetch_rows(since: Optional[str]) -> list:
+        def _query(store_ids: list, limit: int):
+            q = (
                 supabase.table("retail_inventory")
                 .select(INVENTORY_SELECT)
                 .in_("store_ref", store_ids)
                 .eq("in_stock", True)
                 .gte("price", req.budget_min)
                 .lte("price", req.budget_max)
-                .limit(_FETCH_PER_RETAILER)
-                .execute()
             )
-            raw_rows.extend(res.data or [])
-    else:
-        res = (
-            supabase.table("retail_inventory")
-            .select(INVENTORY_SELECT)
-            .in_("store_ref", nearby_ids)
-            .eq("in_stock", True)
-            .gte("price", req.budget_min)
-            .lte("price", req.budget_max)
-            .limit(1000)
-            .execute()
+            if since:
+                q = q.gte("last_scraped_at", since)
+            return q.limit(limit).execute().data or []
+
+        if retailer_to_stores:
+            rows: list = []
+            for store_ids in retailer_to_stores.values():
+                rows.extend(_query(store_ids, _FETCH_PER_RETAILER))
+            return rows
+        return _query(nearby_ids, 1000)
+
+    # Bench inventory a dead scraper stopped refreshing (Spec's went silent for
+    # 3.5 weeks serving 06-19 prices) — plus zombie rows that dropped off a
+    # retailer's feed and never re-upsert. Fail open if the filter empties the
+    # pool (e.g. a missed scrape week): stale bottles beat a blank app.
+    stale_cutoff = (
+        datetime.now(timezone.utc) - timedelta(days=_STALE_INVENTORY_DAYS)
+    ).isoformat()
+    raw_rows = _fetch_rows(stale_cutoff)
+    if not raw_rows:
+        logger.warning(
+            "INVENTORY | staleness filter emptied the pool (nothing newer than %s) — failing open",
+            stale_cutoff[:10],
         )
-        raw_rows = res.data or []
+        raw_rows = _fetch_rows(None)
 
     by_retailer: dict = {}
     for row in raw_rows:
