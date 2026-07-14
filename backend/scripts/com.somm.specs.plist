@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.somm.specs</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/danielguerrero/dev/wine_app/backend/scripts/run_specs_launchd.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/danielguerrero/dev/wine_app/backend</string>
+
+    <!-- Weekly Sun 05:00 CT — after the GitHub weekly-scrape (Sun 02:00 CT),
+         the local extraction LaunchAgent (Sun 03:00 CT), and Twin Liquors
+         (Sun 04:00 CT). Spec's runs on the mini because GitHub datacenter
+         IPs get silent-zero'd by specsonline.com. Full sweep (~30 SA/Austin/Dallas
+         stores × ~35 pages each) takes roughly 30 minutes. -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key><integer>0</integer>
+        <key>Hour</key><integer>5</integer>
+        <key>Minute</key><integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/danielguerrero/Library/Logs/somm-specs.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/danielguerrero/Library/Logs/somm-specs.err.log</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>LowPriorityIO</key>
+    <true/>
+</dict>
+</plist>

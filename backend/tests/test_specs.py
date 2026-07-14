@@ -4,7 +4,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
-from scrapers.specs import _parse_product, SpecsProduct, _fetch_wine_page, SpecsScraper
+from scrapers.specs import _parse_product, SpecsProduct, _fetch_wine_page, SpecsScraper, SpecsRateLimited
 from scrapers.base import RetailInventoryItem
 
 
@@ -152,6 +152,35 @@ def test_fetch_wine_page_sends_correct_store_and_page():
     assert '"category.keyword"' in cmd_str
 
 
+def test_fetch_wine_page_retries_on_non_json_then_succeeds():
+    """A block page / HTML body triggers json.loads failure — must retry rather
+    than surface a JSON error that gets silently swallowed as a store break."""
+    fake_json = _make_search_response(products=[_raw_product()])
+    responses = [
+        MagicMock(stdout="<html>blocked</html>", returncode=0),
+        MagicMock(stdout=fake_json, returncode=0),
+    ]
+
+    with patch("scrapers.specs.subprocess.run", side_effect=responses), \
+         patch("scrapers.specs.time.sleep"):
+        result = _fetch_wine_page(store_number=100, page=1, retries=3)
+
+    assert result["totalProducts"] == 1
+
+
+def test_fetch_wine_page_raises_specs_rate_limited_after_retries():
+    """When every retry fails, raise a typed exception so run_full can pause
+    the store instead of silently moving on with 0 records."""
+    bad = MagicMock(stdout="<html>blocked</html>", returncode=0)
+    with patch("scrapers.specs.subprocess.run", return_value=bad), \
+         patch("scrapers.specs.time.sleep"):
+        try:
+            _fetch_wine_page(store_number=100, page=1, retries=3)
+            raise AssertionError("expected SpecsRateLimited")
+        except SpecsRateLimited:
+            pass
+
+
 def _make_scraper():
     s = SpecsScraper.__new__(SpecsScraper)
     s.supabase = MagicMock()
@@ -209,6 +238,23 @@ def test_upsert_wine_details_writes_non_empty_descriptions():
     assert records[0]["wine_id"] == "wine-uuid-1"
     assert records[0]["description"] == "Crisp and dry with notes of green apple and citrus."
     assert records[0]["source"] == "scraped_specs"
+
+
+def test_upsert_wine_details_dedups_by_wine_id():
+    """Two SpecsProducts mapping to the same wine_id (via canonical UPC collapse)
+    must collapse to one upsert record — else on_conflict='wine_id' raises the
+    'affect row a second time' error. Keep-last: last description wins."""
+    scraper = _make_scraper()
+    p1 = _parse_product(_raw_product())          # upc 081883800770
+    raw2 = _raw_product(**{"details.description": "Second description wins."})
+    raw2["details"]["attributes"]["upc"] = "0081883800770"   # canonicalizes to same
+    p2 = _parse_product(raw2)
+    upc_to_id = {p1.upc: "wine-uuid-1", p2.upc: "wine-uuid-1"}
+    scraper._upsert_wine_details([p1, p2], upc_to_id)
+    call_args = scraper.supabase.table.return_value.upsert.call_args
+    records = call_args[0][0]
+    assert len(records) == 1, f"expected 1 record after wine_id dedup, got {len(records)}"
+    assert records[0]["description"] == "Second description wins."
 
 
 def test_upsert_wine_details_skips_when_all_empty():

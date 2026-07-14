@@ -57,13 +57,14 @@ class BaseScraper(ABC):
         from utils import infer_wine_type
         from utils.upc import canonical_upc
 
-        seen = set()
-        records = []
+        # Dedup by the CONFLICT KEY (upc_canonical), not raw upc — two different
+        # raw UPCs can normalize to the same canonical and would otherwise raise
+        # 'ON CONFLICT DO UPDATE command cannot affect row a second time'.
+        # Keep-last: the later occurrence's fields win.
+        by_canon = {}
         for item in items:
-            if not item.wine_name or (item.upc and item.upc in seen):
+            if not item.wine_name:
                 continue
-            if item.upc:
-                seen.add(item.upc)
             canon = canonical_upc(item.upc)
             record = {k: v for k, v in {
                 "upc": item.upc,
@@ -75,7 +76,8 @@ class BaseScraper(ABC):
                 "avg_price": item.price,
                 "image_url": item.image_url,
             }.items() if v is not None}
-            records.append(record)
+            by_canon[canon] = record
+        records = list(by_canon.values())
 
         if records:
             self.supabase.table("wines").upsert(records, on_conflict="upc_canonical").execute()
@@ -132,19 +134,23 @@ class BaseScraper(ABC):
         """Upsert slim retail inventory rows referencing a store_ref."""
         store_map = self._upsert_stores(items)
         now = datetime.now(timezone.utc).isoformat()
-        records = []
+        # Dedup by CONFLICT KEY (upc, store_ref) — same raw UPC listed twice for
+        # one store would otherwise raise 'affect row a second time'. Keep-last.
+        by_key = {}
         for item in items:
             store_ref = store_map.get((item.retailer_name, item.store_id))
-            if not store_ref:
+            if not store_ref or not item.upc:
                 continue
-            records.append({k: v for k, v in {
-                "wine_id": upc_to_id.get(item.upc) if item.upc else None,
+            record = {k: v for k, v in {
+                "wine_id": upc_to_id.get(item.upc),
                 "upc": item.upc,
                 "store_ref": store_ref,
                 "price": item.price,
                 "in_stock": item.in_stock,
                 "last_scraped_at": now,
-            }.items() if v is not None})
+            }.items() if v is not None}
+            by_key[(item.upc, store_ref)] = record
+        records = list(by_key.values())
         if records:
             self.supabase.table("retail_inventory").upsert(
                 records, on_conflict="upc,store_ref"

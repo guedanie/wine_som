@@ -217,6 +217,48 @@ def test_upsert_wines_includes_image_url():
     assert db.captured[0]["image_url"] == "https://cdn.example.com/decoy.jpg"
 
 
+def test_upsert_wines_dedups_by_canonical_when_two_raws_collide():
+    """Two distinct raw UPCs that canonicalize to the same value must collapse
+    to ONE upsert record — else Postgres raises
+    'ON CONFLICT DO UPDATE command cannot affect row a second time'.
+    Keep-last semantics: the last occurrence's fields win."""
+    db = FakeCapturingWinesDB()
+    scraper = HebScraper.__new__(HebScraper)
+    scraper.supabase = db
+    # 12-digit UPC and its 13-digit "0"-prefixed twin canonicalize identically
+    items = [
+        RetailInventoryItem(wine_name="Justin Chardonnay (raw a)", retailer_name="H-E-B",
+                            zip_code="78209", upc="733952123144", price=19.99),
+        RetailInventoryItem(wine_name="Justin Chardonnay (raw b)", retailer_name="Spec's",
+                            zip_code="78209", upc="0733952123144", price=21.99),
+    ]
+    scraper._upsert_wines(items)
+    assert len(db.captured) == 1, (
+        f"expected 1 upsert record after canonical dedup, got {len(db.captured)}: {db.captured}"
+    )
+    # keep-last: raw b wins
+    assert db.captured[0]["name"] == "Justin Chardonnay (raw b)"
+    assert db.captured[0]["avg_price"] == 21.99
+
+
+def test_upsert_inventory_dedups_by_upc_and_store_ref():
+    """Two inventory rows with the same (upc, store_ref) must collapse to one
+    upsert record. Keep-last: the last occurrence's price wins."""
+    db = FakeStoresDB([{"id": "store-uuid-1", "retailer_name": "H-E-B", "store_id": "567"}])
+    scraper = HebScraper.__new__(HebScraper)
+    scraper.supabase = db
+    items = [
+        RetailInventoryItem(wine_name="Dup", retailer_name="H-E-B", zip_code="78208",
+                            store_id="567", upc="u1", price=19.99),
+        RetailInventoryItem(wine_name="Dup", retailer_name="H-E-B", zip_code="78208",
+                            store_id="567", upc="u1", price=22.50),
+    ]
+    scraper._upsert_inventory(items, {"u1": "wine-1"})
+    recs = db.captured["upsert"]["retail_inventory"]
+    assert len(recs) == 1, f"expected 1 inventory record after dedup, got {len(recs)}: {recs}"
+    assert recs[0]["price"] == 22.50   # last wins
+
+
 def test_upsert_wines_omits_image_url_when_absent():
     db = FakeCapturingWinesDB()
     scraper = HebScraper.__new__(HebScraper)

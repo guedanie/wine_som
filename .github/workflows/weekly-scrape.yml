@@ -8,7 +8,7 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 180   # 3-hour ceiling; Spec's alone takes ~30 min
+    timeout-minutes: 180   # 3-hour ceiling
 
     defaults:
       run:
@@ -128,15 +128,10 @@ jobs:
           asyncio.run(KrogerScraper().run_full())
           "
 
-      - name: Scrape Spec's (SA + Austin + Dallas)
-        id: specs
-        continue-on-error: true
-        run: |
-          python3 -c "
-          import asyncio
-          from scrapers.specs import SpecsScraper, SA_STORE_NUMBERS, AUSTIN_STORE_NUMBERS, DALLAS_STORE_NUMBERS
-          asyncio.run(SpecsScraper().run_full(SA_STORE_NUMBERS + AUSTIN_STORE_NUMBERS + DALLAS_STORE_NUMBERS))
-          "
+      # Spec's runs on the RESIDENTIAL-IP mini (com.somm.specs, Sun 05:00 CT):
+      # GitHub datacenter IPs are silently blocked by specsonline.com — every
+      # weekly-scrape run 2026-07-01→07-13 completed "successfully" with 0
+      # records; last real GH run 2026-06-19. Moved to the mini 2026-07-13.
 
       # Twin Liquors (City Hive) runs on the RESIDENTIAL-IP mini, not here:
       # GitHub datacenter IPs are Cloudflare-1015-blocked (confirmed 2026-07-10 —
@@ -189,7 +184,6 @@ jobs:
             harvest=${{ steps.harvest.outcome }}
             pogos=${{ steps.pogos.outcome }}
             kroger=${{ steps.kroger.outcome }}
-            specs=${{ steps.specs.outcome }}
         run: |
           [ -z "$SLACK_WEBHOOK_URL" ] && echo "no webhook configured, skipping" && exit 0
           python3 - <<'PYEOF'
@@ -200,7 +194,7 @@ jobs:
               text = ("Weekly scrape — completed with failures: "
                       + ", ".join(failed))
           else:
-              text = "Weekly scrape — all 10 scrapers succeeded"
+              text = "Weekly scrape — all 9 scrapers succeeded"
           text += f"\n<{os.environ['RUN_URL']}|View run>"
           req = urllib.request.Request(
               os.environ["SLACK_WEBHOOK_URL"],

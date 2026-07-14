@@ -8,6 +8,7 @@ API reference: data/exploration/specs_findings.md
 """
 import json
 import subprocess
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -110,8 +111,15 @@ def _parse_store_detail(data: dict, store_number: int) -> dict:
     }
 
 
-def _fetch_wine_page(store_number: int, page: int, page_size: int = PAGE_SIZE) -> dict:
-    """POST to /api/search/ for one page of wines at a given store. Returns raw API response dict."""
+class SpecsRateLimited(Exception):
+    """Fetch never returned parseable JSON — the endpoint is likely throttling."""
+
+
+def _fetch_wine_page(store_number: int, page: int, page_size: int = PAGE_SIZE,
+                     retries: int = 4) -> dict:
+    """POST to /api/search/ for one page of wines. Retries on non-JSON (block
+    page / transient error) with backoff; raises SpecsRateLimited if it never
+    clears so run_full can pause the store instead of silently skipping it."""
     body = json.dumps({
         "userQuery": "",
         "orderBy": "popularity",
@@ -125,8 +133,15 @@ def _fetch_wine_page(store_number: int, page: int, page_size: int = PAGE_SIZE) -
         + _CURL_HEADERS
         + ["-d", body, SEARCH_URL]
     )
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    return json.loads(result.stdout)
+    last_err = None
+    for attempt in range(retries):
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            return json.loads(result.stdout)
+        except (ValueError, subprocess.SubprocessError) as e:
+            last_err = e
+            time.sleep(10 * (attempt + 1))   # 10s, 20s, 30s, 40s
+    raise SpecsRateLimited(f"store {store_number} page {page}: {last_err}")
 
 
 class SpecsScraper(BaseScraper):
@@ -169,17 +184,20 @@ class SpecsScraper(BaseScraper):
 
     def _upsert_wine_details(self, products: List[SpecsProduct], upc_to_id: dict):
         """Write Spec's product descriptions into wine_details for wines that have them (~77%)."""
-        records = []
+        # Dedup by CONFLICT KEY (wine_id) — two Spec's UPCs can map to one
+        # wine_id via canonical-UPC collapse. Keep-last.
+        by_wine_id = {}
         for p in products:
             wine_id = upc_to_id.get(p.upc) if p.upc else None
             if not wine_id or not p.description:
                 continue
-            records.append({
+            by_wine_id[wine_id] = {
                 "wine_id": wine_id,
                 "description": p.description,
                 "source": "scraped_specs",
                 "enriched_at": datetime.now(timezone.utc).isoformat(),
-            })
+            }
+        records = list(by_wine_id.values())
         if records:
             self.supabase.table("wine_details").upsert(
                 records, on_conflict="wine_id"
@@ -206,8 +224,6 @@ class SpecsScraper(BaseScraper):
         Per-store address is fetched from the API so Austin/Dallas stores
         geocode correctly. Commits each page immediately.
         """
-        import time
-
         stores = store_numbers if store_numbers is not None else SA_STORE_NUMBERS
 
         run_id = str(uuid.uuid4())
@@ -232,6 +248,13 @@ class SpecsScraper(BaseScraper):
                 while total_pages is None or page <= total_pages:
                     try:
                         resp = _fetch_wine_page(store_number=store_number, page=page)
+                    except SpecsRateLimited as e:
+                        # Bounded retries were exhausted — pause, then abandon
+                        # this store. Better a partial store than a silent zero
+                        # that masks throttling as "no wines here".
+                        print(f"    page {page}: RATE-LIMITED — {e}; pausing 60s before next store")
+                        time.sleep(60)
+                        break
                     except Exception as e:
                         print(f"    page {page}: fetch error — {e}")
                         break
@@ -258,7 +281,7 @@ class SpecsScraper(BaseScraper):
                         print(f"    page {page}/{total_pages}: {len(products)} wines committed (total: {total_committed})")
 
                     page += 1
-                    time.sleep(0.5)   # polite rate limit
+                    time.sleep(1.0)   # polite rate limit — ~1 req/s, one IP hammering ~30 stores
 
             self.supabase.table("scraper_runs").update({
                 "status": "success",

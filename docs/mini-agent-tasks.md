@@ -8,7 +8,17 @@ setup is the pattern to copy for anything launchd: `scripts/com.somm.twin-liquor
 
 ---
 
-## Task 1 — Move the Spec's scraper to the mini
+## Task 1 — Move the Spec's scraper to the mini ✅ DONE 2026-07-13
+
+**Landed:** `scrapers/base.py` upsert de-dup by conflict key (Landmine A) +
+`scrapers/specs.py::SpecsRateLimited` retry/backoff on non-JSON, 60s pause
+between rate-limited stores, polite sleep 0.5s→1.0s (Landmine B) + new
+`backend/scripts/{run_specs_launchd.sh,com.somm.specs.plist}` (Sun 05:00 CT,
+loaded on the mini). Spec's step removed from `.github/workflows/weekly-scrape.yml`
++ CLAUDE.md + this scrapers.md. First real run: Sunday 2026-07-19.
+
+<details><summary>Original brief (kept for context)</summary>
+
 
 **Why:** Spec's blocks datacenter IPs. Every GitHub-cron run since 2026-07-01
 completed "successfully" with 0 records; the last real run was **2026-06-19**
@@ -93,7 +103,23 @@ resume) and consider raising the polite `time.sleep(0.5)` between pages.
 
 ---
 
-## Task 2 — Extraction job should write a `scraper_runs` row
+</details>
+
+---
+
+## Task 2 — Extraction job should write a `scraper_runs` row ✅ DONE 2026-07-13
+
+**Landed:** `enrichment/extraction/run_extraction.py` now books a scraper_runs
+row (`retailer_name="Extraction (local qwen)"`, `status="running"` at start)
+and finalizes it (`success`/`failed` with `records_updated` = written wines +
+`error_message` on exception) inside a try/finally that re-raises so
+`run_extraction_launchd.sh` still surfaces a nonzero exit and skips the
+`persist_structure` chain on failure. Tests in
+`tests/test_run_extraction_lifecycle.py` (success, records_updated, failure
+paths). First real logged run: Sunday 2026-07-19.
+
+<details><summary>Original brief (kept for context)</summary>
+
 
 **Why:** the weekly extraction LaunchAgent (`com.somm.extraction-enrich`, Sun
 03:00 CT) is invisible to monitoring — it writes no `scraper_runs` row, so
@@ -125,3 +151,5 @@ of silent drift.
 - Killing the job mid-run (or an exception) leaves a `failed` row that
   `verify_scrape_runs.py` reports.
 - Unit tests for the run-row lifecycle (mock supabase, success + failure paths).
+
+</details>

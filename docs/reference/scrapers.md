@@ -39,7 +39,11 @@ Per-retailer API notes for the 11 scrapers. See also `data/exploration/*_finding
 - **Antonelli's** (`antonellischeese.com`): the `?product_type=Wine` URL param is IGNORED by Shopify (returns all 391 products), so wine is filtered client-side (`product_type=="wine"` → 65 wines); title format `WINE NAME / Producer / Region / Wine` (slash-separated)
 - Synthetic UPCs (`shopify-aoc-{handle}`, `shopify-usnw-{handle}`, `shopify-antonellis-{handle}`) — no cross-retailer dedup possible (natural wines have no barcodes)
 
-### Spec's (REST API — pure curl, no browser)
+### Spec's (REST API — pure curl, no browser; runs on the mini)
+> ⚠️ **Datacenter-IP blocked.** GitHub-cron runs 2026-07-01→07-13 all returned
+> success/0 records (silent). Moved to the mini's `com.somm.specs` LaunchAgent
+> (Sun 05:00 CT) on 2026-07-13. Do NOT re-add the step to `.github/workflows/weekly-scrape.yml`.
+
 - **Domain**: `specsonline.com` (NOT `specs.com` — that's a glasses company)
 - **Endpoint**: `POST https://specsonline.com/api/search/` — trailing slash required (without → 308)
 - No auth, no cookies, no session needed — just `Content-Type: application/json` + `Referer`

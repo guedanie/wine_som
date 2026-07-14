@@ -8,10 +8,40 @@ Usage:
 """
 import os
 import sys
+import uuid
+from datetime import datetime, timezone
 from db import get_service_client
 from enrichment.extraction.extractor import extract_facts
 
 BATCH_SIZE = 15
+
+# scraper_runs.retailer_name for this job. verify_scrape_runs.py treats a
+# success/0 row here as failed and Slack-alerts — so a dead Sunday run stops
+# hiding behind a silent varietal/region NULL creep.
+EXTRACTION_RETAILER = "Extraction (local qwen)"
+
+
+def _start_run(db) -> str:
+    """Insert a scraper_runs row with status=running and return its id."""
+    run_id = str(uuid.uuid4())
+    db.table("scraper_runs").insert({
+        "id": run_id,
+        "retailer_name": EXTRACTION_RETAILER,
+        "status": "running",
+    }).execute()
+    return run_id
+
+
+def _finish_run(db, run_id: str, status: str, records_updated: int,
+                error_message=None) -> None:
+    payload = {
+        "status": status,
+        "records_updated": records_updated,
+        "completed_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if error_message:
+        payload["error_message"] = error_message
+    db.table("scraper_runs").update(payload).eq("id", run_id).execute()
 
 
 def get_extractor():
@@ -98,23 +128,30 @@ def main():
     backend = os.environ.get("EXTRACTOR_BACKEND", "haiku").lower()
     mode = "null-region wines only" if null_only else "all wines"
     print(f"Fetching wines + descriptions ({mode}) — backend={backend}...", flush=True)
-    wines = fetch_wines(db, null_only=null_only)
-    if limit and len(wines) > limit:
-        print(f"  capping to {limit} of {len(wines)} (--limit)", flush=True)
-        wines = wines[:limit]
-    total = len(wines)
-    print(f"  {total} wines loaded", flush=True)
 
+    run_id = _start_run(db)
     written = 0
-    for i in range(0, total, BATCH_SIZE):
-        batch = wines[i:i + BATCH_SIZE]
-        results = extractor(batch, batch_size=BATCH_SIZE)
-        write_batch(db, results)
-        written += len(results)
-        pct = (i + len(batch)) / total * 100
-        print(f"  {i + len(batch)}/{total} ({pct:.0f}%) — {written} written", flush=True)
+    try:
+        wines = fetch_wines(db, null_only=null_only)
+        if limit and len(wines) > limit:
+            print(f"  capping to {limit} of {len(wines)} (--limit)", flush=True)
+            wines = wines[:limit]
+        total = len(wines)
+        print(f"  {total} wines loaded", flush=True)
 
-    print(f"Done — {written} wines updated", flush=True)
+        for i in range(0, total, BATCH_SIZE):
+            batch = wines[i:i + BATCH_SIZE]
+            results = extractor(batch, batch_size=BATCH_SIZE)
+            write_batch(db, results)
+            written += len(results)
+            pct = (i + len(batch)) / total * 100
+            print(f"  {i + len(batch)}/{total} ({pct:.0f}%) — {written} written", flush=True)
+
+        _finish_run(db, run_id, "success", written)
+        print(f"Done — {written} wines updated", flush=True)
+    except Exception as e:
+        _finish_run(db, run_id, "failed", written, error_message=str(e))
+        raise
 
 
 if __name__ == "__main__":
