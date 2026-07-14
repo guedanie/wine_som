@@ -83,6 +83,10 @@ resume) and consider raising the polite `time.sleep(0.5)` between pages.
 - Store rows keep their addresses (the scraper now writes `stores.address`).
 - `cd backend && python3 -m scripts.verify_scrape_runs --since-hours 24`
   exits 0 after the run.
+- Optional: have the wrapper also run
+  `python3 -m scripts.sweep_delisted --since-hours 6` after the scrape so
+  delisted items flip to out-of-stock immediately (otherwise the Sunday GitHub
+  workflow's sweep step catches them within its 24h window).
 
 ---
 

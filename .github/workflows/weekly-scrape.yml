@@ -152,6 +152,16 @@ jobs:
       # Vivino enrichment runs in its own workflow (daily-vivino.yml — PAUSED,
       # IP-blocked; moving local). Kept out of this job to avoid overlap.
 
+      # Items that vanished from a retailer's feed keep claiming in_stock=True
+      # forever (the scrape is upsert-only). For each successful run in the
+      # window — the mini's included — flip rows the run didn't refresh to out
+      # of stock. Safe by construction: failed/zero runs never sweep, and only
+      # stores the run actually touched are swept.
+      - name: Sweep delisted inventory
+        if: always()
+        continue-on-error: true
+        run: python3 -m scripts.sweep_delisted --since-hours 24
+
       # A scraper can exit cleanly having written NOTHING (IP block, API
       # change) — step outcomes stay green. This reads the actual scraper_runs
       # rows (including the mini's Twin Liquors run when it's already fired),
