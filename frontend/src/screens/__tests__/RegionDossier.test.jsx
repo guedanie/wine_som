@@ -78,6 +78,30 @@ it('renders the price-context module + cheapest/was-price row treatment', async 
 });
 
 
+it('MOBILE layout renders the price-context module + cheapest row too', async () => {
+  window.matchMedia = vi.fn().mockImplementation(q => ({
+    matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
+  }));
+  getWine.mockResolvedValue({
+    ...wineDetail,
+    availability: [
+      { store_ref: 's1', retailer: 'H-E-B', address: '123 Main', price: 19.99, is_cheapest: true, was_price: 24.99 },
+    ],
+    price_context: {
+      variant: 'drop', amount: 5, from_price: 24.99, to_price: 19.99,
+      store: 'H-E-B', since_label: 'this week', weeks_tracked: 6,
+      strip: [24.99, 24.99, 19.99],
+      cheapest: { retailer: 'H-E-B', price: 19.99, delta_vs_next: null },
+    },
+  });
+  renderScreen();
+  await waitFor(() => expect(screen.getByText(/Down to/)).toBeInTheDocument());
+  expect(screen.getByText('· CHEAPEST')).toBeInTheDocument();
+  expect(screen.getByText('$24.99')).toBeInTheDocument();
+  window.matchMedia = undefined;
+});
+
+
 it('dossier without price movement renders the steady module, resolved not empty', async () => {
   getWine.mockResolvedValue({
     ...wineDetail,

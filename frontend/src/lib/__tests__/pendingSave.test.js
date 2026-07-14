@@ -32,3 +32,13 @@ describe('pendingSave (carry a save intent through the magic-link round-trip)', 
     expect(getPendingSave()).toBeNull();
   });
 });
+
+describe('pending watch intent', () => {
+  it('round-trips a watch through storage and clears', async () => {
+    const { setPendingWatch, getPendingWatch, clearPendingWatch } = await import('../pendingSave.js');
+    setPendingWatch({ wine_id: 'w9', name: 'Esprit' });
+    expect(getPendingWatch()).toEqual({ wine_id: 'w9', name: 'Esprit' });
+    clearPendingWatch();
+    expect(getPendingWatch()).toBeNull();
+  });
+});

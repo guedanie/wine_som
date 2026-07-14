@@ -300,7 +300,7 @@ export default function RegionDossier() {
             {/* Price context + store list */}
             {availRows.length > 0 && (
               <>
-                <PriceContextModule ctx={wine.price_context} compact />
+                <PriceContextModule ctx={wine.price_context} compact wineId={id} wineName={wine.name ?? pick.name} />
                 <Eyebrow style={{ display: 'block', marginBottom: 10 }}>Available near you</Eyebrow>
                 <div style={{ border: '1.5px solid var(--ink)', background: 'var(--cream)', marginBottom: 18 }}>
                   {availRows.map((loc, i) => {
@@ -453,7 +453,7 @@ export default function RegionDossier() {
               </div>
 
               <div style={{ maxWidth: 520 }}>
-                <PriceContextModule ctx={wine.price_context} />
+                <PriceContextModule ctx={wine.price_context} wineId={id} wineName={wine.name ?? pick.name} />
               </div>
               <Eyebrow style={{ display: 'block', marginBottom: 10 }}>Available near you</Eyebrow>
               <div style={{ border: '1.5px solid var(--ink)', background: 'var(--cream)', maxWidth: 520 }}>

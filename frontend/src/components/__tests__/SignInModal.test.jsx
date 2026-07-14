@@ -33,3 +33,11 @@ test('Change email returns to State A', async () => {
   await userEvent.click(screen.getByRole('button', { name: /Change email/i }));
   expect(screen.getByRole('button', { name: /Send magic link/i })).toBeInTheDocument();
 });
+
+it('watch kind shows the price-watch nudge copy, never a wall', () => {
+  render(<SignInModal wine={{ name: 'Esprit de Tablas' }} kind="watch" onClose={() => {}} signInWithEmail={vi.fn()} />);
+  expect(screen.getByText('WATCH THIS PRICE')).toBeInTheDocument();
+  expect(screen.getByText(/I’ll tell you when|I'll tell you when/)).toBeInTheDocument();
+  expect(screen.getByText('Esprit de Tablas')).toBeInTheDocument();
+  expect(screen.getByText(/this just saves the watch/)).toBeInTheDocument();
+});

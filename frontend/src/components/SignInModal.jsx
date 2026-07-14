@@ -2,9 +2,10 @@ import { useState } from 'react';
 import useIsMobile from '../lib/useIsMobile.js';
 
 // Magic-link sign-in. Desktop = centered modal; mobile = bottom sheet. Two
-// states: enter-email (A) → check-inbox (B). A `wine` makes it the contextual
-// save prompt. Passwordless — no social login.
-export default function SignInModal({ wine = null, onClose, signInWithEmail }) {
+// states: enter-email (A) → check-inbox (B). A `wine` makes it contextual:
+// kind='save' is the save prompt, kind='watch' the price-watch nudge (never a
+// wall — design: price-intelligence handoff, Surface 4). Passwordless.
+export default function SignInModal({ wine = null, kind = 'save', onClose, signInWithEmail }) {
   const isMobile = useIsMobile();
   const [email, setEmail]   = useState('');
   const [status, setStatus] = useState('idle');   // idle | sending | sent
@@ -24,13 +25,18 @@ export default function SignInModal({ wine = null, onClose, signInWithEmail }) {
     }
   };
 
-  const eyebrow = wine ? 'SAVE TO YOUR LIST' : 'SIGN IN TO SOMM';
+  const isWatch = kind === 'watch' && wine;
+  const eyebrow = isWatch ? 'WATCH THIS PRICE' : wine ? 'SAVE TO YOUR LIST' : 'SIGN IN TO SOMM';
 
   const head = (
     <div style={{ padding: '28px 32px 20px', borderBottom: '0.75px solid var(--brass)' }}>
       <div style={{ fontFamily: 'var(--font-sans)', fontSize: 10, letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--faded)', fontWeight: 600, marginBottom: 10 }}>{eyebrow}</div>
       {status === 'sent' ? (
         <div style={{ fontFamily: 'var(--font-serif)', fontSize: 28, color: 'var(--ink)', lineHeight: 1.1 }}>Check your inbox.</div>
+      ) : isWatch ? (
+        <div style={{ fontFamily: 'var(--font-serif)', fontSize: 26, color: 'var(--ink)', lineHeight: 1.15 }}>
+          I&rsquo;ll tell you when<br /><span style={{ color: 'var(--bordeaux)' }}>{wine.name}</span> drops.
+        </div>
       ) : wine ? (
         <div style={{ fontFamily: 'var(--font-serif)', fontSize: 26, color: 'var(--ink)', lineHeight: 1.15 }}>
           Sign in to save<br /><span style={{ color: 'var(--bordeaux)' }}>{wine.name}.</span>
@@ -40,8 +46,14 @@ export default function SignInModal({ wine = null, onClose, signInWithEmail }) {
       )}
       {status !== 'sent' && (
         <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--faded)', marginTop: 8, lineHeight: 1.5 }}>
-          {wine ? 'Free · passwordless · takes ten seconds.'
-                : 'No account needed to browse — sign in to save bottles and get picks tuned to your taste.'}
+          {isWatch ? 'Watches live with your account — passwordless, free. Sign in and I’ll ping you the week it gets cheaper near you.'
+            : wine ? 'Free · passwordless · takes ten seconds.'
+            : 'No account needed to browse — sign in to save bottles and get picks tuned to your taste.'}
+        </div>
+      )}
+      {status !== 'sent' && isWatch && (
+        <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11.5, color: 'var(--faded)', marginTop: 6 }}>
+          No account needed to browse — this just saves the watch.
         </div>
       )}
     </div>

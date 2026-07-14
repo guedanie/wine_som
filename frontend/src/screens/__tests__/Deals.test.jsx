@@ -71,6 +71,17 @@ describe('Discovery deals rail', () => {
     expect(screen.getByText('Schug Carneros Chardonnay')).toBeInTheDocument();
   });
 
+  it('MOBILE Discovery shows the compact rail too', async () => {
+    window.matchMedia = vi.fn().mockImplementation(q => ({
+      matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
+    }));
+    getDeals.mockResolvedValue({ week_of: 'JUL 12', count: 3, deals: [DEAL] });
+    renderScreen(null, '/discover');
+    await waitFor(() => screen.getByText(/Worth grabbing · Week of JUL 12/));
+    expect(screen.getByText('See all 3 →')).toBeInTheDocument();
+    window.matchMedia = undefined;
+  });
+
   it('renders nothing when the week has no cut — absence is the design', async () => {
     getDeals.mockResolvedValue({ week_of: 'JUL 12', count: 0, deals: [] });
     renderScreen(null, '/discover');

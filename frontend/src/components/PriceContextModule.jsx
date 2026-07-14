@@ -1,4 +1,5 @@
 import PriceMarker from './PriceMarker.jsx';
+import WatchPriceButton from './WatchPriceButton.jsx';
 import Eyebrow from './Eyebrow.jsx';
 
 // Dossier price-context module — sits directly above the availability list and
@@ -42,7 +43,7 @@ function WeekStrip({ strip, variant, compact }) {
   );
 }
 
-export default function PriceContextModule({ ctx, compact = false }) {
+export default function PriceContextModule({ ctx, compact = false, wineId = null, wineName = null }) {
   if (!ctx || !ctx.cheapest) return null;
   const isDrop = ctx.variant === 'drop';
   const { cheapest } = ctx;
@@ -82,14 +83,20 @@ export default function PriceContextModule({ ctx, compact = false }) {
               </div>
             </>
           )}
-          <div style={{ marginTop: 10 }}>
+          <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             {isDrop
               ? <PriceMarker variant="drop" amount={ctx.amount} store={compact ? null : ctx.store} />
               : <PriceMarker variant="steady" sinceLabel={ctx.since_label ?? undefined} />}
+            {!compact && <WatchPriceButton wineId={wineId} name={wineName} />}
           </div>
         </div>
         <WeekStrip strip={ctx.strip} variant={ctx.variant} compact={compact} />
       </div>
+      {compact && (
+        <div style={{ marginTop: 12 }}>
+          <WatchPriceButton wineId={wineId} name={wineName} fullWidth />
+        </div>
+      )}
     </div>
   );
 }
