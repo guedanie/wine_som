@@ -88,3 +88,22 @@ def test_infer_wine_type_knows_portuguese_terms():
     assert infer_wine_type('Espumante Bruto Natural, Bairrada') == 'sparkling'
     assert infer_wine_type('Quinta do Infantado, Tawny-Medium Dry, Porto') == 'dessert'
     assert infer_wine_type('Vinho Tinto Reserva') == 'red'
+
+
+def test_post_process_wine_type_gates_default_blend():
+    """A white wine in a red appellation must not get the red default blend."""
+    rec = {"wine_id": "w1", "sub_region": "Margaux", "grapes": [], "varietal": None}
+    out = _post_process(rec, wine_type="white")
+    assert out["grapes"] == []
+    out_red = _post_process(rec, wine_type="red")
+    assert out_red["grapes"] == ["Cabernet Sauvignon", "Merlot", "Cabernet Franc"]
+    assert out_red["varietal"] == "Cabernet Sauvignon"
+
+
+def test_post_process_region_fallback_for_red_without_appellation():
+    rec = {"wine_id": "w1", "region": "Bordeaux", "sub_region": None,
+           "grapes": [], "varietal": None}
+    out = _post_process(rec, wine_type="red")
+    assert out["grapes"] == ["Merlot", "Cabernet Sauvignon", "Cabernet Franc"]
+    out_unknown = _post_process(rec)
+    assert out_unknown["grapes"] == []
