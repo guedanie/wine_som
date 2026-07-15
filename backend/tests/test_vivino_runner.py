@@ -104,3 +104,38 @@ def test_fetch_sample_stops_at_limit_within_first_tier():
     with patch.object(runner, "_tier_queries", return_value=tiers):
         picked = runner.fetch_sample(db=None, limit=2)
     assert [w["id"] for w in picked] == ["a", "b"]
+
+
+def _facts_wine(**kw):
+    base = {"id": "w1", "grapes": [], "abv": 13.5,
+            "region": "Bordeaux", "country": "France"}
+    base.update(kw)
+    return base
+
+
+def test_write_facts_replaces_appellation_default_blend():
+    """Law-book approximations (backfill/extraction defaults) yield to real
+    per-wine Vivino data; everything else stays fill-only."""
+    from unittest.mock import MagicMock
+    db = MagicMock()
+    w = _facts_wine(grapes=["Merlot", "Cabernet Franc", "Cabernet Sauvignon"])
+    filled = runner.write_facts(db, w, {"grapes": ["Merlot", "Cabernet Franc"]})
+    assert "grapes" in filled
+    payload = db.table.return_value.update.call_args[0][0]
+    assert payload["grapes"] == ["Merlot", "Cabernet Franc"]
+
+
+def test_write_facts_never_replaces_scraped_or_extracted_grapes():
+    from unittest.mock import MagicMock
+    db = MagicMock()
+    w = _facts_wine(grapes=["Zinfandel"])
+    filled = runner.write_facts(db, w, {"grapes": ["Merlot"]})
+    assert filled == []
+    db.table.return_value.update.assert_not_called()
+
+
+def test_write_facts_still_fills_empty_grapes():
+    from unittest.mock import MagicMock
+    db = MagicMock()
+    filled = runner.write_facts(db, _facts_wine(), {"grapes": ["Malbec"]})
+    assert "grapes" in filled

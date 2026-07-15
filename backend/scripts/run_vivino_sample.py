@@ -25,6 +25,7 @@ from db import get_service_client
 from enrichment.vivino import (VivinoFetchError, build_query, fetch_ratings,
                                search_wine, strip_query_noise,
                                structure_to_profile)
+from enrichment.extraction.reference import is_default_blend
 
 MATCH_THRESHOLD = 0.6   # ratings + image: cosmetic, tolerate borderline matches
 FACTS_THRESHOLD = 0.7   # grapes/region/abv/structure: canonical facts need a stronger match
@@ -139,7 +140,12 @@ def write_facts(db, w, attrs):
     filled = []
 
     wine_update = {}
-    if attrs.get("grapes") and not (w.get("grapes") or []):
+    # Grapes: fill when empty, and REPLACE when the current value is a
+    # law-book default blend (backfill/extraction approximation) — real
+    # per-wine data wins. Scraped/extracted grapes are never overwritten.
+    current_grapes = w.get("grapes") or []
+    if attrs.get("grapes") and attrs["grapes"] != current_grapes and (
+            not current_grapes or is_default_blend(current_grapes)):
         wine_update["grapes"] = attrs["grapes"]
     if attrs.get("abv") is not None and w.get("abv") is None:
         wine_update["abv"] = attrs["abv"]
