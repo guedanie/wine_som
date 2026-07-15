@@ -402,6 +402,30 @@ def default_grapes_for(appellation, wine_type=None) -> Optional[list]:
     return None
 
 
+# Region-level fallback for rows with no (recognized) appellation — reds only:
+# Bordeaux AOC rouge is Merlot-led by law; region-only Rhône reds are
+# overwhelmingly southern Côtes-du-Rhône GSM.
+REGION_DEFAULT_GRAPES = {
+    "bordeaux": ("Merlot", "Cabernet Sauvignon", "Cabernet Franc"),
+    "rhone": _GSM_BLEND,
+}
+
+
+def default_grapes_for_region(region, wine_type) -> Optional[list]:
+    """Region-level default blend; fires only when wine_type is exactly red."""
+    if not region or _norm(wine_type or "") != "red":
+        return None
+    blend = REGION_DEFAULT_GRAPES.get(_norm(region))
+    return list(blend) if blend else None
+
+
+# Every default blend (appellation + region level) as tuples — lets Vivino
+# recognize law-book approximations and replace them with real per-wine data.
+ALL_DEFAULT_BLENDS = frozenset(
+    _g for _rules in _APPELLATION_DEFAULTS.values() for _g, _, _ in _rules
+) | frozenset(REGION_DEFAULT_GRAPES.values())
+
+
 # Longest-match-first index over château + producer names, normalized.
 # The third element marks château entries — single-word château needles
 # ("Latour", "Gloria", "Beauregard") collide with unrelated producers and

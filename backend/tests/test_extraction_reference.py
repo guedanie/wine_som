@@ -212,3 +212,31 @@ def test_southern_rhone_satellites_and_spelling_variants():
         assert default_grapes_for(app) == gsm, app
     assert default_grapes_for("Lalande de Pomerol") == \
         ["Merlot", "Cabernet Franc", "Cabernet Sauvignon"]   # hyphen fold, Task 1
+
+
+def test_region_level_defaults_fire_only_for_explicit_red():
+    """68 prod rows have region but no sub_region — Bordeaux AOC rouge is
+    Merlot-led by law; region-only Rhône reds are overwhelmingly southern GSM."""
+    from enrichment.extraction.reference import default_grapes_for_region
+    assert default_grapes_for_region("Bordeaux", "red") == \
+        ["Merlot", "Cabernet Sauvignon", "Cabernet Franc"]
+    assert default_grapes_for_region("Rhône", "red") == \
+        ["Grenache", "Syrah", "Mourvèdre"]
+    assert default_grapes_for_region("Rhone", "red") is not None   # accent variant
+    assert default_grapes_for_region("Bordeaux", None) is None
+    assert default_grapes_for_region("Bordeaux", "white") is None
+    assert default_grapes_for_region("Napa Valley", "red") is None
+    assert default_grapes_for_region(None, "red") is None
+
+
+def test_all_default_blends_contains_every_law_blend():
+    """Vivino's write_facts uses this to recognize (and replace) law-book
+    approximations without a schema change."""
+    from enrichment.extraction.reference import ALL_DEFAULT_BLENDS
+    assert ("Cabernet Sauvignon", "Merlot", "Cabernet Franc") in ALL_DEFAULT_BLENDS
+    assert ("Merlot", "Cabernet Franc", "Cabernet Sauvignon") in ALL_DEFAULT_BLENDS
+    assert ("Merlot", "Cabernet Sauvignon", "Cabernet Franc") in ALL_DEFAULT_BLENDS
+    assert ("Grenache", "Syrah", "Mourvèdre") in ALL_DEFAULT_BLENDS
+    assert ("Syrah",) in ALL_DEFAULT_BLENDS
+    assert ("Viognier",) in ALL_DEFAULT_BLENDS
+    assert ("Zinfandel",) not in ALL_DEFAULT_BLENDS
