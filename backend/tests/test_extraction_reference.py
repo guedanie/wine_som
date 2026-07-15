@@ -240,3 +240,15 @@ def test_all_default_blends_contains_every_law_blend():
     assert ("Syrah",) in ALL_DEFAULT_BLENDS
     assert ("Viognier",) in ALL_DEFAULT_BLENDS
     assert ("Zinfandel",) not in ALL_DEFAULT_BLENDS
+
+
+def test_is_specific_grape_accepts_real_grapes_rejects_generics():
+    """Backfill rule: a specific-grape varietal is trusted (grapes=[varietal]);
+    generics fall through to the appellation blend. 'Sauternes' as a varietal
+    (2 prod rows) is a place, not a grape — generic."""
+    from enrichment.extraction.reference import is_specific_grape
+    for real in ["Merlot", "merlot", "Shiraz", "Sémillon", "Semillon", "Viognier"]:
+        assert is_specific_grape(real), real
+    for generic in ["Red Blend", "White Blend", "Red Wine", "White Wine",
+                    "Other", "Sauternes", None, ""]:
+        assert not is_specific_grape(generic), generic

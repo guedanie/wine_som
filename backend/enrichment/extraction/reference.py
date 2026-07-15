@@ -232,6 +232,21 @@ def canonical_grape(grape: Optional[str]) -> Optional[str]:
     return GRAPE_SYNONYMS.get(_norm(grape), grape)
 
 
+# Every canonical grape we know — membership test for "the varietal names an
+# actual grape" (vs. generic retail labels like 'Red Blend').
+KNOWN_GRAPES = (
+    {_norm(g) for _names in CORE_GRAPES.values() for g in _names}
+    | {_norm(g) for g in GRAPE_SYNONYMS.values()}
+)
+
+
+def is_specific_grape(varietal) -> bool:
+    """True when the varietal names an actual grape (post-canonicalization)."""
+    if not varietal:
+        return False
+    return _norm(canonical_grape(varietal)) in KNOWN_GRAPES
+
+
 def country_for_region(region: Optional[str]) -> Optional[str]:
     """Infer country from a (canonicalized) region name, else None."""
     if not region:
