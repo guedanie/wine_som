@@ -100,3 +100,13 @@ def test_listrac_without_medoc_suffix_is_bordeaux():
     from enrichment.extraction.reference import parent_region_for, region_evidenced
     assert parent_region_for('Listrac') == 'Bordeaux'
     assert region_evidenced('Bordeaux', 'Chateau Clarke Listrac 2020 (750ml)')
+
+
+def test_norm_folds_hyphens_so_spelling_variants_match():
+    """Prod rows write 'Lalande de Pomerol' where the table says
+    'Lalande-de-Pomerol' — hyphen/space variants must resolve identically."""
+    assert parent_region_for("Lalande de Pomerol") == "Bordeaux"
+    assert parent_region_for("Cote Rotie") == "Rhône"
+    assert parent_region_for("Saint-Émilion") == "Bordeaux"   # hyphenated still fine
+    from enrichment.extraction.reference import canonical_region
+    assert canonical_region("Côtes-du-Rhône") == "Rhône"

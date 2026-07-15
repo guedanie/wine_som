@@ -128,6 +128,7 @@ FEW_SHOT = [
 def _norm(s: str) -> str:
     s = unicodedata.normalize("NFKD", s or "")
     s = "".join(ch for ch in s if not unicodedata.combining(ch))  # strip accents
+    s = s.replace("-", " ")   # hyphen/space spelling variants resolve identically
     return re.sub(r"\s+", " ", s).strip().lower()
 
 
