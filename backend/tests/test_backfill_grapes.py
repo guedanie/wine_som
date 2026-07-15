@@ -66,6 +66,14 @@ def test_region_only_unknown_type_left_for_vivino():
     assert rule is None
 
 
+def test_specific_varietal_synonyms_are_canonicalized_into_grapes():
+    """'Shiraz' folds to 'Syrah' in grapes; the varietal column itself stays
+    untouched (set-only-when-NULL policy) — an intended cross-field mismatch."""
+    changes, rule = plan_change(_row(region="Rhône", varietal="Shiraz"))
+    assert changes == {"grapes": ["Syrah"]}
+    assert rule == "specific-varietal"
+
+
 def test_rows_with_grapes_or_foreign_regions_are_untouched():
     assert plan_change(_row(grapes=["Zinfandel"]))[0] == {}
     assert plan_change(_row(region="Napa Valley", sub_region="Oakville"))[0] == {}
