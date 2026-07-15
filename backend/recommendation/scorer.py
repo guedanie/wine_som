@@ -30,6 +30,18 @@ _LEAN_TYPES = {
     "rose_sparkling": {"rosé", "rose", "sparkling"},
 }
 
+# 'Red blend' / 'white blend' asks match any wine of that type with a 2+
+# grape blend — Bordeaux/GSM wines carry real grape arrays, not the literal
+# label, so set-intersection alone can't see them.
+_BLEND_WANTS = {"red blend": "red", "white blend": "white"}
+
+
+def _blend_match(want_grapes: set, wine_type, grapes_col) -> bool:
+    if len(grapes_col or []) < 2:
+        return False
+    return any(want in want_grapes and wine_type == wtype
+               for want, wtype in _BLEND_WANTS.items())
+
 
 def _norm_liked(liked_wines) -> List[Dict[str, Any]]:
     """Normalize the user's liked wines once (grapes/region/flavors as sets)."""
@@ -116,6 +128,8 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
         notes = _norm(wine.get("tasting_notes")) + " " + " ".join(
             _norm(x) for x in (wine.get("flavor_profile") or []))
         grapes = {_norm(g) for g in (wine.get("grapes") or [])}
+        if wine.get("varietal"):
+            grapes.add(_norm(wine["varietal"]))   # symmetric with _norm_liked
         region = _norm(wine.get("region"))
 
         # avoid exclusion: search grapes, region, flavor tags, and notes
@@ -134,7 +148,9 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
             if resolved_body == want_body:
                 score += _W_BODY
 
-        if want_grapes and (want_grapes & grapes):
+        if want_grapes and (
+                (want_grapes & grapes)
+                or _blend_match(want_grapes, wine.get("wine_type"), wine.get("grapes"))):
             score += _W_GRAPE
 
         if want_region and region and (want_region in region or region in want_region):

@@ -293,3 +293,40 @@ def test_profile_ignored_when_request_specifies_that_dimension():
     with_prof = score_candidates({**_intent(wine_type="white"), "profile": prof}, [red])[0]["_score"]
     without   = score_candidates({**_intent(wine_type="white")}, [red])[0]["_score"]
     assert with_prof == without
+
+
+def test_red_blend_request_boosts_multi_grape_reds_and_blend_varietals():
+    """'Red blend' asks used to boost almost nothing: literal 'Red Blend' sits
+    in grapes on 7 wines but in varietal on 819, and candidates matched on the
+    grapes column only. Both a backfilled Bordeaux (3-grape array) and a
+    varietal='Red Blend' wine must now outrank a single-grape red."""
+    single = _wine("Straight Malbec", varietal="Malbec", grapes=["Malbec"])
+    labeled = _wine("Labeled Red Blend", varietal="Red Blend", grapes=[])
+    bordeaux = _wine("Backfilled Pauillac", varietal="Cabernet Sauvignon",
+                     grapes=["Cabernet Sauvignon", "Merlot", "Cabernet Franc"],
+                     region="Bordeaux", country="France")
+    result = score_candidates(_intent(grapes=["Red Blend"]),
+                              [single, labeled, bordeaux])
+    names = [w["name"] for w in result]
+    assert names.index("Straight Malbec") == 2
+
+
+def test_blend_rule_respects_wine_type():
+    red_mix = _wine("Red Mix", wine_type="red", varietal=None,
+                    grapes=["Grenache", "Syrah"])
+    white_mix = _wine("White Mix", wine_type="white", varietal=None,
+                      grapes=["Marsanne", "Roussanne"])
+    result = score_candidates(_intent(grapes=["White Blend"]),
+                              [red_mix, white_mix])
+    assert result[0]["name"] == "White Mix"
+
+
+def test_candidate_varietal_now_counts_for_grape_requests():
+    """Symmetry with _norm_liked: a wine whose grapes array is empty but whose
+    varietal matches the requested grape earns the grape boost."""
+    other = _wine("Other", varietal="Malbec", grapes=["Malbec"])
+    varietal_only = _wine("Varietal Only", varietal="Tempranillo", grapes=[],
+                          region="Rioja", country="Spain")
+    result = score_candidates(_intent(grapes=["Tempranillo"]),
+                              [other, varietal_only])
+    assert result[0]["name"] == "Varietal Only"
