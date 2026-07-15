@@ -240,7 +240,7 @@ KNOWN_GRAPES = (
 )
 
 
-def is_specific_grape(varietal) -> bool:
+def is_specific_grape(varietal: Optional[str]) -> bool:
     """True when the varietal names an actual grape (post-canonicalization)."""
     if not varietal:
         return False
@@ -401,7 +401,8 @@ for _apps, _grapes, _colors, _req in _DEFAULT_RULES:
         _APPELLATION_DEFAULTS.setdefault(_norm(_a), []).append((_grapes, _colors, _req))
 
 
-def default_grapes_for(appellation, wine_type=None) -> Optional[list]:
+def default_grapes_for(appellation: Optional[str],
+                       wine_type: Optional[str] = None) -> Optional[list]:
     """Appellation-law default blend, gated by wine color ('rosé' folds to
     'rose' via _norm). Unknown wine_type fires only single-color appellations;
     a known wine_type must be among the rule's colors."""
@@ -426,7 +427,8 @@ REGION_DEFAULT_GRAPES = {
 }
 
 
-def default_grapes_for_region(region, wine_type) -> Optional[list]:
+def default_grapes_for_region(region: Optional[str],
+                              wine_type: Optional[str]) -> Optional[list]:
     """Region-level default blend; fires only when wine_type is exactly red."""
     if not region or _norm(wine_type or "") != "red":
         return None
@@ -439,6 +441,11 @@ def default_grapes_for_region(region, wine_type) -> Optional[list]:
 ALL_DEFAULT_BLENDS = frozenset(
     _g for _rules in _APPELLATION_DEFAULTS.values() for _g, _, _ in _rules
 ) | frozenset(REGION_DEFAULT_GRAPES.values())
+
+
+def is_default_blend(grapes) -> bool:
+    """True when grapes (list or tuple) is exactly a law-book default blend."""
+    return bool(grapes) and tuple(grapes) in ALL_DEFAULT_BLENDS
 
 
 # Longest-match-first index over château + producer names, normalized.

@@ -252,3 +252,21 @@ def test_is_specific_grape_accepts_real_grapes_rejects_generics():
     for generic in ["Red Blend", "White Blend", "Red Wine", "White Wine",
                     "Other", "Sauternes", None, ""]:
         assert not is_specific_grape(generic), generic
+
+
+def test_gate_edge_cases_rose_conflict_and_empty_string_type():
+    """Empty-string wine_type means 'unknown' (single-color rules fire);
+    a known conflicting type ('rosé') never does."""
+    from enrichment.extraction.reference import default_grapes_for
+    assert default_grapes_for("Margaux", wine_type="rosé") is None
+    assert default_grapes_for("Margaux", wine_type="") == \
+        ["Cabernet Sauvignon", "Merlot", "Cabernet Franc"]
+
+
+def test_is_default_blend_accepts_lists_and_tuples():
+    from enrichment.extraction.reference import is_default_blend
+    assert is_default_blend(["Grenache", "Syrah", "Mourvèdre"])
+    assert is_default_blend(("Syrah",))
+    assert not is_default_blend(["Zinfandel"])
+    assert not is_default_blend([])
+    assert not is_default_blend(None)
