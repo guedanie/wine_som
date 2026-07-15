@@ -331,29 +331,51 @@ PRODUCERS = {
 }
 
 # Appellation law → default blend when the model returned no grapes.
-# Order matters: first grape becomes the varietal.
-_LEFT_BANK = ["Médoc", "Haut-Médoc", "Margaux", "Pauillac", "Saint-Julien",
-              "Saint-Estèphe", "Listrac-Médoc", "Moulis-en-Médoc",
-              "Pessac-Léognan", "Graves"]
-_RIGHT_BANK = ["Saint-Émilion", "Pomerol", "Lalande-de-Pomerol", "Fronsac",
-               "Canon-Fronsac"]
-_GSM = ["Châteauneuf-du-Pape", "Gigondas", "Vacqueyras", "Côtes du Rhône"]
+# Order matters: first grape becomes the varietal. Each rule carries the
+# colors the blend is valid for; it fires when the caller's wine_type is in
+# them, or when wine_type is unknown (None) AND the appellation is
+# single-color (requires_type=False). Multi-color appellations (Graves,
+# Pessac-Léognan, …) never fire on an unknown type.
+_BDX_LEFT   = ("Cabernet Sauvignon", "Merlot", "Cabernet Franc")
+_BDX_RIGHT  = ("Merlot", "Cabernet Franc", "Cabernet Sauvignon")
+_BDX_WHITE  = ("Sauvignon Blanc", "Sémillon")
+_GSM_BLEND  = ("Grenache", "Syrah", "Mourvèdre")
+_SAUT_WHITE = ("Sémillon", "Sauvignon Blanc")
 
-APPELLATION_DEFAULT_GRAPES = {}
-for _a in _LEFT_BANK:
-    APPELLATION_DEFAULT_GRAPES[_norm(_a)] = ["Cabernet Sauvignon", "Merlot", "Cabernet Franc"]
-for _a in _RIGHT_BANK:
-    APPELLATION_DEFAULT_GRAPES[_norm(_a)] = ["Merlot", "Cabernet Franc", "Cabernet Sauvignon"]
-for _a in _GSM:
-    APPELLATION_DEFAULT_GRAPES[_norm(_a)] = ["Grenache", "Syrah", "Mourvèdre"]
-APPELLATION_DEFAULT_GRAPES[_norm("Sauternes")] = ["Sémillon", "Sauvignon Blanc"]
-APPELLATION_DEFAULT_GRAPES[_norm("Barsac")] = ["Sémillon", "Sauvignon Blanc"]
+# (appellations, grapes, wine_types the blend may fill, requires_type)
+_DEFAULT_RULES = [
+    (("Médoc", "Haut-Médoc", "Margaux", "Pauillac", "Saint-Julien",
+      "Saint-Estèphe", "Listrac-Médoc", "Listrac", "Moulis-en-Médoc"),
+     _BDX_LEFT, ("red",), False),
+    (("Pessac-Léognan", "Graves"), _BDX_LEFT, ("red",), True),
+    (("Pessac-Léognan", "Graves"), _BDX_WHITE, ("white",), True),
+    (("Saint-Émilion", "Pomerol", "Lalande-de-Pomerol", "Fronsac",
+      "Canon-Fronsac"), _BDX_RIGHT, ("red",), False),
+    (("Châteauneuf-du-Pape", "Gigondas", "Vacqueyras", "Côtes du Rhône"),
+     _GSM_BLEND, ("red",), False),
+    (("Sauternes", "Barsac"), _SAUT_WHITE, ("white", "dessert"), False),
+]
+
+_APPELLATION_DEFAULTS = {}
+for _apps, _grapes, _colors, _req in _DEFAULT_RULES:
+    for _a in _apps:
+        _APPELLATION_DEFAULTS.setdefault(_norm(_a), []).append((_grapes, _colors, _req))
 
 
-def default_grapes_for(appellation) -> Optional[list]:
+def default_grapes_for(appellation, wine_type=None) -> Optional[list]:
+    """Appellation-law default blend, gated by wine color ('rosé' folds to
+    'rose' via _norm). Unknown wine_type fires only single-color appellations;
+    a known wine_type must be among the rule's colors."""
     if not appellation:
         return None
-    return APPELLATION_DEFAULT_GRAPES.get(_norm(appellation))
+    rules = _APPELLATION_DEFAULTS.get(_norm(appellation))
+    if not rules:
+        return None
+    wt = _norm(wine_type) if wine_type else None
+    for grapes, colors, requires_type in rules:
+        if (wt in colors) or (wt is None and not requires_type):
+            return list(grapes)
+    return None
 
 
 # Longest-match-first index over château + producer names, normalized.

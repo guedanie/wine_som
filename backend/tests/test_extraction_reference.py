@@ -110,3 +110,48 @@ def test_norm_folds_hyphens_so_spelling_variants_match():
     assert parent_region_for("Saint-Émilion") == "Bordeaux"   # hyphenated still fine
     from enrichment.extraction.reference import canonical_region
     assert canonical_region("Côtes-du-Rhône") == "Rhône"
+
+
+def test_default_grapes_left_and_right_bank_unchanged():
+    from enrichment.extraction.reference import default_grapes_for
+    assert default_grapes_for("Pauillac") == ["Cabernet Sauvignon", "Merlot", "Cabernet Franc"]
+    assert default_grapes_for("Saint-Émilion") == ["Merlot", "Cabernet Franc", "Cabernet Sauvignon"]
+    assert default_grapes_for("Châteauneuf-du-Pape") == ["Grenache", "Syrah", "Mourvèdre"]
+    assert default_grapes_for("Nowhere") is None
+    assert default_grapes_for(None) is None
+
+
+def test_default_grapes_gate_blocks_color_conflicts():
+    """A white wine in a red appellation must NOT get a red blend — the
+    extractor was stamping Cab/Merlot on white Pessac-Léognan."""
+    from enrichment.extraction.reference import default_grapes_for
+    assert default_grapes_for("Margaux", wine_type="white") is None
+    assert default_grapes_for("Châteauneuf-du-Pape", wine_type="white") is None
+    assert default_grapes_for("Margaux", wine_type="red") == \
+        ["Cabernet Sauvignon", "Merlot", "Cabernet Franc"]
+
+
+def test_multi_color_appellations_require_explicit_type():
+    """Graves/Pessac-Léognan bottle both colors — unknown type must not guess."""
+    from enrichment.extraction.reference import default_grapes_for
+    assert default_grapes_for("Graves") is None
+    assert default_grapes_for("Graves", wine_type="red") == \
+        ["Cabernet Sauvignon", "Merlot", "Cabernet Franc"]
+    assert default_grapes_for("Graves", wine_type="white") == \
+        ["Sauvignon Blanc", "Sémillon"]
+    assert default_grapes_for("Pessac-Léognan", wine_type="white") == \
+        ["Sauvignon Blanc", "Sémillon"]
+
+
+def test_single_color_appellations_fire_on_unknown_type():
+    from enrichment.extraction.reference import default_grapes_for
+    assert default_grapes_for("Pauillac", wine_type=None) == \
+        ["Cabernet Sauvignon", "Merlot", "Cabernet Franc"]
+
+
+def test_sauternes_accepts_dessert_wine_type():
+    """Prod Sauternes rows carry wine_type='dessert' — the white blend must fire."""
+    from enrichment.extraction.reference import default_grapes_for
+    assert default_grapes_for("Sauternes", wine_type="dessert") == \
+        ["Sémillon", "Sauvignon Blanc"]
+    assert default_grapes_for("Sauternes", wine_type="red") is None
