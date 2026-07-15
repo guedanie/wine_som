@@ -67,3 +67,40 @@ def test_local_profile_unchanged():
     assert mod.REQ_DELAY == 1.0
     assert mod.PAUSE_SECONDS == 90
     assert mod.MAX_PAUSES == 3
+
+
+class _FakeTier:
+    """Stands in for a built postgrest query: .limit(n).execute().data"""
+    def __init__(self, rows):
+        self._rows = rows
+
+    def limit(self, n):
+        self._n = n
+        return self
+
+    def execute(self):
+        from types import SimpleNamespace
+        return SimpleNamespace(data=self._rows[:self._n])
+
+
+def _rows(*ids):
+    return [{"id": i} for i in ids]
+
+
+def test_fetch_sample_fills_limit_in_tier_order_with_dedup():
+    """Item 13 + item 27: both-null wines (invisible to the recommender) first,
+    then un-enriched Bordeaux/Rhône, then the rest. A wine surfacing in two
+    tiers must be picked once."""
+    tiers = [_FakeTier(_rows("a", "b")),
+             _FakeTier(_rows("b", "c")),          # 'b' duplicates tier 1
+             _FakeTier(_rows("d", "e", "f"))]
+    with patch.object(runner, "_tier_queries", return_value=tiers):
+        picked = runner.fetch_sample(db=None, limit=4)
+    assert [w["id"] for w in picked] == ["a", "b", "c", "d"]
+
+
+def test_fetch_sample_stops_at_limit_within_first_tier():
+    tiers = [_FakeTier(_rows("a", "b", "c")), _FakeTier(_rows("d")), _FakeTier([])]
+    with patch.object(runner, "_tier_queries", return_value=tiers):
+        picked = runner.fetch_sample(db=None, limit=2)
+    assert [w["id"] for w in picked] == ["a", "b"]

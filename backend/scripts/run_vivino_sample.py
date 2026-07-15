@@ -63,22 +63,50 @@ async def handle_fetch_failure(state, abort):
     await asyncio.sleep(PAUSE_SECONDS)
 
 
+_SAMPLE_COLS = "id,name,brand,vintage_year,varietal,region,country,wine_type,grapes,abv"
+
+# Non-wine catalog noise that will never match on Vivino
+_JUNK_NAMES = ("%sake%", "%cocktail%", "%margarita%", "%daiquiri%",
+               "%pina colada%", "%spiked%", "%lemonade%")
+
+
+def _junk_filter(q):
+    for junk in _JUNK_NAMES:
+        q = q.not_.ilike("name", junk)
+    return q
+
+
+def _tier_queries(db):
+    """Priority tiers, all un-enriched + junk-filtered: (1) both-null wines are
+    fully invisible to the recommender (item 13 — the Pogo's residue);
+    (2) Bordeaux/Rhône rows need ratings + real blends (item 27); (3) the rest."""
+    def base():
+        return _junk_filter(db.table("wines").select(_SAMPLE_COLS)
+                            .is_("vivino_enriched_at", "null"))
+    return [
+        base().is_("varietal", "null").is_("region", "null"),
+        base().in_("region", ["Bordeaux", "Rhône"]),
+        base(),
+    ]
+
+
 def fetch_sample(db, limit, missing_images_only=False):
-    q = (
-        db.table("wines")
-        .select("id,name,brand,vintage_year,varietal,region,country,wine_type,grapes,abv")
-        .is_("vivino_enriched_at", "null")
-    )
     if missing_images_only:
         # Only HEB/CM wines lack images (all other scrapers capture CDN URLs),
         # so this flag effectively targets the HEB catalog — the mainstream
         # brands with the best Vivino match rates.
-        q = q.is_("image_url", "null")
-    # Non-wine catalog noise that will never match on Vivino
-    for junk in ("%sake%", "%cocktail%", "%margarita%", "%daiquiri%",
-                 "%pina colada%", "%spiked%", "%lemonade%"):
-        q = q.not_.ilike("name", junk)
-    return q.limit(limit).execute().data
+        q = (db.table("wines").select(_SAMPLE_COLS)
+             .is_("vivino_enriched_at", "null").is_("image_url", "null"))
+        return _junk_filter(q).limit(limit).execute().data
+    picked, seen = [], set()
+    for q in _tier_queries(db):
+        if len(picked) >= limit:
+            break
+        for r in q.limit(limit).execute().data:
+            if r["id"] not in seen and len(picked) < limit:
+                seen.add(r["id"])
+                picked.append(r)
+    return picked
 
 
 def fetch_backfill(db, limit):
