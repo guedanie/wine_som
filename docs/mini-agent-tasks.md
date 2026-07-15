@@ -171,6 +171,12 @@ of silent drift.
    null 3,804 mostly-correct producer-knowledge regions (Grgich Hills→Napa
    class) — appellation coverage is too thin to null at rest. The script
    reports deferred rows; revisit when coverage improves.
+4. **Rhône residue sweep (2026-07-14, after bc2fa15's satellite expansion):**
+   of 45 still-unevidenced Rhône rows, ~30 are genuinely Rhône (northern-Rhône
+   producers, CdP domaines, Vaucluse VdF) and were kept; 15 misfiles fixed by
+   hand — the audit's four (Savoie white, Prosecco, Italian sparkler, Clos Du
+   Val→Napa) plus a sake(!), a Chablis, a Sancerre, 4 Envínate Ribeira Sacra,
+   Rombauer Carneros, a Burgundy Aligoté, Kivelstadt→Sonoma, XOBC→null.
 
 Dry-running also exposed + fixed real gazetteer bugs (all TDD'd, live for the
 weekly extraction too): "Latour" firing inside Louis Latour / Georges de
