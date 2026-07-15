@@ -15,7 +15,13 @@ APPELLATIONS = {
     "Burgundy": ["Chablis", "Gevrey-Chambertin", "Morey-Saint-Denis", "Chambolle-Musigny",
                  "Vougeot", "Vosne-Romanée", "Nuits-Saint-Georges", "Aloxe-Corton",
                  "Pommard", "Volnay", "Meursault", "Puligny-Montrachet",
-                 "Chassagne-Montrachet", "Beaune", "Pouilly-Fuissé", "Mâcon"],
+                 "Chassagne-Montrachet", "Beaune", "Pouilly-Fuissé", "Mâcon",
+                 "Santenay", "Marsannay", "Fixin", "Savigny-lès-Beaune",
+                 "Pernand-Vergelesses", "Ladoix", "Auxey-Duresses", "Monthelie",
+                 "Saint-Aubin", "Saint-Romain", "Rully", "Mercurey", "Givry",
+                 "Montagny", "Corton", "Corton-Charlemagne", "Montrachet",
+                 "Côte de Nuits-Villages", "Côte de Beaune-Villages",
+                 "Mâcon-Villages", "Saint-Véran", "Viré-Clessé"],
     "Rhône": ["Côte-Rôtie", "Condrieu", "Hermitage", "Crozes-Hermitage", "Saint-Joseph",
               "Cornas", "Châteauneuf-du-Pape", "Gigondas", "Vacqueyras", "Côtes du Rhône",
               "Côtes du Rhône Villages", "Tavel", "Lirac", "Ventoux", "Luberon",
@@ -52,6 +58,7 @@ APPELLATIONS = {
                "Sonoma Coast", "Knights Valley", "Chalk Hill", "Bennett Valley",
                "Sonoma Valley", "Fountaingrove", "Rockpile"],
     "Central Coast": ["Paso Robles", "Santa Maria Valley", "Sta. Rita Hills",
+                      "Santa Rita Hills",
                       "Ballard Canyon", "Edna Valley", "Arroyo Grande", "Monterey",
                       "Santa Lucia Highlands"],
     "Other California": ["Lodi", "Mendocino", "Sierra Foothills", "Livermore Valley",
@@ -302,6 +309,13 @@ PRODUCERS = {
     "Cousiño-Macul": ("Maipo Valley", "Chile"),
     "Los Vascos": ("Colchagua Valley", "Chile"),
     "Montes": ("Colchagua Valley", "Chile"),
+    # Producers whose names contain a Bordeaux château word —
+    # longest-match-first makes these win over the château entry
+    # ("Latour", "Gloria").
+    "Louis Latour": ("Burgundy", "France"),
+    "Beaulieu Vineyard": ("Napa Valley", "United States"),
+    "Georges de Latour": ("Napa Valley", "United States"),
+    "Gloria Ferrer": ("Sonoma", "United States"),
     # Argentina / Spain
     "Trapiche": ("Mendoza", "Argentina"),
     "Campo Viejo": ("Rioja", "Spain"),
@@ -336,14 +350,17 @@ def default_grapes_for(appellation) -> Optional[list]:
 
 
 # Longest-match-first index over château + producer names, normalized.
+# The third element marks château entries — single-word château needles
+# ("Latour", "Gloria", "Beauregard") collide with unrelated producers and
+# only fire when preceded by a Chateau word.
 _GAZETTEER_INDEX = []
 for _app, _names in CHATEAUX.items():
     for _n in _names:
         _GAZETTEER_INDEX.append((_norm(_n), {"sub_region": _app, "region": "Bordeaux",
-                                             "country": "France"}))
+                                             "country": "France"}, True))
 for _name, (_region, _country) in PRODUCERS.items():
     _GAZETTEER_INDEX.append((_norm(_name), {"sub_region": None, "region": _region,
-                                            "country": _country}))
+                                            "country": _country}, False))
 _GAZETTEER_INDEX.sort(key=lambda t: len(t[0]), reverse=True)   # longest match wins
 
 
@@ -352,14 +369,61 @@ def _fold(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", _norm(s)).strip()
 
 
+# Flat appellation index for the conflict guard: fold(appellation) → parent region.
+_APPELLATION_PARENT = []
+for _reg, _apps in APPELLATIONS.items():
+    for _app in _apps:
+        _APPELLATION_PARENT.append((re.sub(r"[^a-z0-9]+", " ", _norm(_app)).strip(), _app, _reg))
+
+# Region names + aliases as conflict evidence: fold(name) → canonical region
+# (normalized). Umbrella terms (countries-as-regions, state-wide) are excluded —
+# 'Chile' in the text must not conflict with a narrower Chilean valley hit.
+_UMBRELLA_REGIONS = {"california", "oregon", "washington", "texas",
+                     "chile", "argentina", "australia", "new zealand",
+                     "germany", "south africa"}
+_REGION_EVIDENCE = []
+for _r in REGION_COUNTRY:
+    if _r not in _UMBRELLA_REGIONS and not _r.startswith("other "):
+        _REGION_EVIDENCE.append((re.sub(r"[^a-z0-9]+", " ", _r).strip(), _r))
+for _alias, _canon in REGION_ALIASES.items():
+    _REGION_EVIDENCE.append(
+        (re.sub(r"[^a-z0-9]+", " ", _norm(_alias)).strip(), _norm(_canon)))
+
+
 def gazetteer_hit(source_text: Optional[str]) -> Optional[dict]:
     """Deterministic place fix from a producer/château name in the wine's
-    name+description. Longest match wins ('Latour-Martillac' before 'Latour')."""
+    name+description. Longest match wins ('Latour-Martillac' before 'Latour').
+
+    Conflict guard: an appellation explicitly named in the text beats the
+    needle — several châteaux share names across appellations ('Chateau Saint
+    Pierre Pomerol' is not the Saint-Julien one) and producer brands hide
+    inside place names ('Santa Rita' inside 'Santa Rita Hills'). When any
+    explicit appellation disagrees with the hit, return None and let the
+    evidence gate keep the text-supported place."""
     if not source_text:
         return None
     hay = f" {_fold(source_text)} "
-    for needle, place in _GAZETTEER_INDEX:
-        if f" {_fold(needle)} " in hay:
+    for needle, place, is_chateau in _GAZETTEER_INDEX:
+        nf = _fold(needle)
+        if is_chateau and " " not in nf:
+            matched = any(f" {p} {nf} " in hay for p in ("chateau", "ch", "chat"))
+        else:
+            matched = f" {nf} " in hay
+        if matched:
+            hit_sub = place.get("sub_region")
+            for app_fold, _app, parent in _APPELLATION_PARENT:
+                if f" {app_fold} " not in hay:
+                    continue
+                consistent = (
+                    (hit_sub and app_fold == _fold(hit_sub))
+                    or (not hit_sub and parent == place.get("region"))
+                )
+                if not consistent:
+                    return None
+            hit_region_norm = _norm(place.get("region") or "")
+            for reg_fold, canon_norm in _REGION_EVIDENCE:
+                if f" {reg_fold} " in hay and canon_norm != hit_region_norm:
+                    return None
             return dict(place)
     return None
 

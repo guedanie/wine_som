@@ -106,7 +106,13 @@ def _post_process(rec: Dict[str, Any], source_text: Optional[str] = None) -> Dic
     if source_text:
         hit = gazetteer_hit(source_text)
         if hit:
-            out["sub_region"] = hit["sub_region"] or out.get("sub_region")
+            if hit["sub_region"]:
+                out["sub_region"] = hit["sub_region"]
+            elif out.get("sub_region") and \
+                    parent_region_for(out["sub_region"]) != hit["region"]:
+                # a stale sub_region from another region would drag the
+                # region back via the parent lookup below
+                out["sub_region"] = None
             out["region"] = hit["region"]
             out["country"] = hit["country"]
         else:

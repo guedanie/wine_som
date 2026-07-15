@@ -129,3 +129,117 @@ def test_prompt_names_the_traps():
     p = _system_prompt()
     assert "grape name alone" in p.lower() or "never determines" in p.lower()
     assert "CHÂTEAU" in p.upper()
+
+
+# ── conflict guard: explicit place evidence beats a gazetteer needle ─────────
+
+def test_negociant_name_containing_chateau_word_is_not_the_chateau():
+    # "Latour" must not fire inside "Louis Latour" (Burgundy négociant).
+    hit = gazetteer_hit("Louis Latour Bourgogne Pinot Noir")
+    assert hit is not None
+    assert hit["region"] == "Burgundy"
+
+
+def test_explicit_conflicting_appellation_suppresses_chateau_hit():
+    # There are several Château Saint-Pierre; the name says Pomerol, so the
+    # Saint-Julien entry must stand down.
+    assert gazetteer_hit("2019 Chateau Saint Pierre Pomerol") is None
+
+
+def test_us_ava_containing_producer_name_suppresses_producer_hit():
+    # "Santa Rita" (Maipo, Chile) must not fire inside "Santa Rita Hills" (CA).
+    assert gazetteer_hit("Sandhi Chardonnay Santa Rita Hills 2022") is None
+
+
+def test_explicit_chile_valley_beats_producer_default_region():
+    # Concha y Toro defaults to Central Valley, but an explicit Maipo Valley
+    # bottling must not be downgraded.
+    assert gazetteer_hit("Concha y Toro Marques de Casa Concha Maipo Valley") is None
+
+
+def test_agreeing_appellation_keeps_the_hit():
+    assert gazetteer_hit("Chateau Latour Pauillac 2015")["sub_region"] == "Pauillac"
+
+
+def test_producer_hit_with_agreeing_appellation_kept():
+    hit = gazetteer_hit("Guigal Cote-Rotie Brune et Blonde")
+    assert hit is not None
+    assert hit["region"] == "Rhône"
+
+
+def test_santa_rita_hills_spelling_evidences_central_coast():
+    from enrichment.extraction.reference import region_evidenced
+    assert region_evidenced("Central Coast", "Sandhi Chardonnay Santa Rita Hills 2022")
+
+
+def test_explicit_region_name_suppresses_chateau_hit():
+    # Château Gloria (Saint-Julien) must not fire on Gloria Ferrer (Sonoma) —
+    # the producer entry now resolves it to a correct Sonoma hit.
+    hit = gazetteer_hit("Gloria Ferrer Sonoma Brut Sparkling")
+    assert hit is not None and hit["region"] == "Sonoma"
+
+
+def test_explicit_region_name_suppresses_producer_hit():
+    # "Saint-Pierre" château needle vs an explicitly Provence wine.
+    assert gazetteer_hit("V Saint Pierre De Vence Rose Aix En Provence") is None
+
+
+def test_comparative_chateau_mention_loses_to_region_evidence():
+    # Descriptions compare New World wines to Bordeaux estates; explicit
+    # Napa Valley evidence must win over the Pétrus mention.
+    assert gazetteer_hit("Twomey Merlot Napa Valley made in the style of Petrus") is None
+
+
+def test_umbrella_country_word_does_not_conflict_with_narrower_region():
+    # 'Chile' in the text must not suppress the Requingua → Curicó fix.
+    hit = gazetteer_hit("Vina Requingua Puerto Viejo Merlot from Chile")
+    assert hit is not None
+    assert hit["region"] == "Curicó Valley"
+
+
+def test_region_alias_agreeing_with_hit_is_not_a_conflict():
+    hit = gazetteer_hit("Louis Latour Bourgogne Pinot Noir")
+    assert hit is not None
+    assert hit["region"] == "Burgundy"
+
+
+def test_burgundy_village_suppresses_bordeaux_chateau_hit():
+    # Château Beauregard (Pomerol) must not fire on a Santenay (Burgundy) wine.
+    assert gazetteer_hit("Domaine du Cellier Aux Moines Beauregard 1er Santenay Blanc") is None
+
+
+def test_cote_de_nuits_villages_evidences_burgundy():
+    from enrichment.extraction.reference import region_evidenced
+    assert region_evidenced("Burgundy", "Jean Marc Millot Aux Faulques Cote de Nuits Villages")
+
+
+def test_beaulieu_georges_de_latour_is_napa_not_pauillac():
+    hit = gazetteer_hit("Beaulieu Vineyard Georges De Latour Cabernet Sauvignon California")
+    assert hit is not None
+    assert hit["region"] == "Napa Valley"
+
+
+def test_gloria_ferrer_is_sonoma_not_saint_julien():
+    hit = gazetteer_hit("Gloria Ferrer Blanc De Noirs Rose")
+    assert hit is not None
+    assert hit["region"] == "Sonoma"
+
+
+def test_bare_single_word_chateau_needle_requires_chateau_prefix():
+    # "Latour" without a preceding Chateau word is a brand fragment
+    # (Louis Latour's Grand Ardeche), not the Pauillac first growth.
+    assert gazetteer_hit("Latour Grand Ardeche Chardonnay") is None
+
+
+def test_chateau_prefixed_single_word_needle_still_fires():
+    assert gazetteer_hit("Chateau Latour 2010")["sub_region"] == "Pauillac"
+    assert gazetteer_hit("Château Gloria Saint-Julien 2018")["sub_region"] == "Saint-Julien"
+
+
+def test_producer_hit_drops_inconsistent_stale_sub_region():
+    # A leftover hallucinated sub_region (Saint-Émilion) must not survive a
+    # producer hit (Curicó) and drag region back to Bordeaux via parent lookup.
+    rec = _rec(region="Curicó Valley", sub_region="Saint-Émilion", country="Chile")
+    out = _post_process(rec, source_text="Vina Requingua Puerto Viejo Merlot")
+    assert out["region"] == "Curicó Valley"
+    assert out["sub_region"] is None

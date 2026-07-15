@@ -156,7 +156,32 @@ of silent drift.
 
 ---
 
-## Task 3 — Wine-type + region backfills (handed off mid-flight 2026-07-13)
+## Task 3 — Wine-type + region backfills ✅ DONE 2026-07-14
+
+**Landed (all three subtasks, run from the mini):**
+
+1. Portuguese retype: 8 rows retyped (incl. manual calls on Chryseia + Quinta
+   Maria Izabel → red), 8 genuine Ports/Madeiras kept dessert.
+2. Rhône fragments: 24 → 'Rhône'; 3 CdP-as-region rows → region 'Rhône' +
+   sub_region 'Châteauneuf-du-Pape'; 1 bonus catch (a Paso Robles wine filed
+   as CdP → Central Coast).
+3. Validation pass: `scripts/revalidate_regions.py` (+ tests) applied 2,195
+   changes — 1,975 country fills, 137 region corrections, sub_region fills.
+   **Bulk NULLING was deferred**: a dry run showed the evidence gate would
+   null 3,804 mostly-correct producer-knowledge regions (Grgich Hills→Napa
+   class) — appellation coverage is too thin to null at rest. The script
+   reports deferred rows; revisit when coverage improves.
+
+Dry-running also exposed + fixed real gazetteer bugs (all TDD'd, live for the
+weekly extraction too): "Latour" firing inside Louis Latour / Georges de
+Latour, "Santa Rita" inside Santa Rita Hills AVA, "Gloria" inside Gloria
+Ferrer, château hits overriding explicit conflicting appellations (Chateau
+Saint Pierre Pomerol → Saint-Julien), description mentions ("in the style of
+Pétrus") false-firing, stale sub_regions surviving producer hits, and
+single-word château needles now require a preceding Chateau word. Burgundy
+appellation list expanded (Santenay, Côte de Nuits-Villages, etc.).
+
+<details><summary>Original brief (kept for context)</summary>
 
 Code is already on main (word-boundary + Portuguese-vocabulary
 `infer_wine_type` in `utils/__init__.py`; extraction gazetteer + evidence gate
@@ -178,3 +203,4 @@ in `enrichment/extraction/`). What remains is applying it to EXISTING rows:
    today) and fixes Requingua-class producer misattributions in bulk. Run
    `_post_process(rec, source_text=name+description)` over rows with a
    region set; write back only changed fields; count + Slack-report changes.
+</details>
