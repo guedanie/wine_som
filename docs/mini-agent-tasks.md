@@ -171,7 +171,15 @@ of silent drift.
    null 3,804 mostly-correct producer-knowledge regions (Grgich Hills→Napa
    class) — appellation coverage is too thin to null at rest. The script
    reports deferred rows; revisit when coverage improves.
-4. **Rhône residue sweep (2026-07-14, after bc2fa15's satellite expansion):**
+4. **Bordeaux residue sweep (2026-07-14):** reference gained the Bordeaux
+   satellites (Côtes de Francs/Castillon/Blaye/Bourg, Lussac/Montagne/
+   Puisseguin-Saint-Émilion, Cadillac, Loupiac, Listrac), 'Bdx' shorthand, and
+   `_fold` now expands retail 'St./Ste.' → Saint/Sainte. 71 misfiles hand-fixed
+   (a DRC La Tâche(!), 9 Champagnes, 7 Burgundies, Napa/California cabs, Chile/
+   Argentina brands, Fleur du Cap, an Austrian Wachau Riesling, a vermouth, 2
+   Sta. Rita Hills pinots, 6 unknowns → honest null). Residue 151 → 73 (6% of
+   1,093), all genuine petit-château Bordeaux kept.
+5. **Rhône residue sweep (2026-07-14, after bc2fa15's satellite expansion):**
    of 45 still-unevidenced Rhône rows, ~30 are genuinely Rhône (northern-Rhône
    producers, CdP domaines, Vaucluse VdF) and were kept; 15 misfiles fixed by
    hand — the audit's four (Savoie white, Prosecco, Italian sparkler, Clos Du

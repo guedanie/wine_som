@@ -11,7 +11,13 @@ APPELLATIONS = {
     "Bordeaux": ["Médoc", "Haut-Médoc", "Margaux", "Pauillac", "Saint-Julien",
                  "Saint-Estèphe", "Listrac-Médoc", "Moulis-en-Médoc", "Pessac-Léognan",
                  "Graves", "Saint-Émilion", "Pomerol", "Lalande-de-Pomerol", "Fronsac",
-                 "Canon-Fronsac", "Sauternes", "Barsac", "Entre-Deux-Mers"],
+                 "Canon-Fronsac", "Sauternes", "Barsac", "Entre-Deux-Mers", "Listrac",
+                 "Côtes de Francs", "Francs Côtes de Bordeaux",
+                 "Castillon Côtes de Bordeaux", "Côtes de Castillon",
+                 "Blaye Côtes de Bordeaux", "Côtes de Blaye", "Côtes de Bourg",
+                 "Cadillac", "Loupiac", "Sainte-Croix-du-Mont",
+                 "Lussac-Saint-Émilion", "Montagne-Saint-Émilion",
+                 "Puisseguin-Saint-Émilion"],
     "Burgundy": ["Chablis", "Gevrey-Chambertin", "Morey-Saint-Denis", "Chambolle-Musigny",
                  "Vougeot", "Vosne-Romanée", "Nuits-Saint-Georges", "Aloxe-Corton",
                  "Pommard", "Volnay", "Meursault", "Puligny-Montrachet",
@@ -365,8 +371,12 @@ _GAZETTEER_INDEX.sort(key=lambda t: len(t[0]), reverse=True)   # longest match w
 
 
 def _fold(s: str) -> str:
-    """Normalize for matching: accents stripped, lowercased, punctuation → space."""
-    return re.sub(r"[^a-z0-9]+", " ", _norm(s)).strip()
+    """Normalize for matching: accents stripped, lowercased, punctuation →
+    space, retail 'St.'/'Ste.' abbreviations → 'saint'/'sainte' (applied to
+    both needles and haystacks, so matching stays symmetric)."""
+    out = re.sub(r"[^a-z0-9]+", " ", _norm(s)).strip()
+    out = re.sub(r"\bst\b", "saint", out)
+    return re.sub(r"\bste\b", "sainte", out)
 
 
 # Flat appellation index for the conflict guard: fold(appellation) → parent region.
@@ -438,8 +448,10 @@ def region_evidenced(region: Optional[str], source_text: str) -> bool:
     reg_fold = _fold(region)
     if f" {reg_fold} " in hay:
         return True
-    # retail shorthand: 'CdR' / 'CdR Villages' = Côtes du Rhône
+    # retail shorthand: 'CdR' / 'CdR Villages' = Côtes du Rhône; 'Bdx' = Bordeaux
     if region == "Rhône" and " cdr " in hay:
+        return True
+    if region == "Bordeaux" and " bdx " in hay:
         return True
     # aliases that canonicalize to this region ("Rhone Valley" → Rhône)
     for alias, canon in REGION_ALIASES.items():

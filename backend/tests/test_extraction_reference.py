@@ -67,3 +67,36 @@ def test_cdr_shorthand_and_pegau_producer():
     from enrichment.extraction.reference import region_evidenced, gazetteer_hit
     assert region_evidenced('Rhône', "L'espigouette Vieilles Vignes Cdr")
     assert gazetteer_hit('Pink Pegau Rose')['region'] == 'Rhône'
+
+
+def test_bordeaux_satellites_are_known_appellations():
+    """Côtes de Francs/Castillon/Blaye/Bourg + right-bank satellites are
+    Bordeaux — without them the evidence gate false-flags legit bottles
+    (130+ in the 07-14 Bordeaux audit)."""
+    from enrichment.extraction.reference import parent_region_for
+    for app in ['Côtes de Francs', 'Francs Côtes de Bordeaux',
+                'Castillon Côtes de Bordeaux', 'Côtes de Castillon',
+                'Blaye Côtes de Bordeaux', 'Côtes de Bourg', 'Cadillac',
+                'Loupiac', 'Lussac-Saint-Émilion', 'Montagne-Saint-Émilion',
+                'Puisseguin-Saint-Émilion']:
+        assert parent_region_for(app) == 'Bordeaux', app
+
+
+def test_bdx_shorthand_evidences_bordeaux():
+    from enrichment.extraction.reference import region_evidenced
+    assert region_evidenced('Bordeaux', 'Pull Bdx Red Blend')
+    assert region_evidenced('Bordeaux', 'Chateau Puygueraud Rouge Cotes De Francs')
+
+
+def test_st_abbreviation_folds_to_saint():
+    """Retail names abbreviate Saint → St. ('Chateau Canon St. Emilion',
+    'Montagne St Emilion') — evidence and gazetteer matching must see them."""
+    from enrichment.extraction.reference import region_evidenced
+    assert region_evidenced('Bordeaux', 'Chateau Canon (6 / Case) St. Emilion')
+    assert region_evidenced('Bordeaux', 'Clos De Bouard Montagne St Emilion 2020')
+
+
+def test_listrac_without_medoc_suffix_is_bordeaux():
+    from enrichment.extraction.reference import parent_region_for, region_evidenced
+    assert parent_region_for('Listrac') == 'Bordeaux'
+    assert region_evidenced('Bordeaux', 'Chateau Clarke Listrac 2020 (750ml)')
