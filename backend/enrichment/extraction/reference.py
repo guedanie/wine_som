@@ -354,6 +354,30 @@ _DEFAULT_RULES = [
     (("Châteauneuf-du-Pape", "Gigondas", "Vacqueyras", "Côtes du Rhône"),
      _GSM_BLEND, ("red",), False),
     (("Sauternes", "Barsac"), _SAUT_WHITE, ("white", "dessert"), False),
+    # right-bank satellites, Grand Cru label, Castillon/Francs/Blaye/Bourg
+    (("Saint-Émilion Grand Cru", "Lussac-Saint-Émilion",
+      "Montagne-Saint-Émilion", "Puisseguin-Saint-Émilion",
+      "Castillon", "Castillon Côtes de Bordeaux", "Côtes de Castillon",
+      "Côtes de Francs", "Francs Côtes de Bordeaux",
+      "Blaye Côtes de Bordeaux", "Côtes de Blaye", "Côtes de Bourg",
+      "Bordeaux Supérieur"), _BDX_RIGHT, ("red",), False),
+    # umbrella Côtes de Bordeaux bottles whites too — explicit type only
+    (("Côtes de Bordeaux",), _BDX_RIGHT, ("red",), True),
+    # Bordeaux whites
+    (("Entre-Deux-Mers",), _BDX_WHITE, ("white",), False),
+    (("Cadillac", "Loupiac", "Sainte-Croix-du-Mont"),
+     _SAUT_WHITE, ("white", "dessert"), False),
+    # northern Rhône: red-only crus vs dual-color crus
+    (("Côte-Rôtie", "Cornas"), ("Syrah",), ("red",), False),
+    (("Hermitage", "Crozes-Hermitage", "Saint-Joseph"),
+     ("Syrah",), ("red",), True),
+    (("Hermitage", "Crozes-Hermitage", "Saint-Joseph"),
+     ("Marsanne", "Roussanne"), ("white",), True),
+    (("Condrieu",), ("Viognier",), ("white",), False),
+    (("Tavel",), ("Grenache",), ("rose",), False),
+    # southern-Rhône satellites + the singular 'Côte du Rhône' prod variant
+    (("Côtes du Rhône Villages", "Côte du Rhône", "Ventoux", "Cairanne",
+      "Rasteau", "Vinsobres"), _GSM_BLEND, ("red",), False),
 ]
 
 _APPELLATION_DEFAULTS = {}

@@ -155,3 +155,60 @@ def test_sauternes_accepts_dessert_wine_type():
     assert default_grapes_for("Sauternes", wine_type="dessert") == \
         ["Sémillon", "Sauvignon Blanc"]
     assert default_grapes_for("Sauternes", wine_type="red") is None
+
+
+def test_right_bank_satellites_and_grand_cru_get_merlot_led_blend():
+    """30 uncovered Bordeaux rows in the 07-14 audit sit in these appellations."""
+    from enrichment.extraction.reference import default_grapes_for
+    merlot_led = ["Merlot", "Cabernet Franc", "Cabernet Sauvignon"]
+    for app in ["Saint-Émilion Grand Cru", "Lussac-Saint-Émilion",
+                "Montagne-Saint-Émilion", "Puisseguin-Saint-Émilion",
+                "Castillon", "Castillon Côtes de Bordeaux", "Côtes de Castillon",
+                "Côtes de Francs", "Blaye Côtes de Bordeaux", "Côtes de Bourg",
+                "Bordeaux Supérieur"]:
+        assert default_grapes_for(app) == merlot_led, app
+    # Côtes de Bordeaux (whites exist) requires an explicit type
+    assert default_grapes_for("Côtes de Bordeaux") is None
+    assert default_grapes_for("Côtes de Bordeaux", wine_type="red") == merlot_led
+
+
+def test_bordeaux_white_appellations():
+    from enrichment.extraction.reference import default_grapes_for
+    assert default_grapes_for("Entre-Deux-Mers") == ["Sauvignon Blanc", "Sémillon"]
+    assert default_grapes_for("Entre-Deux-Mers", wine_type="red") is None
+    assert default_grapes_for("Loupiac", wine_type="dessert") == \
+        ["Sémillon", "Sauvignon Blanc"]
+    assert default_grapes_for("Cadillac") == ["Sémillon", "Sauvignon Blanc"]
+
+
+def test_northern_rhone_syrah_and_whites():
+    from enrichment.extraction.reference import default_grapes_for
+    # red-only crus fire on unknown type
+    assert default_grapes_for("Côte-Rôtie") == ["Syrah"]
+    assert default_grapes_for("Cornas") == ["Syrah"]
+    # dual-color crus require explicit type
+    assert default_grapes_for("Hermitage") is None
+    assert default_grapes_for("Hermitage", wine_type="red") == ["Syrah"]
+    assert default_grapes_for("Crozes-Hermitage", wine_type="white") == \
+        ["Marsanne", "Roussanne"]
+    assert default_grapes_for("Saint-Joseph", wine_type="red") == ["Syrah"]
+    assert default_grapes_for("Condrieu") == ["Viognier"]
+
+
+def test_tavel_is_grenache_rose():
+    from enrichment.extraction.reference import default_grapes_for
+    assert default_grapes_for("Tavel", wine_type="rose") == ["Grenache"]
+    assert default_grapes_for("Tavel", wine_type="rosé") == ["Grenache"]   # accent folds
+    assert default_grapes_for("Tavel") == ["Grenache"]                     # rosé-only AOC
+    assert default_grapes_for("Tavel", wine_type="red") is None
+
+
+def test_southern_rhone_satellites_and_spelling_variants():
+    """'Côte du Rhône' (singular) is a real prod variant — 4 rows."""
+    from enrichment.extraction.reference import default_grapes_for
+    gsm = ["Grenache", "Syrah", "Mourvèdre"]
+    for app in ["Côtes du Rhône Villages", "Côte du Rhône", "Ventoux",
+                "Cairanne", "Rasteau", "Vinsobres"]:
+        assert default_grapes_for(app) == gsm, app
+    assert default_grapes_for("Lalande de Pomerol") == \
+        ["Merlot", "Cabernet Franc", "Cabernet Sauvignon"]   # hyphen fold, Task 1
