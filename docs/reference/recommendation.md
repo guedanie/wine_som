@@ -53,6 +53,16 @@
   to inventory listings so picks can cite community credibility in their `why`.
 - **Picks carry media** — `_enrich_picks` passes `image_url` + `vivino_rating`/`count`
   through to the frontend (WineCard badge rendering is a pending frontend task).
+- **Grapes-aware matching (2026-07-14)** — candidate grape sets now union in `varietal`
+  (`_norm(wine["varietal"])` folded into `grapes`), symmetric with the existing
+  liked-wines path (`_norm_liked`); side effect: avoid-terms now also match against
+  varietal text, not just `grapes`/tags. `_BLEND_WANTS = {"red blend": "red", "white
+  blend": "white"}` + `_blend_match(want_grapes, wine_type, grapes_col)` boosts any
+  same-color wine carrying a 2+ grape array when the intent asks for a "red blend" /
+  "white blend" — type-gated so a white blend ask can't match a red wine. Verified
+  end-to-end: a "Red Blend" intent over 135 real candidates ranks 5 Bordeaux in the
+  top 10 (previously Bordeaux blends with no single dominant grape scored poorly on
+  a strict grape-name match).
 ### Streaming pipeline (2026-07-12)
 One forced tool-use call to **Sonnet 4.6**; everything arrives inside the tool's
 input JSON in field order: `narrative` → `picks` → `followup_suggestions`.

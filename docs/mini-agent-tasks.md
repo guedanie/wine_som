@@ -218,3 +218,45 @@ in `enrichment/extraction/`). What remains is applying it to EXISTING rows:
    `_post_process(rec, source_text=name+description)` over rows with a
    region set; write back only changed fields; count + Slack-report changes.
 </details>
+
+---
+
+## Task 4 — Grapes backfill + Vivino queue prioritization ✅ DONE 2026-07-14
+
+**Landed (all from the mini):**
+
+1. `enrichment/extraction/reference.py`: `default_grapes_for(appellation,
+   wine_type=None)` is now color-aware — dual-color appellations (Graves,
+   Pessac-Léognan, Hermitage/Crozes-Hermitage/Saint-Joseph, Côtes de Bordeaux)
+   require an explicit `wine_type` before returning a default. Table expanded
+   (right-bank satellites + Saint-Émilion Grand Cru, Bordeaux Supérieur,
+   Entre-Deux-Mers, Cadillac/Loupiac/Sainte-Croix-du-Mont, northern-Rhône
+   crus incl. Condrieu → Viognier + Tavel → Grenache rosé, southern
+   satellites, 'Côte du Rhône' singular). `_norm` folds hyphens. New
+   `default_grapes_for_region(region, wine_type)` red-only region-level
+   fallback (Bordeaux → Merlot-led, Rhône → GSM). New `ALL_DEFAULT_BLENDS` +
+   `is_default_blend()` registry, `is_specific_grape()`. Extractor threads
+   `wine_type` into the gate on both Haiku + ollama backends.
+2. `scripts/backfill_grapes.py` (one-off): 491 grapes-empty of 1,453
+   Bordeaux/Rhône rows targeted (region already set, so weekly
+   `--null-only` extraction never revisits them). **375 filled** — 34
+   trusted specific varietals, 326 appellation blends, 15 region-level
+   fallback. 116 left for Vivino (39 no-sub+no-type, 35 unknown-type
+   Pessac-Léognan, legit rosés/whites in red appellations, long-tail
+   unknown appellations). Bordeaux grapes-empty 33%→7.4% (361→81),
+   Rhône 36%→9.7% (130→35). `varietal` set to lead grape only where NULL.
+3. `scripts/run_vivino_sample.py`: queue now fills each run's limit in
+   tiers — (1) both-null wines (varietal + region NULL, Task 13's Pogo's
+   residue), (2) un-enriched Bordeaux/Rhône, (3) rest. `write_facts` may
+   now REPLACE `grapes` when the current value is a multi-grape law-default
+   blend (`is_default_blend`) — real Vivino data wins; single-grape values
+   are never replaced. `--missing-images` path unchanged.
+4. `recommendation/scorer.py`: candidate grape sets union in `varietal`
+   (symmetric with the liked-wines path; also broadens avoid-term matching
+   to varietal text). "Red blend"/"white blend" asks boost any same-type
+   wine with a 2+ grape array (`_blend_match`, type-gated). Verified
+   end-to-end: a "Red Blend" intent over 135 real candidates ranks 5
+   Bordeaux in the top 10.
+
+Fast suite went 495→521 passing. Commits: 878f073..623905a (16 commits,
+incl. spec + plan docs).
