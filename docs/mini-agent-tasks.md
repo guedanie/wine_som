@@ -258,5 +258,5 @@ in `enrichment/extraction/`). What remains is applying it to EXISTING rows:
    end-to-end: a "Red Blend" intent over 135 real candidates ranks 5
    Bordeaux in the top 10.
 
-Fast suite went 495→521 passing. Commits: 878f073..623905a (16 commits,
-incl. spec + plan docs).
+Fast suite went 495→521 passing. Commits: eb04993..feaa92f (code
+878f073..623905a; spec + plan docs committed separately before).
