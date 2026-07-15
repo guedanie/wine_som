@@ -52,3 +52,78 @@ def plan_change(row: Dict[str, Any]) -> Tuple[Dict[str, Any], Optional[str]]:
     if not varietal:
         changes["varietal"] = grapes[0]
     return changes, rule
+
+
+def fetch_target_wines(db, limit: int = 0) -> List[Dict[str, Any]]:
+    """All Bordeaux/Rhône rows; plan_change skips the ones that have grapes
+    (postgrest can't cleanly filter 'empty JSON array', so filter client-side
+    — it's ~1,450 rows, 2 pages)."""
+    wines, page, page_size = [], 0, 1000
+    while True:
+        rows = (db.table("wines")
+                .select("id,name,region,sub_region,varietal,wine_type,grapes")
+                .in_("region", list(TARGET_REGIONS))
+                .order("id")
+                .range(page * page_size, (page + 1) * page_size - 1)
+                .execute().data)
+        wines.extend(rows)
+        page += 1
+        if len(rows) < page_size or (limit and len(wines) >= limit):
+            break
+    if limit:
+        wines = wines[:limit]
+    return wines
+
+
+def _notify_slack(text: str) -> None:
+    url = os.environ.get("SLACK_WEBHOOK_URL")
+    if not url:
+        return
+    try:
+        req = urllib.request.Request(
+            url, data=json.dumps({"text": text}).encode(),
+            headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=10)
+    except Exception as e:
+        print(f"slack notify failed: {e}")
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--limit", type=int, default=0)
+    args = ap.parse_args()
+
+    from db import get_service_client
+    db = get_service_client()
+
+    wines = fetch_target_wines(db, limit=args.limit)
+    empty = sum(1 for w in wines if not (w.get("grapes") or []))
+    print(f"examining {len(wines)} Bordeaux/Rhône wines ({empty} grapes-empty)", flush=True)
+
+    by_rule = {"specific-varietal": 0, "appellation": 0, "region": 0}
+    changed = 0
+    for w in wines:
+        changes, rule = plan_change(w)
+        if not changes:
+            continue
+        changed += 1
+        by_rule[rule] += 1
+        tag = "DRY " if args.dry_run else ""
+        print(f'{tag}{w["id"][:8]} | {(w["name"] or "")[:55]} | {rule} | {changes}', flush=True)
+        if not args.dry_run:
+            db.table("wines").update(changes).eq("id", w["id"]).execute()
+
+    summary = (f"Grapes backfill{' (dry run)' if args.dry_run else ''}: "
+               f"{empty} empty of {len(wines)} Bordeaux/Rhône wines, {changed} filled "
+               f"({by_rule['specific-varietal']} trusted varietal, "
+               f"{by_rule['appellation']} appellation blends, "
+               f"{by_rule['region']} region blends), "
+               f"{empty - changed} left for Vivino")
+    print(summary, flush=True)
+    if not args.dry_run:
+        _notify_slack(f":grapes: {summary}")
+
+
+if __name__ == "__main__":
+    main()
