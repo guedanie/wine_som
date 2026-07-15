@@ -107,3 +107,14 @@ def test_post_process_region_fallback_for_red_without_appellation():
     assert out["grapes"] == ["Merlot", "Cabernet Sauvignon", "Cabernet Franc"]
     out_unknown = _post_process(rec)
     assert out_unknown["grapes"] == []
+
+
+def test_post_process_region_fallback_sees_the_canonicalized_region():
+    """Step 2 canonicalizes 'Rhone Valley' -> 'Rhône' before step 3b's
+    fallback runs — the GSM blend must fire off the canonical name."""
+    rec = {"wine_id": "w1", "region": "Rhone Valley", "sub_region": None,
+           "grapes": [], "varietal": None}
+    out = _post_process(rec, wine_type="red")
+    assert out["region"] == "Rhône"
+    assert out["grapes"] == ["Grenache", "Syrah", "Mourvèdre"]
+    assert out["varietal"] == "Grenache"
