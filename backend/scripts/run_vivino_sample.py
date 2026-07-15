@@ -141,11 +141,14 @@ def write_facts(db, w, attrs):
 
     wine_update = {}
     # Grapes: fill when empty, and REPLACE when the current value is a
-    # law-book default blend (backfill/extraction approximation) — real
-    # per-wine data wins. Scraped/extracted grapes are never overwritten.
+    # multi-grape law-book default blend (backfill/extraction approximation) —
+    # real per-wine data wins there. Single-grape values are never replaced:
+    # a lone grape is either a legally-exact law default (Cornas -> Syrah) or
+    # real scraped varietal data, and neither should yield to Vivino.
     current_grapes = w.get("grapes") or []
     if attrs.get("grapes") and attrs["grapes"] != current_grapes and (
-            not current_grapes or is_default_blend(current_grapes)):
+            not current_grapes
+            or (len(current_grapes) >= 2 and is_default_blend(current_grapes))):
         wine_update["grapes"] = attrs["grapes"]
     if attrs.get("abv") is not None and w.get("abv") is None:
         wine_update["abv"] = attrs["abv"]

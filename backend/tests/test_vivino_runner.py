@@ -139,3 +139,15 @@ def test_write_facts_still_fills_empty_grapes():
     db = MagicMock()
     filled = runner.write_facts(db, _facts_wine(), {"grapes": ["Malbec"]})
     assert "grapes" in filled
+
+
+def test_write_facts_never_replaces_single_grape_even_when_law_default():
+    """['Syrah'] is both a law default (Cornas) and a common REAL scraped
+    varietal (Washington Syrah) — indistinguishable at rest, so single-grape
+    values are never replace-eligible. Only multi-grape law approximations are."""
+    from unittest.mock import MagicMock
+    db = MagicMock()
+    w = _facts_wine(grapes=["Syrah"], region="Rhône")
+    filled = runner.write_facts(db, w, {"grapes": ["Syrah", "Viognier"]})
+    assert filled == []
+    db.table.return_value.update.assert_not_called()
