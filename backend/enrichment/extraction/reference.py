@@ -18,7 +18,10 @@ APPELLATIONS = {
                  "Chassagne-Montrachet", "Beaune", "Pouilly-Fuissé", "Mâcon"],
     "Rhône": ["Côte-Rôtie", "Condrieu", "Hermitage", "Crozes-Hermitage", "Saint-Joseph",
               "Cornas", "Châteauneuf-du-Pape", "Gigondas", "Vacqueyras", "Côtes du Rhône",
-              "Tavel", "Lirac"],
+              "Côtes du Rhône Villages", "Tavel", "Lirac", "Ventoux", "Luberon",
+              "Cairanne", "Rasteau", "Séguret", "Sablet", "Visan", "Valréas",
+              "Plan de Dieu", "Beaumes-de-Venise", "Costières de Nîmes",
+              "Saint-Péray", "Grignan-les-Adhémar", "Vinsobres"],
     "Loire": ["Sancerre", "Pouilly-Fumé", "Vouvray", "Chinon", "Bourgueil", "Saumur",
               "Saumur-Champigny", "Muscadet", "Savennières", "Anjou"],
     "Beaujolais": ["Morgon", "Fleurie", "Moulin-à-Vent", "Brouilly", "Côte de Brouilly",
@@ -287,6 +290,8 @@ PRODUCERS = {
     "Saint Cosme": ("Rhône", "France"),
     "Ferraton": ("Rhône", "France"),
     "Delas": ("Rhône", "France"),
+    "Pegau": ("Rhône", "France"),
+    "Montmirail": ("Rhône", "France"),
     # Chile
     "Viña Requingua": ("Curicó Valley", "Chile"),
     "Vina Requingua": ("Curicó Valley", "Chile"),
@@ -369,6 +374,9 @@ def region_evidenced(region: Optional[str], source_text: str) -> bool:
     reg_fold = _fold(region)
     if f" {reg_fold} " in hay:
         return True
+    # retail shorthand: 'CdR' / 'CdR Villages' = Côtes du Rhône
+    if region == "Rhône" and " cdr " in hay:
+        return True
     # aliases that canonicalize to this region ("Rhone Valley" → Rhône)
     for alias, canon in REGION_ALIASES.items():
         if canon == region and f" {_fold(alias)} " in hay:
@@ -382,7 +390,9 @@ def region_evidenced(region: Optional[str], source_text: str) -> bool:
                 "county", "central", "other", "southern", "northern", "new",
                 "creek", "river"}
     for tok in reg_fold.split():
-        if len(tok) >= 4 and tok not in _GENERIC and f" {tok} " in hay:
+        if len(tok) >= 4 and tok not in _GENERIC and (
+            f" {tok} " in hay or f" {tok}s " in hay   # 'Cotes du Rhones' plural typo
+        ):
             return True
     return False
 

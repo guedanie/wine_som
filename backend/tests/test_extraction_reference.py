@@ -45,3 +45,25 @@ def test_unaccented_rhone_canonicalizes():
     assert canonical_region('Rhone') == 'Rhône'
     assert canonical_region('rhone valley') == 'Rhône'
     assert canonical_region('Côtes du Rhône') == 'Rhône'
+
+
+def test_rhone_satellites_are_known_appellations():
+    """Ventoux/Luberon/CdR-Villages crus are southern Rhône — without them the
+    evidence gate false-flags legit bottles (54 in the 07-14 audit) and new
+    extractions fragment into their own regions."""
+    from enrichment.extraction.reference import parent_region_for
+    for app in ['Ventoux', 'Luberon', 'Cairanne', 'Rasteau', 'Séguret',
+                'Plan de Dieu', 'Costières de Nîmes', 'Beaumes-de-Venise',
+                'Côtes du Rhône Villages', 'Saint-Péray']:
+        assert parent_region_for(app) == 'Rhône', app
+
+
+def test_evidence_tolerates_cotes_du_rhones_plural():
+    from enrichment.extraction.reference import region_evidenced
+    assert region_evidenced('Rhône', 'Chateau Pegau Setier Cotes Du Rhones Villages')
+
+
+def test_cdr_shorthand_and_pegau_producer():
+    from enrichment.extraction.reference import region_evidenced, gazetteer_hit
+    assert region_evidenced('Rhône', "L'espigouette Vieilles Vignes Cdr")
+    assert gazetteer_hit('Pink Pegau Rose')['region'] == 'Rhône'
