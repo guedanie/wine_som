@@ -393,6 +393,23 @@ _DEFAULT_RULES = [
     # southern-Rhône satellites + the singular 'Côte du Rhône' prod variant
     (("Côtes du Rhône Villages", "Côte du Rhône", "Ventoux", "Cairanne",
       "Rasteau", "Vinsobres"), _GSM_BLEND, ("red",), False),
+    # Tuscany Sangiovese DOCGs — red-only appellations, fire on unknown type.
+    # Brunello/Rosso: 100% Sangiovese by law; the rest guarantee >=70-85%,
+    # so a single 'Sangiovese' is incomplete but never wrong (single-grape
+    # values are Vivino-permanent — that's the bar). NO Tuscany region rule:
+    # Super Tuscans (Bolgheri) hide in region-only rows.
+    (("Chianti", "Chianti Classico", "Brunello di Montalcino",
+      "Rosso di Montalcino", "Montalcino", "Vino Nobile di Montepulciano",
+      "Morellino di Scansano"), ("Sangiovese",), ("red",), False),
+    # Carmignano DOCG legally requires 10-20% Cabernet alongside Sangiovese
+    (("Carmignano",), ("Sangiovese", "Cabernet Sauvignon"), ("red",), False),
+    # Cava DO is sparkling-only; traditional trio ≈ 85-90% of production
+    (("Cava",), ("Macabeo", "Xarel·lo", "Parellada"), ("sparkling",), False),
+    # Bandol also bottles white — unknown type must not guess. Red is
+    # law-backed (>=50% Mourvèdre); rosé is the user-approved convention.
+    (("Bandol",), ("Mourvèdre", "Grenache", "Cinsault"), ("red", "rose"), True),
+    # A 'Blanc de Blancs' sub_region is 100% Chardonnay by definition
+    (("Blanc de Blancs",), ("Chardonnay",), ("sparkling",), False),
 ]
 
 _APPELLATION_DEFAULTS = {}

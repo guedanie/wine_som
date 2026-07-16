@@ -315,3 +315,49 @@ def test_all_default_blends_gains_the_new_trios():
     assert ("Touriga Nacional", "Touriga Franca", "Tinta Roriz") in ALL_DEFAULT_BLENDS
     assert ("Macabeo", "Xarel·lo", "Parellada") in ALL_DEFAULT_BLENDS
     assert ("Grenache", "Cinsault", "Syrah") in ALL_DEFAULT_BLENDS
+
+
+def test_tuscany_sangiovese_docgs():
+    """Red-only DOCGs fire on unknown type. Brunello/Rosso are 100% Sangiovese
+    by law; the others guarantee >=70-85% — 'contains Sangiovese' is never
+    wrong, which is the bar for a Vivino-permanent single-grape value."""
+    from enrichment.extraction.reference import default_grapes_for
+    for app in ["Chianti", "Chianti Classico", "Brunello di Montalcino",
+                "Rosso di Montalcino", "Montalcino",
+                "Vino Nobile di Montepulciano", "Morellino di Scansano"]:
+        assert default_grapes_for(app) == ["Sangiovese"], app
+        assert default_grapes_for(app, wine_type="white") is None, app
+    # Carmignano DOCG legally REQUIRES 10-20% Cabernet
+    assert default_grapes_for("Carmignano") == ["Sangiovese", "Cabernet Sauvignon"]
+
+
+def test_cava_and_blanc_de_blancs():
+    from enrichment.extraction.reference import default_grapes_for
+    assert default_grapes_for("Cava") == ["Macabeo", "Xarel·lo", "Parellada"]
+    assert default_grapes_for("Cava", wine_type="sparkling") == \
+        ["Macabeo", "Xarel·lo", "Parellada"]
+    assert default_grapes_for("Cava", wine_type="red") is None
+    assert default_grapes_for("Blanc de Blancs") == ["Chardonnay"]
+
+
+def test_bandol_requires_explicit_type():
+    """Bandol bottles red, rosé AND white — unknown type must not guess.
+    Red is law-backed (>=50% Mourvèdre); rosé is the approved convention."""
+    from enrichment.extraction.reference import default_grapes_for
+    mourvedre_led = ["Mourvèdre", "Grenache", "Cinsault"]
+    assert default_grapes_for("Bandol") is None
+    assert default_grapes_for("Bandol", wine_type="red") == mourvedre_led
+    assert default_grapes_for("Bandol", wine_type="rosé") == mourvedre_led
+    assert default_grapes_for("Bandol", wine_type="white") is None
+
+
+def test_dropped_regions_stay_dropped():
+    """Conservative rule: permissive/uncertain appellations must NOT gain
+    defaults — Bolgheri (style, not law), Toscana IGT, Cassis, Madeira."""
+    from enrichment.extraction.reference import (default_grapes_for,
+                                                 default_grapes_for_region)
+    for app in ["Bolgheri", "Toscana IGT", "Cassis", "Madeira"]:
+        assert default_grapes_for(app) is None, app
+        assert default_grapes_for(app, wine_type="red") is None, app
+    assert default_grapes_for_region("Tuscany", "red") is None
+    assert default_grapes_for_region("Other Spain", "sparkling") is None
