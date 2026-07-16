@@ -260,3 +260,42 @@ in `enrichment/extraction/`). What remains is applying it to EXISTING rows:
 
 Fast suite went 495→521 passing. Commits: eb04993..feaa92f (code
 878f073..623905a; spec + plan docs committed separately before).
+
+### Law-regions defaults extension ✅ DONE 2026-07-15
+
+**Landed (all from the mini):** `_REGION_DEFAULT_RULES` in `reference.py`
+extended color-aware from Bordeaux/Rhône-only to 6 regions — added Champagne
+(sparkling/rosé → Pinot Noir/Chardonnay/Pinot Meunier, near-law), Douro
+(red/dessert → Touriga Nacional/Touriga Franca/Tinta Roriz), Penedès
+(sparkling → the Cava trio), Provence (rosé → Grenache/Cinsault/Syrah); region
+rules still never fire on unknown `wine_type`. New appellation entries: the
+Tuscan Sangiovese DOCGs (Chianti, Chianti Classico, Brunello di Montalcino,
+Rosso di Montalcino, Montalcino, Vino Nobile, Morellino di Scansano),
+Carmignano (Sangiovese + Cabernet, law-required), Cava (the trio), Bandol
+(Mourvèdre/Grenache/Cinsault, red law-backed / rosé convention), Blanc de
+Blancs → Chardonnay. `KNOWN_GRAPES` extended so every blend-member grape
+(Tinta Roriz, Macabeo, Xarel·lo…) counts as a specific varietal. Governed by
+the same conservative rule as Task 3/4: hard law + explicitly-approved
+conventions only — Bolgheri, Madeira, Cassis, Toscana IGT, and Tuscany at
+region level (Super Tuscans) stay deliberately excluded
+(`test_dropped_regions_stay_dropped`). White Port name-guard added to
+`backfill_grapes.py`: Douro's region rule skips names containing
+'white'/'branco' rather than stamping the red Touriga trio — caught 5 White
+Ports on dry-run.
+
+**Backfill run** (`scripts/backfill_grapes.py`, `TARGET_REGIONS` widened to 8:
+Bordeaux, Rhône, Champagne, Douro, Tuscany, Penedès, Other Spain, Provence):
+628 grapes-empty of 2,873 law-region rows → **356 filled** (11 trusted
+varietals, 26 appellation blends, 319 region blends). 272 left for Vivino.
+Per-region still-empty: Champagne 10, Douro 27, Tuscany 84 (deliberate —
+DOCG rules are appellation-only, no Tuscany region rule), Penedès 10, Other
+Spain 16, Provence 9. Catalog-wide grapes-empty 4,840→4,484 (24.5%→22.7%);
+fully-blind (no grapes AND no varietal) 2,934→2,849 (14.4%).
+
+Two data corrections made during the run (user-approved, pre-existing
+mis-regioning, not rule output): "Blandy's Madeira Malmsey 10 Year" region
+Douro→Madeira; "Cribari Madeira" (California producer, Madeira-style) region
+Douro→California.
+
+Fast suite went 521→537 passing. Commits: 9972bec, a0bfe47, 1023477,
+75fbe3b, 6696800, ee6b3fa.
