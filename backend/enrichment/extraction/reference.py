@@ -418,29 +418,51 @@ def default_grapes_for(appellation: Optional[str],
     return None
 
 
-# Region-level fallback for rows with no (recognized) appellation — reds only:
-# Bordeaux AOC rouge is Merlot-led by law; region-only Rhône reds are
-# overwhelmingly southern Côtes-du-Rhône GSM.
-REGION_DEFAULT_GRAPES = {
-    "bordeaux": ("Merlot", "Cabernet Sauvignon", "Cabernet Franc"),
-    "rhone": _GSM_BLEND,
-}
+# Region-level fallback for rows with no (recognized) appellation. Colors are
+# REQUIRED at region granularity: these rules never fire on an unknown
+# wine_type — a region is too coarse to guess a blend without the bottle's
+# color confirming the law/convention applies. Tier A = hard law; Tier B =
+# convention the user explicitly approved (multi-grape, Vivino-correctable).
+_REGION_DEFAULT_RULES = [
+    # (regions, grapes, wine_types the blend may fill)
+    (("Bordeaux",), ("Merlot", "Cabernet Sauvignon", "Cabernet Franc"), ("red",)),
+    (("Rhône",), _GSM_BLEND, ("red",)),
+    # Champagne AOC: 7 legal grapes, these three are 99.7% of plantings (Tier A)
+    (("Champagne",), ("Pinot Noir", "Chardonnay", "Pinot Meunier"),
+     ("sparkling", "rose")),
+    # Port/Douro tinto share the modern big three (Tier B — law permits 80+)
+    (("Douro",), ("Touriga Nacional", "Touriga Franca", "Tinta Roriz"),
+     ("red", "dessert")),
+    # Penedès sparkling ≈ Cava; traditional trio ≈ 85-90% of production (Tier B)
+    (("Penedès",), ("Macabeo", "Xarel·lo", "Parellada"), ("sparkling",)),
+    # Provence rosé template; proportions are free by law (Tier B)
+    (("Provence",), ("Grenache", "Cinsault", "Syrah"), ("rose",)),
+]
+
+_REGION_DEFAULTS = {}
+for _regs, _grapes, _colors in _REGION_DEFAULT_RULES:
+    for _r in _regs:
+        _REGION_DEFAULTS.setdefault(_norm(_r), []).append((_grapes, _colors))
 
 
 def default_grapes_for_region(region: Optional[str],
                               wine_type: Optional[str]) -> Optional[list]:
-    """Region-level default blend; fires only when wine_type is exactly red."""
-    if not region or _norm(wine_type or "") != "red":
+    """Region-level default blend; requires an explicit, matching wine_type
+    (never fires on unknown — region granularity is too coarse to guess)."""
+    wt = _norm(wine_type) if wine_type else None
+    if not region or not wt:
         return None
-    blend = REGION_DEFAULT_GRAPES.get(_norm(region))
-    return list(blend) if blend else None
+    for grapes, colors in _REGION_DEFAULTS.get(_norm(region), []):
+        if wt in colors:
+            return list(grapes)
+    return None
 
 
 # Every default blend (appellation + region level) as tuples — lets Vivino
 # recognize law-book approximations and replace them with real per-wine data.
 ALL_DEFAULT_BLENDS = frozenset(
     _g for _rules in _APPELLATION_DEFAULTS.values() for _g, _, _ in _rules
-) | frozenset(REGION_DEFAULT_GRAPES.values())
+) | frozenset(_g for _regs, _g, _ in _REGION_DEFAULT_RULES)
 
 
 def is_default_blend(grapes) -> bool:

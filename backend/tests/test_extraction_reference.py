@@ -270,3 +270,48 @@ def test_is_default_blend_accepts_lists_and_tuples():
     assert not is_default_blend(["Zinfandel"])
     assert not is_default_blend([])
     assert not is_default_blend(None)
+
+
+def test_region_rules_champagne_sparkling_and_rose():
+    """Champagne AOC permits 7 grapes; PN/Chard/Meunier are 99.7% of
+    plantings. Rosé Champagne uses the same grapes. Tier A (hard law)."""
+    from enrichment.extraction.reference import default_grapes_for_region
+    champagne = ["Pinot Noir", "Chardonnay", "Pinot Meunier"]
+    assert default_grapes_for_region("Champagne", "sparkling") == champagne
+    assert default_grapes_for_region("Champagne", "rosé") == champagne   # accent folds
+    assert default_grapes_for_region("Champagne", "red") is None
+    assert default_grapes_for_region("Champagne", None) is None
+
+
+def test_region_rules_douro_penedes_provence():
+    """Approved Tier B conventions: Port big-three (red+dessert), Penedès
+    sparkling = Cava trio, Provence rosé template."""
+    from enrichment.extraction.reference import default_grapes_for_region
+    port = ["Touriga Nacional", "Touriga Franca", "Tinta Roriz"]
+    assert default_grapes_for_region("Douro", "dessert") == port
+    assert default_grapes_for_region("Douro", "red") == port
+    assert default_grapes_for_region("Douro", "white") is None
+    assert default_grapes_for_region("Penedès", "sparkling") == \
+        ["Macabeo", "Xarel·lo", "Parellada"]
+    assert default_grapes_for_region("Penedes", "sparkling") is not None  # accent variant
+    assert default_grapes_for_region("Penedès", "rosé") is None
+    assert default_grapes_for_region("Provence", "rosé") == \
+        ["Grenache", "Cinsault", "Syrah"]
+    assert default_grapes_for_region("Provence", "red") is None
+
+
+def test_region_rules_never_fire_without_explicit_type():
+    """Region granularity is too coarse to guess on unknown type — the
+    conservative invariant from the 07-14 design, now spanning all colors."""
+    from enrichment.extraction.reference import default_grapes_for_region
+    for region in ("Bordeaux", "Rhône", "Champagne", "Douro", "Penedès", "Provence"):
+        assert default_grapes_for_region(region, None) is None, region
+        assert default_grapes_for_region(region, "") is None, region
+
+
+def test_all_default_blends_gains_the_new_trios():
+    from enrichment.extraction.reference import ALL_DEFAULT_BLENDS
+    assert ("Pinot Noir", "Chardonnay", "Pinot Meunier") in ALL_DEFAULT_BLENDS
+    assert ("Touriga Nacional", "Touriga Franca", "Tinta Roriz") in ALL_DEFAULT_BLENDS
+    assert ("Macabeo", "Xarel·lo", "Parellada") in ALL_DEFAULT_BLENDS
+    assert ("Grenache", "Cinsault", "Syrah") in ALL_DEFAULT_BLENDS
