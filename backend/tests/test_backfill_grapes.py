@@ -122,3 +122,21 @@ def test_provence_rose_fills_white_does_not():
     assert changes["grapes"] == ["Grenache", "Cinsault", "Syrah"]
     assert rule == "region"
     assert plan_change(_row(region="Provence", wine_type="white"))[0] == {}
+
+
+def test_white_port_never_gets_the_red_trio():
+    """White Port is dessert-typed like red Port, but made from white grapes —
+    the name is the only color signal at region granularity. Conservative
+    rule: leave it for Vivino rather than stamp red grapes on it."""
+    for name in ["Dow's White Port", "Fonseca, \"Siroco,\" Extra Dry White Port",
+                 "Quinta do Porto Branco"]:
+        changes, rule = plan_change(_row(region="Douro", wine_type="dessert",
+                                         name=name))
+        assert changes == {}, name
+        assert rule is None, name
+    # red Port unaffected
+    changes, rule = plan_change(_row(region="Douro", wine_type="dessert",
+                                     name="Graham's Six Grapes Reserve Port"))
+    assert changes["grapes"] == ["Touriga Nacional", "Touriga Franca",
+                                 "Tinta Roriz"]
+    assert rule == "region"
