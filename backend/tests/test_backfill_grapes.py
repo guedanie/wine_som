@@ -78,3 +78,40 @@ def test_rows_with_grapes_or_foreign_regions_are_untouched():
     assert plan_change(_row(grapes=["Zinfandel"]))[0] == {}
     assert plan_change(_row(region="Napa Valley", sub_region="Oakville"))[0] == {}
     assert plan_change(_row(region=None))[0] == {}
+
+
+def test_champagne_sparkling_gets_pn_led_blend():
+    changes, rule = plan_change(_row(region="Champagne", wine_type="sparkling"))
+    assert changes == {"grapes": ["Pinot Noir", "Chardonnay", "Pinot Meunier"],
+                       "varietal": "Pinot Noir"}
+    assert rule == "region"
+
+
+def test_generic_port_varietal_keeps_label_gains_blend():
+    """varietal='Port' is a place-word, not a grape — is_specific_grape says
+    generic, so the blend fills and the label survives."""
+    changes, rule = plan_change(_row(region="Douro", wine_type="dessert",
+                                     varietal="Port"))
+    assert changes == {"grapes": ["Touriga Nacional", "Touriga Franca",
+                                  "Tinta Roriz"]}
+    assert rule == "region"
+
+
+def test_chianti_classico_fills_on_unknown_type():
+    changes, rule = plan_change(_row(region="Tuscany", wine_type=None,
+                                     sub_region="Chianti Classico"))
+    assert changes == {"grapes": ["Sangiovese"], "varietal": "Sangiovese"}
+    assert rule == "appellation"
+
+
+def test_tuscany_region_only_rows_left_for_vivino():
+    """No Tuscany region rule (Super Tuscans) — typed red or not."""
+    assert plan_change(_row(region="Tuscany", wine_type="red"))[0] == {}
+    assert plan_change(_row(region="Tuscany", wine_type=None))[0] == {}
+
+
+def test_provence_rose_fills_white_does_not():
+    changes, rule = plan_change(_row(region="Provence", wine_type="rosé"))
+    assert changes["grapes"] == ["Grenache", "Cinsault", "Syrah"]
+    assert rule == "region"
+    assert plan_change(_row(region="Provence", wine_type="white"))[0] == {}

@@ -30,7 +30,8 @@ from enrichment.extraction.reference import (canonical_grape,           # noqa: 
                                              default_grapes_for_region,
                                              is_specific_grape)
 
-TARGET_REGIONS = ("Bordeaux", "Rhône")
+TARGET_REGIONS = ("Bordeaux", "Rhône", "Champagne", "Douro", "Tuscany",
+                  "Penedès", "Other Spain", "Provence")
 
 
 def plan_change(row: Dict[str, Any]) -> Tuple[Dict[str, Any], Optional[str]]:
@@ -57,7 +58,7 @@ def plan_change(row: Dict[str, Any]) -> Tuple[Dict[str, Any], Optional[str]]:
 def fetch_target_wines(db, limit: int = 0) -> List[Dict[str, Any]]:
     """All Bordeaux/Rhône rows; plan_change skips the ones that have grapes
     (postgrest can't cleanly filter 'empty JSON array', so filter client-side
-    — it's ~1,450 rows, 2 pages)."""
+    — it's ~2,100 rows, 3 pages)."""
     wines, page, page_size = [], 0, 1000
     while True:
         rows = (db.table("wines")
