@@ -110,6 +110,13 @@ def test_tuscany_region_only_rows_left_for_vivino():
     assert plan_change(_row(region="Tuscany", wine_type=None))[0] == {}
 
 
+def test_iberian_single_varietal_is_trusted_not_trioed():
+    changes, rule = plan_change(_row(region="Douro", wine_type="red",
+                                     varietal="Tinta Roriz"))
+    assert changes == {"grapes": ["Tinta Roriz"]}
+    assert rule == "specific-varietal"
+
+
 def test_provence_rose_fills_white_does_not():
     changes, rule = plan_change(_row(region="Provence", wine_type="rosé"))
     assert changes["grapes"] == ["Grenache", "Cinsault", "Syrah"]

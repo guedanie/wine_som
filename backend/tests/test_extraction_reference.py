@@ -362,3 +362,13 @@ def test_dropped_regions_stay_dropped():
         assert default_grapes_for(app, wine_type="red") is None, app
     assert default_grapes_for_region("Tuscany", "red") is None
     assert default_grapes_for_region("Other Spain", "sparkling") is None
+
+
+def test_blend_member_grapes_are_specific():
+    """Grapes that appear in law-default blends are real grapes even when
+    absent from CORE_GRAPES — a varietal labeled 'Tinta Roriz' must be
+    trusted, not overwritten with the Port trio."""
+    from enrichment.extraction.reference import is_specific_grape
+    for g in ["Tinta Roriz", "Macabeo", "Xarel·lo", "Parellada",
+              "Pinot Meunier", "Touriga Franca"]:
+        assert is_specific_grape(g), g

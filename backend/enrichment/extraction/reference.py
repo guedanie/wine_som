@@ -483,6 +483,10 @@ ALL_DEFAULT_BLENDS = frozenset(
     _g for _rules in _APPELLATION_DEFAULTS.values() for _g, _, _ in _rules
 ) | frozenset(_g for _regs, _g, _ in _REGION_DEFAULT_RULES)
 
+# Blend members are real grapes even when absent from CORE_GRAPES (Tinta
+# Roriz, Macabeo, Xarel·lo…) — trust them as specific varietals too.
+KNOWN_GRAPES |= {_norm(_g) for _blend in ALL_DEFAULT_BLENDS for _g in _blend}
+
 
 def is_default_blend(grapes) -> bool:
     """True when grapes (list or tuple) is exactly a law-book default blend."""

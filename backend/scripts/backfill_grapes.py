@@ -1,4 +1,5 @@
-"""One-off grapes backfill for Bordeaux/Rhône rows the weekly extraction can't
+"""One-off grapes backfill for law-region rows (Bordeaux, Rhône, Champagne,
+Douro, Tuscany, Penedès, Other Spain, Provence) the weekly extraction can't
 reach (CLAUDE.md item 27).
 
 Rows extracted before the appellation-law blend defaults shipped have
@@ -7,7 +8,7 @@ the scorer's grape matching can't see them. Per row, in precedence order:
 
 1. varietal names an actual grape           -> grapes=[varietal] (trusted)
 2. appellation default (color-gated)        -> grapes=blend
-3. region default (Bordeaux/Rhône, red only)-> grapes=blend
+3. region default (law regions, color-gated)  -> grapes=blend
 4. else no-op — left for the Vivino queue.
 
 varietal is set to the blend's lead grape only when NULL. Writes only changed
@@ -56,7 +57,7 @@ def plan_change(row: Dict[str, Any]) -> Tuple[Dict[str, Any], Optional[str]]:
 
 
 def fetch_target_wines(db, limit: int = 0) -> List[Dict[str, Any]]:
-    """All Bordeaux/Rhône rows; plan_change skips the ones that have grapes
+    """All law-region rows; plan_change skips the ones that have grapes
     (postgrest can't cleanly filter 'empty JSON array', so filter client-side
     — it's ~2,100 rows, 3 pages)."""
     wines, page, page_size = [], 0, 1000
@@ -100,7 +101,7 @@ def main() -> None:
 
     wines = fetch_target_wines(db, limit=args.limit)
     empty = sum(1 for w in wines if not (w.get("grapes") or []))
-    print(f"examining {len(wines)} Bordeaux/Rhône wines ({empty} grapes-empty)", flush=True)
+    print(f"examining {len(wines)} law-region wines ({empty} grapes-empty)", flush=True)
 
     by_rule = {"specific-varietal": 0, "appellation": 0, "region": 0}
     changed = 0
@@ -116,7 +117,7 @@ def main() -> None:
             db.table("wines").update(changes).eq("id", w["id"]).execute()
 
     summary = (f"Grapes backfill{' (dry run)' if args.dry_run else ''}: "
-               f"{empty} empty of {len(wines)} Bordeaux/Rhône wines, {changed} filled "
+               f"{empty} empty of {len(wines)} law-region wines, {changed} filled "
                f"({by_rule['specific-varietal']} trusted varietal, "
                f"{by_rule['appellation']} appellation blends, "
                f"{by_rule['region']} region blends), "
