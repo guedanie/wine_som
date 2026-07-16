@@ -79,12 +79,14 @@ def extract_facts_ollama(wines: List[Dict[str, Any]], batch_size: int = 10,
         sources = {w["id"]: f'{w.get("name","")} {w.get("description") or w.get("description_long") or ""}'
                    for w in batch}
         types = {w["id"]: w.get("wine_type") for w in batch}
+        names = {w["id"]: w.get("name") for w in batch}
         try:
             out = _call_ollama(system, "Extract facts for these wines:\n" + listing, model)
             for rec in out.get("wines", []):
                 if rec.get("wine_id"):
                     results.append(_post_process(rec, source_text=sources.get(rec["wine_id"]),
-                                                 wine_type=types.get(rec["wine_id"])))
+                                                 wine_type=types.get(rec["wine_id"]),
+                                                 name=names.get(rec["wine_id"])))
         except Exception as e:
             print(f"  ollama batch {i // batch_size} failed: {e}")
     return results

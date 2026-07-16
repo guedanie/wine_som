@@ -477,6 +477,17 @@ def default_grapes_for_region(region: Optional[str],
     return None
 
 
+def region_blend_conflicts(region: Optional[str], name: Optional[str]) -> bool:
+    """True when the wine's NAME contradicts the region blend's color — the
+    only such case today is White Port ('white'/'branco' vs Douro's red trio).
+    Callers must skip the region default when this fires (conservative rule:
+    never stamp red grapes on a white-named wine)."""
+    if _norm(region or "") != "douro":
+        return False
+    hay = _norm(name or "")
+    return "white" in hay or "branco" in hay
+
+
 # Every default blend (appellation + region level) as tuples — lets Vivino
 # recognize law-book approximations and replace them with real per-wine data.
 ALL_DEFAULT_BLENDS = frozenset(

@@ -372,3 +372,13 @@ def test_blend_member_grapes_are_specific():
     for g in ["Tinta Roriz", "Macabeo", "Xarel·lo", "Parellada",
               "Pinot Meunier", "Touriga Franca"]:
         assert is_specific_grape(g), g
+
+
+def test_region_blend_conflicts_flags_white_named_douro_only():
+    from enrichment.extraction.reference import region_blend_conflicts
+    assert region_blend_conflicts("Douro", "Dow's White Port")
+    assert region_blend_conflicts("Douro", "Porto Branco Seco")
+    assert not region_blend_conflicts("Douro", "Graham's Six Grapes Reserve Port")
+    assert not region_blend_conflicts("Champagne", "White Star Cuvee")
+    assert not region_blend_conflicts(None, "White Port")
+    assert not region_blend_conflicts("Douro", None)

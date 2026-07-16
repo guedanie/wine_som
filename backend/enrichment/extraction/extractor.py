@@ -11,7 +11,7 @@ from enrichment.extraction.reference import (
     APPELLATIONS, CHATEAUX, CORE_GRAPES, FEW_SHOT, parent_region_for,
     canonical_region, canonical_country, canonical_grape, country_for_region,
     gazetteer_hit, region_evidenced, country_evidenced, default_grapes_for,
-    default_grapes_for_region,
+    default_grapes_for_region, region_blend_conflicts,
 )
 
 MODEL = "claude-haiku-4-5-20251001"
@@ -98,7 +98,8 @@ def _system_prompt() -> str:
 
 
 def _post_process(rec: Dict[str, Any], source_text: Optional[str] = None,
-                  wine_type: Optional[str] = None) -> Dict[str, Any]:
+                  wine_type: Optional[str] = None,
+                  name: Optional[str] = None) -> Dict[str, Any]:
     out = dict(rec)
     # 0. gazetteer + evidence gate (only when the caller passes the wine's
     #    name+description). A producer/château hit fixes the place outright;
@@ -144,8 +145,9 @@ def _post_process(rec: Dict[str, Any], source_text: Optional[str] = None,
     #     Sémillon), gated by wine color; region-level fallback for reds with
     #     no recognized appellation. Never overwrites model-supplied grapes.
     if not out.get("grapes"):
-        blend = (default_grapes_for(out.get("sub_region"), wine_type)
-                 or default_grapes_for_region(out.get("region"), wine_type))
+        blend = default_grapes_for(out.get("sub_region"), wine_type)
+        if not blend and not region_blend_conflicts(out.get("region"), name):
+            blend = default_grapes_for_region(out.get("region"), wine_type)
         if blend:
             out["grapes"] = list(blend)
     # 4. country: canonicalize what the model gave, else derive from region
@@ -189,6 +191,7 @@ def extract_facts(wines: List[Dict[str, Any]], batch_size: int = 15) -> List[Dic
         sources = {w["id"]: f'{w.get("name","")} {w.get("description") or w.get("description_long") or ""}'
                    for w in batch}
         types = {w["id"]: w.get("wine_type") for w in batch}
+        names = {w["id"]: w.get("name") for w in batch}
         try:
             resp = _anthropic_client.messages.create(
                 model=MODEL,
@@ -206,7 +209,8 @@ def extract_facts(wines: List[Dict[str, Any]], batch_size: int = 15) -> List[Dic
             for rec in block.input.get("wines", []):
                 if rec.get("wine_id"):
                     results.append(_post_process(rec, source_text=sources.get(rec["wine_id"]),
-                                                 wine_type=types.get(rec["wine_id"])))
+                                                 wine_type=types.get(rec["wine_id"]),
+                                                 name=names.get(rec["wine_id"])))
         except Exception as e:
             print(f"  extraction batch {i // batch_size} failed: {e}")
     return results

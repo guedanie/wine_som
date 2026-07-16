@@ -118,3 +118,15 @@ def test_post_process_region_fallback_sees_the_canonicalized_region():
     assert out["region"] == "Rhône"
     assert out["grapes"] == ["Grenache", "Syrah", "Mourvèdre"]
     assert out["varietal"] == "Grenache"
+
+
+def test_post_process_white_port_never_gets_the_red_trio():
+    """Weekly-extraction twin of the backfill's White Port guard — the name
+    is the only color signal at region granularity."""
+    rec = {"wine_id": "w1", "region": "Douro", "sub_region": None,
+           "grapes": [], "varietal": None}
+    out = _post_process(rec, wine_type="dessert", name="Dow's White Port")
+    assert out["grapes"] == []
+    out_red = _post_process(rec, wine_type="dessert",
+                            name="Graham's Six Grapes Reserve Port")
+    assert out_red["grapes"] == ["Touriga Nacional", "Touriga Franca", "Tinta Roriz"]

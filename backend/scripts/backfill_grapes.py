@@ -29,7 +29,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from enrichment.extraction.reference import (canonical_grape,           # noqa: E402
                                              default_grapes_for,
                                              default_grapes_for_region,
-                                             is_specific_grape)
+                                             is_specific_grape,
+                                             region_blend_conflicts)
 
 TARGET_REGIONS = ("Bordeaux", "Rhône", "Champagne", "Douro", "Tuscany",
                   "Penedès", "Other Spain", "Provence")
@@ -46,15 +47,12 @@ def plan_change(row: Dict[str, Any]) -> Tuple[Dict[str, Any], Optional[str]]:
         grapes = default_grapes_for(row.get("sub_region"), row.get("wine_type"))
         rule = "appellation"
         if not grapes:
+            # Name contradicts the region blend's color (White Port class) —
+            # leave for Vivino rather than stamp the wrong grapes.
+            if region_blend_conflicts(row.get("region"), row.get("name")):
+                return {}, None
             grapes = default_grapes_for_region(row.get("region"), row.get("wine_type"))
             rule = "region"
-            # White Port is dessert-typed like red Port but white-grape — the
-            # name is the only color signal at region granularity. Skip rather
-            # than stamp the red trio (conservative rule; left for Vivino).
-            if grapes and row.get("region") == "Douro" \
-                    and any(w in (row.get("name") or "").lower()
-                            for w in ("white", "branco")):
-                return {}, None
         if not grapes:
             return {}, None
     changes = {"grapes": grapes}
