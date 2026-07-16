@@ -408,7 +408,8 @@ _DEFAULT_RULES = [
     # Bandol also bottles white — unknown type must not guess. Red is
     # law-backed (>=50% Mourvèdre); rosé is the user-approved convention.
     (("Bandol",), ("Mourvèdre", "Grenache", "Cinsault"), ("red", "rose"), True),
-    # A 'Blanc de Blancs' sub_region is 100% Chardonnay by definition
+    # 'Blanc de Blancs' is Chardonnay in ~99% of cases (single-grape ->
+    # Vivino-permanent; accepted for its overwhelming frequency)
     (("Blanc de Blancs",), ("Chardonnay",), ("sparkling",), False),
 ]
 
@@ -444,7 +445,8 @@ _REGION_DEFAULT_RULES = [
     # (regions, grapes, wine_types the blend may fill)
     (("Bordeaux",), ("Merlot", "Cabernet Sauvignon", "Cabernet Franc"), ("red",)),
     (("Rhône",), _GSM_BLEND, ("red",)),
-    # Champagne AOC: 7 legal grapes, these three are 99.7% of plantings (Tier A)
+    # Champagne AOC: 7 legal grapes; PN/Chard/Meunier are 99.7% of plantings
+    # (near-law convention; multi-grape, Vivino-correctable)
     (("Champagne",), ("Pinot Noir", "Chardonnay", "Pinot Meunier"),
      ("sparkling", "rose")),
     # Port/Douro tinto share the modern big three (Tier B — law permits 80+)

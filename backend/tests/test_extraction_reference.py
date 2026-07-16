@@ -293,7 +293,8 @@ def test_region_rules_douro_penedes_provence():
     assert default_grapes_for_region("Douro", "white") is None
     assert default_grapes_for_region("Penedès", "sparkling") == \
         ["Macabeo", "Xarel·lo", "Parellada"]
-    assert default_grapes_for_region("Penedes", "sparkling") is not None  # accent variant
+    assert default_grapes_for_region("Penedes", "sparkling") == \
+        ["Macabeo", "Xarel·lo", "Parellada"]              # accent variant
     assert default_grapes_for_region("Penedès", "rosé") is None
     assert default_grapes_for_region("Provence", "rosé") == \
         ["Grenache", "Cinsault", "Syrah"]
