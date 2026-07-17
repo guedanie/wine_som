@@ -684,6 +684,10 @@ for c in gated: print(f\"  {c['wine_type']:6s} {c['name'][:46]}\")
 
 Expected: detected store = "Lincoln Heights Market H-E-B"; the red gate keeps Les Allies Médoc, Château Lasségue, **and** Château Saint-Sulpice (NULL→red), and drops any Bordeaux whites/rosé.
 
+- [ ] **Step 2b: Verify the Rhône *correct-negative* (the fix must not manufacture false positives)**
+
+Repeat Step 2 with `region='Rhône'`. Expected at Lincoln Heights: the targeted fetch surfaces its 5 Rhône wines, but after the red gate + $45 budget the qualifying set is **empty** — the 4 La Vieille Ferme are rosé (gated out) and the only red (Domaine de la Solitude Châteauneuf-du-Pape, $49.46) is over budget. Confirm the gate returns 0 reds here (a *true* negative), and that widening the budget to $60 surfaces the CdP via the targeted fetch. This proves the fix surfaces genuinely-qualifying wines without blindly forcing a region in.
+
 - [ ] **Step 3: Live end-to-end** — start the backend and POST the exact query (or drive it from the frontend): zip 78209, `wine_type=red`, `budget_max=45`, message "Show me one Bordeaux blend at heb lincon heights, and another red blend not from Bordeaux". Confirm a **real Bordeaux** (Lasségue / Les Allies / Saint-Sulpice) is returned as the Bordeaux pick, the non-Bordeaux red-blend pick still works, and **no white/rosé** appears. Capture the pick list in the run notes.
 
 ---
