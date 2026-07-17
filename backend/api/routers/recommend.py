@@ -13,6 +13,8 @@ from db import get_supabase_client, get_service_client
 from recommendation.scorer import score_candidates
 from recommendation.claude_client import stream_recommendations
 from recommendation.intent import parse_message, merge_intent, intent_from_request
+from recommendation.candidate_filters import (apply_type_gate,
+                                              requested_types_from)
 from utils.geo import zip_to_centroid, find_nearby_store_ids, haversine
 from api.ratelimit import RateLimiter, limit_dependency
 
@@ -357,12 +359,12 @@ async def recommend(req: RecommendRequest):
             candidates = retailer_pool
             logger.info("RETAILER FILTER | %r → %d candidates", preferred_retailer, len(candidates))
 
-    effective_types = req.wine_types or ([req.wine_type] if req.wine_type else [])
-    if effective_types:
-        type_pool = [c for c in candidates if c.get("wine_type") in effective_types]
-        if type_pool:
-            candidates = type_pool
-            logger.info("TYPE FILTER | %s → %d candidates", effective_types, len(candidates))
+    chip_types = req.wine_types or ([req.wine_type] if req.wine_type else [])
+    req_types = requested_types_from(chip_types, resolved.get("wine_type"))
+    before = len(candidates)
+    candidates = apply_type_gate(candidates, req_types)
+    if req_types:
+        logger.info("TYPE GATE | %s → %d/%d candidates", sorted(req_types), len(candidates), before)
 
     # Seeded jitter (±0.4, well under any single axis weight) varies the
     # candidate mix between turns without ever dropping strong matches.
