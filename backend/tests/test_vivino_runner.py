@@ -59,14 +59,18 @@ def test_ci_profile_is_conservative():
     importlib.reload(runner)  # restore local profile for other tests
 
 
-def test_local_profile_unchanged():
+def test_local_profile_is_crawl_grade():
+    """Vivino began throttling the residential IP ~2026-07-10: every 300-limit
+    run aborted after ~40 consecutive fetch failures (~42 wines/day written,
+    log-verified 07-10..07-16). The local profile now crawls like CI did —
+    slower per-request, but it outlasts the throttle window."""
     import importlib, os
     assert os.environ.get("GITHUB_ACTIONS") != "true"
     mod = importlib.reload(runner)
-    assert mod.CONCURRENCY == 2
-    assert mod.REQ_DELAY == 1.0
-    assert mod.PAUSE_SECONDS == 90
-    assert mod.MAX_PAUSES == 3
+    assert mod.CONCURRENCY == 1
+    assert mod.REQ_DELAY >= 2.0
+    assert mod.PAUSE_SECONDS >= 300
+    assert mod.MAX_PAUSES >= 5
 
 
 class _FakeTier:
