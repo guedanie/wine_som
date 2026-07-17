@@ -72,3 +72,28 @@ def test_requested_types_union_of_chips_and_parsed_intent():
     assert requested_types_from([], "white") == {"white"}
     assert requested_types_from(["red"], "red") == {"red"}
     assert requested_types_from([], None) == set()
+
+
+from recommendation.candidate_filters import detect_store
+
+_NEARBY = [
+    {"id": "s1", "name": "Lincoln Heights Market H-E-B"},
+    {"id": "s2", "name": "Alon Market H-E-B"},
+    {"id": "s3", "name": "Geraldine's Natural Wines"},
+]
+
+
+def test_detect_store_tolerates_typo():
+    assert detect_store("show me a bordeaux at heb lincon heights", _NEARBY)["id"] == "s1"
+
+
+def test_detect_store_exact_multiword():
+    assert detect_store("anything at Alon Market", _NEARBY)["id"] == "s2"
+
+
+def test_detect_store_none_when_no_store_named():
+    assert detect_store("show me a bold red under $30", _NEARBY) is None
+
+
+def test_detect_store_ignores_generic_retailer_word_only():
+    assert detect_store("something red at heb", _NEARBY) is None

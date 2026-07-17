@@ -46,3 +46,30 @@ def requested_types_from(chip_types: Optional[List[str]],
     if parsed_type:
         types.add(parsed_type)
     return types
+
+
+# Generic tokens that don't distinguish one store from another.
+_STORE_STOPWORDS = {"the", "and", "wine", "wines", "market", "shop", "store",
+                    "plus", "natural", "heb", "h-e-b", "heb's", "central"}
+
+
+def _store_tokens(s: str) -> List[str]:
+    words = re.sub(r"[^a-z0-9 ]", " ", (s or "").lower()).split()
+    return [w for w in words if len(w) > 2 and w not in _STORE_STOPWORDS]
+
+
+def detect_store(message: str, nearby_stores: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Fuzzy-match a store named in the message against the nearby stores.
+    Tolerates typos ('lincon'); returns None when no distinctive store token
+    matches (e.g. only the retailer word 'heb' appears)."""
+    msg = _store_tokens(message)
+    if not msg:
+        return None
+    best, best_score = None, 0
+    for st in nearby_stores:
+        name_toks = _store_tokens(st.get("name", ""))
+        score = sum(1 for nt in name_toks
+                    if difflib.get_close_matches(nt, msg, n=1, cutoff=0.8))
+        if score > best_score:
+            best, best_score = st, score
+    return best if best_score >= 1 else None
