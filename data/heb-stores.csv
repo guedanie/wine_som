@@ -19,42 +19,42 @@ store_id,name,address,zip,city,state,active
 425,Hancock Center H-E-B,1000 East 41st,78751,Austin,TX,true
 19,Lytle H-E-B plus!,19337 McDonald Street,78052,Lytle,TX,false
 25,Floresville H-E-B,925 10th Street,78114,Floresville,TX,false
-26,McCreless Market H-E-B plus!,4100 South New Braunfels,78223,San Antonio,TX,false
+26,McCreless Market H-E-B plus!,4100 South New Braunfels,78223,San Antonio,TX,true
 74,New Braunfels H-E-B at Hwy 46,1655 W State Highway 46,78130,New Braunfels,TX,false
-84,Zarzamora and Military H-E-B plus!,6818 South Zarzamora,78224,San Antonio,TX,false
-85,Potranco and 1604 H-E-B plus!,10718 Potranco Road,78251,San Antonio,TX,false
-102,Alon Market H-E-B,8503 NW Military Hwy,78231,San Antonio,TX,false
-106,W.W. White H-E-B,1015 S.W.W. White Road,78220,San Antonio,TX,false
-108,281 and Evans Road H-E-B plus!,20935 US Highway 281 North,78258,San Antonio,TX,false
-164,Brook Hollow H-E-B,15000 San Pedro,78232,San Antonio,TX,false
-178,San Pedro and Oblate H-E-B,6839 San Pedro,78216,San Antonio,TX,false
-189,El Mercado H-E-B,2130 Culebra,78228,San Antonio,TX,false
-195,Blanco and West Ave H-E-B,11551 West Ave.,78213,San Antonio,TX,false
-205,Las Palmas H-E-B,721 Castroville Rd,78237,San Antonio,TX,false
-211,New Braunfels and Houston H-E-B,415 N. New Braunfels,78202,San Antonio,TX,false
-224,Bandera and Guilbeau H-E-B,7951 Guilbeau Rd.,78250,San Antonio,TX,false
-230,Nacogdoches and O'Connor H-E-B,14087 O'Connor Rd,78247,San Antonio,TX,false
-235,Grissom and Tezel H-E-B,9255 Grissom Rd,78251,San Antonio,TX,false
-262,Marketplace H-E-B,5601 Bandera Road,78238,San Antonio,TX,false
+84,Zarzamora and Military H-E-B plus!,6818 South Zarzamora,78224,San Antonio,TX,true
+85,Potranco and 1604 H-E-B plus!,10718 Potranco Road,78251,San Antonio,TX,true
+102,Alon Market H-E-B,8503 NW Military Hwy,78231,San Antonio,TX,true
+106,W.W. White H-E-B,1015 S.W.W. White Road,78220,San Antonio,TX,true
+108,281 and Evans Road H-E-B plus!,20935 US Highway 281 North,78258,San Antonio,TX,true
+164,Brook Hollow H-E-B,15000 San Pedro,78232,San Antonio,TX,true
+178,San Pedro and Oblate H-E-B,6839 San Pedro,78216,San Antonio,TX,true
+189,El Mercado H-E-B,2130 Culebra,78228,San Antonio,TX,true
+195,Blanco and West Ave H-E-B,11551 West Ave.,78213,San Antonio,TX,true
+205,Las Palmas H-E-B,721 Castroville Rd,78237,San Antonio,TX,true
+211,New Braunfels and Houston H-E-B,415 N. New Braunfels,78202,San Antonio,TX,true
+224,Bandera and Guilbeau H-E-B,7951 Guilbeau Rd.,78250,San Antonio,TX,true
+230,Nacogdoches and O'Connor H-E-B,14087 O'Connor Rd,78247,San Antonio,TX,true
+235,Grissom and Tezel H-E-B,9255 Grissom Rd,78251,San Antonio,TX,true
+262,Marketplace H-E-B,5601 Bandera Road,78238,San Antonio,TX,true
 621,Boerne H-E-B plus!,420 West Bandera Road,78006,Boerne,TX,false
 622,Bulverde H-E-B plus!,20725 Hwy 46 West,78070,Spring Branch,TX,false
-623,Bandera and 1604 H-E-B plus!,9238 N. Loop 1604 West,78249,San Antonio,TX,false
+623,Bandera and 1604 H-E-B plus!,9238 N. Loop 1604 West,78249,San Antonio,TX,true
 655,Kerrville H-E-B on Sidney Baker St,313 Sidney Baker South,78028,Kerrville,TX,false
-658,The Market at Stone Oak,23635 Wilderness Oak,78258,San Antonio,TX,false
-678,Valley Hi H-E-B,368 Valley Hi Drive,78227,San Antonio,TX,false
+658,The Market at Stone Oak,23635 Wilderness Oak,78258,San Antonio,TX,true
+678,Valley Hi H-E-B,368 Valley Hi Drive,78227,San Antonio,TX,true
 694,New Braunfels H-E-B plus!,2965 IH35 North,78130,New Braunfels,TX,false
-699,Nogalitos H-E-B,1601 Nogalitos,78204,San Antonio,TX,false
+699,Nogalitos H-E-B,1601 Nogalitos,78204,San Antonio,TX,true
 716,Seguin H-E-B,1340 E Court St,78155,Seguin,TX,false
-718,South Flores Market H-E-B,516 S Flores Street,78204,San Antonio,TX,false
-732,Bulverde and 1604 H-E-B,17238 Bulverde Road,78247,San Antonio,TX,false
-733,Alamo Ranch H-E-B,12125 Alamo Ranch Pkwy,78253,San Antonio,TX,false
+718,South Flores Market H-E-B,516 S Flores Street,78204,San Antonio,TX,true
+732,Bulverde and 1604 H-E-B,17238 Bulverde Road,78247,San Antonio,TX,true
+733,Alamo Ranch H-E-B,12125 Alamo Ranch Pkwy,78253,San Antonio,TX,true
 770,Kerrville H-E-B On Main Street,300 W. Main St.,78028,Kerrville,TX,false
-771,211 and Potranco H-E-B,14325 Potranco Rd.,78253,San Antonio,TX,false
+771,211 and Potranco H-E-B,14325 Potranco Rd.,78253,San Antonio,TX,true
 775,New Braunfels H-E-B at Walnut,651 S. Walnut,78130,New Braunfels,TX,false
 785,H-E-B Cibolo,850 FM 1103 Suite 100,78108,Cibolo,TX,false
 793,Fair Oaks H-E-B,29388 I-10 West,78006,Boerne,TX,false
-799,College Park H-E-B,7330 N Loop 1604,78249,San Antonio,TX,false
-807,Culebra and 211 H-E-B,15489 Culebra Rd.,78253,San Antonio,TX,false
+799,College Park H-E-B,7330 N Loop 1604,78249,San Antonio,TX,true
+807,Culebra and 211 H-E-B,15489 Culebra Rd.,78253,San Antonio,TX,true
 789,H-E-B Frisco Main St,4800 Main Street,75033,Frisco,TX,true
 802,H-E-B Frisco Hwy 380,899 University Dr,75033,Frisco,TX,true
 790,H-E-B Plano,6001 Preston Road Suite 100,75093,Plano,TX,true
