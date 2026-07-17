@@ -242,6 +242,7 @@ async def recommend(req: RecommendRequest):
         if sid and rname:
             retailer_to_stores.setdefault(rname, []).append(sid)
 
+    # chip types only — resolved/parsed intent isn't available until after the fetch; the post-fetch type gate folds in the parsed type for the hard guarantee
     breadth_types = set(t for t in (req.wine_types or ([req.wine_type] if req.wine_type else [])) if t)
 
     def _fetch_rows(since: Optional[str]) -> list:
@@ -366,14 +367,22 @@ async def recommend(req: RecommendRequest):
         region = resolved.get("region")
         if not region and not detected_store:
             return []
-        q = (supabase.table("retail_inventory").select(INVENTORY_SELECT)
-             .in_("store_ref", nearby_ids).eq("in_stock", True)
-             .gte("price", req.budget_min).lte("price", req.budget_max))
-        if region:
-            q = q.ilike("wines.region", f"%{region}%")
-        if detected_store:
-            q = q.eq("store_ref", detected_store["id"])
-        return q.limit(300).execute().data or []
+
+        def _q(since: Optional[str]) -> list:
+            q = (supabase.table("retail_inventory").select(INVENTORY_SELECT)
+                 .in_("store_ref", nearby_ids).eq("in_stock", True)
+                 .gte("price", req.budget_min).lte("price", req.budget_max))
+            if region:
+                q = q.ilike("wines.region", f"%{region}%")
+            if detected_store:
+                q = q.eq("store_ref", detected_store["id"])
+            if since:
+                q = q.gte("last_scraped_at", since)
+            return q.limit(300).execute().data or []
+
+        # Same staleness policy as the breadth fetch: bench dead-scraper rows,
+        # but fail open (stale bottles beat a blank targeted result).
+        return _q(stale_cutoff) or _q(None)
 
     targeted = [c for c in (_row_to_candidate(r) for r in _targeted_rows()) if c]
     if targeted:
