@@ -13,8 +13,8 @@ from db import get_supabase_client, get_service_client
 from recommendation.scorer import score_candidates
 from recommendation.claude_client import stream_recommendations
 from recommendation.intent import parse_message, merge_intent, intent_from_request
-from recommendation.candidate_filters import (apply_type_gate,
-                                              requested_types_from)
+from recommendation.candidate_filters import (apply_type_gate, detect_store,
+                                              merge_candidates, requested_types_from)
 from utils.geo import zip_to_centroid, find_nearby_store_ids, haversine
 from api.ratelimit import RateLimiter, limit_dependency
 
@@ -223,7 +223,7 @@ async def recommend(req: RecommendRequest):
 
     stores_meta = (
         supabase.table("stores")
-        .select("id, retailer_name")
+        .select("id, retailer_name, name")
         .in_("id", nearby_ids)
         .execute()
     )
@@ -269,49 +269,45 @@ async def recommend(req: RecommendRequest):
         )
         raw_rows = _fetch_rows(None)
 
-    by_retailer: dict = {}
-    for row in raw_rows:
+    def _row_to_candidate(row: dict) -> Optional[dict]:
         wine = row.get("wines") or {}
         if not wine:
-            continue
+            return None
         details_raw = wine.get("wine_details") or {}
         details = details_raw[0] if isinstance(details_raw, list) else (details_raw if isinstance(details_raw, dict) else {})
         enriched = bool(details.get("grapeminds_enriched_at"))
         has_extract = bool(wine.get("varietal") or wine.get("region"))
         if not enriched and not has_extract:
-            continue
+            return None
         store = row.get("stores") or {}
-        retailer = store.get("retailer_name") or "unknown"
-        store_address = store.get("address") or None
-        store_name = store.get("name") or None
         slat, slon = store.get("latitude"), store.get("longitude")
         distance_miles = (
             round(haversine(centroid[0], centroid[1], float(slat), float(slon)), 1)
             if slat is not None and slon is not None else None
         )
-        by_retailer.setdefault(retailer, []).append({
-            "wine_id": wine.get("id"),
-            "name": wine.get("name"),
-            "varietal": wine.get("varietal"),
-            "region": wine.get("region"),
-            "country": wine.get("country"),
-            "wine_type": wine.get("wine_type"),
-            "grapes": wine.get("grapes") or [],
-            "body": wine.get("body"),
+        return {
+            "wine_id": wine.get("id"), "name": wine.get("name"),
+            "varietal": wine.get("varietal"), "region": wine.get("region"),
+            "country": wine.get("country"), "wine_type": wine.get("wine_type"),
+            "grapes": wine.get("grapes") or [], "body": wine.get("body"),
             "tasting_notes": details.get("tasting_notes"),
             "flavor_profile": details.get("flavor_profile") or [],
             "structure_profile": details.get("structure_profile") or {},
-            "price": row.get("price"),
-            "retailer": retailer,
-            "store_address": store_address,
-            "store_name": store_name,
-            "store_ref": store.get("id"),
-            "distance_miles": distance_miles,
-            "image_url": wine.get("image_url"),
+            "price": row.get("price"), "retailer": store.get("retailer_name") or "unknown",
+            "store_address": store.get("address") or None,
+            "store_name": store.get("name") or None, "store_ref": store.get("id"),
+            "distance_miles": distance_miles, "image_url": wine.get("image_url"),
             "vivino_rating": wine.get("vivino_rating"),
             "vivino_ratings_count": wine.get("vivino_ratings_count"),
             "tier": 1 if enriched else 2,
-        })
+        }
+
+    by_retailer: dict = {}
+    for row in raw_rows:
+        cand = _row_to_candidate(row)
+        if cand is None:
+            continue
+        by_retailer.setdefault(cand["retailer"], []).append(cand)
 
     turn = len(req.conversation_history or [])
     seed_str = f"{req.zip_code}:{req.budget_min:.0f}:{req.budget_max:.0f}:{turn}"
@@ -352,6 +348,27 @@ async def recommend(req: RecommendRequest):
     resolved["disliked_wines"] = (req.taste or {}).get("disliked_wines") or []
     resolved["profile"] = (req.taste or {}).get("profile") or None
 
+    detected_store = detect_store(req.message, stores_meta.data or [])
+
+    def _targeted_rows() -> list:
+        region = resolved.get("region")
+        if not region and not detected_store:
+            return []
+        q = (supabase.table("retail_inventory").select(INVENTORY_SELECT)
+             .in_("store_ref", nearby_ids).eq("in_stock", True)
+             .gte("price", req.budget_min).lte("price", req.budget_max))
+        if region:
+            q = q.ilike("wines.region", f"%{region}%")
+        if detected_store:
+            q = q.eq("store_ref", detected_store["id"])
+        return q.limit(300).execute().data or []
+
+    targeted = [c for c in (_row_to_candidate(r) for r in _targeted_rows()) if c]
+    if targeted:
+        candidates = merge_candidates(candidates, targeted)
+        logger.info("TARGETED FETCH | region=%r store=%r → +%d rows",
+                    resolved.get("region"), detected_store and detected_store["name"], len(targeted))
+
     preferred_retailer = _detect_retailer(req.message)
     if preferred_retailer:
         retailer_pool = [c for c in candidates if preferred_retailer in (c.get("retailer") or "")]
@@ -373,6 +390,9 @@ async def recommend(req: RecommendRequest):
         w["_score"] += rng.uniform(-0.4, 0.4)
     scored.sort(key=lambda w: w["_score"], reverse=True)
     top = _select_diverse_top(scored, _MAX_CANDIDATES, _RETAILER_CAP, _VARIETAL_CAP)
+    if detected_store:
+        top.sort(key=lambda w: (w.get("store_ref") == detected_store["id"],
+                                w.get("_score", 0)), reverse=True)
     _annotate_price_drops(supabase, top)
 
     logger.info(
