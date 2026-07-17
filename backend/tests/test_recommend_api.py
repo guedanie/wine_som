@@ -75,6 +75,7 @@ def _make_db_mock(data):
     qb.gte.return_value = qb
     qb.lte.return_value = qb
     qb.in_.return_value = qb
+    qb.or_.return_value = qb
     qb.limit.return_value = qb
     qb.insert.return_value = qb
     qb.order.return_value = qb
@@ -742,3 +743,31 @@ def test_reconcile_never_empties_and_ignores_singletons():
     # picks distinguishable only by generic grape/region words → keep (can't tell)
     generic = [{"wine_id": "1", "name": "Napa Cabernet"}, {"wine_id": "2", "name": "Sonoma Merlot"}]
     assert len(_reconcile_picks_to_narrative(generic, "a lovely evening pour")) == 2
+
+
+def test_breadth_fetch_filters_by_requested_type():
+    """When wine_type=red is requested, the inventory query constrains to
+    red-or-null so the 500-row budget isn't spent on whites."""
+    from api.routers import recommend as rec
+    calls = {"or_": []}
+
+    class _Q:
+        def or_(self, *a, **k):
+            calls["or_"].append((a, k)); return self
+
+    q = rec._apply_type_breadth_filter(_Q(), {"red"})
+    assert q is not None
+    assert calls["or_"], "expected an or_() type-or-null filter for a typed request"
+    filters = calls["or_"][0][0][0]
+    assert "wine_type.eq.red" in filters and "wine_type.is.null" in filters
+    assert calls["or_"][0][1].get("reference_table") == "wines"
+
+
+def test_breadth_fetch_no_filter_when_no_type_requested():
+    from api.routers import recommend as rec
+
+    class _Q:
+        def or_(self, *a, **k):
+            raise AssertionError("must not filter when no type requested")
+
+    assert rec._apply_type_breadth_filter(_Q(), set()) is not None

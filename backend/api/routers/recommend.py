@@ -100,10 +100,19 @@ def _detect_retailer(message: str) -> Optional[str]:
 INVENTORY_SELECT = (
     "price, curbside_price, wine_id,"
     "stores!inner(id, retailer_name, name, zip_code, address, latitude, longitude),"
-    "wines(id, name, varietal, region, country, wine_type, grapes, abv, body,"
+    "wines!inner(id, name, varietal, region, country, wine_type, grapes, abv, body,"
     "image_url, vivino_rating, vivino_ratings_count,"
     "wine_details(tasting_notes, flavor_profile, structure_profile, grapeminds_enriched_at))"
 )
+
+
+def _apply_type_breadth_filter(q, requested_types: set):
+    """Constrain a breadth inventory query to the requested wine types OR NULL
+    (NULL kept so mis-typed reds survive; the type gate resolves them later)."""
+    if not requested_types:
+        return q
+    ors = ",".join(f"wine_type.eq.{t}" for t in sorted(requested_types))
+    return q.or_(f"{ors},wine_type.is.null", reference_table="wines")
 
 
 _GENERIC_WINE_WORDS = {
@@ -233,6 +242,8 @@ async def recommend(req: RecommendRequest):
         if sid and rname:
             retailer_to_stores.setdefault(rname, []).append(sid)
 
+    breadth_types = set(t for t in (req.wine_types or ([req.wine_type] if req.wine_type else [])) if t)
+
     def _fetch_rows(since: Optional[str]) -> list:
         def _query(store_ids: list, limit: int):
             q = (
@@ -243,6 +254,7 @@ async def recommend(req: RecommendRequest):
                 .gte("price", req.budget_min)
                 .lte("price", req.budget_max)
             )
+            q = _apply_type_breadth_filter(q, breadth_types)
             if since:
                 q = q.gte("last_scraped_at", since)
             return q.limit(limit).execute().data or []
