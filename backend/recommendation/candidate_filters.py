@@ -20,3 +20,19 @@ def resolve_wine_type(wine: Dict[str, Any]) -> Optional[str]:
             if t:
                 return t
     return None
+
+
+def apply_type_gate(candidates: List[Dict[str, Any]],
+                    requested_types: set) -> List[Dict[str, Any]]:
+    """Resolve each candidate's NULL wine_type (written back in place), then, when
+    the user requested one or more types, drop candidates whose resolved type is
+    KNOWN and not requested. Unresolvable (None) types are kept — benefit of the
+    doubt. Fails open (returns the input) if the gate would empty the pool."""
+    for c in candidates:
+        if not c.get("wine_type"):
+            c["wine_type"] = resolve_wine_type(c)
+    if not requested_types:
+        return candidates
+    kept = [c for c in candidates
+            if c.get("wine_type") is None or c["wine_type"] in requested_types]
+    return kept or candidates

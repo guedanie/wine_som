@@ -28,3 +28,37 @@ def test_resolve_prefers_varietal_over_name():
 def test_resolve_returns_none_when_unresolvable():
     w = {"wine_type": None, "varietal": None, "name": "Chateau Mystere 2019", "grapes": []}
     assert resolve_wine_type(w) is None
+
+
+from recommendation.candidate_filters import apply_type_gate
+
+
+def _c(**kw):
+    base = {"wine_id": "x", "name": "W", "varietal": None, "grapes": [], "wine_type": None}
+    base.update(kw); return base
+
+
+def test_gate_keeps_resolved_red_drops_resolved_white_for_red_request():
+    red = _c(wine_type="red", name="Malbec")
+    mistyped_red = _c(wine_type=None, varietal="Red Blend", name="Bordeaux Red Wine")
+    white = _c(wine_type="white", varietal="Sauvignon Blanc")
+    out = apply_type_gate([red, mistyped_red, white], {"red"})
+    assert white not in out
+    assert red in out and mistyped_red in out
+    assert mistyped_red["wine_type"] == "red"
+
+
+def test_gate_keeps_unresolvable_null_benefit_of_doubt():
+    unknown = _c(wine_type=None, name="Chateau Mystere 2019")
+    out = apply_type_gate([unknown], {"red"})
+    assert unknown in out and unknown["wine_type"] is None
+
+
+def test_gate_noop_when_no_requested_types():
+    white = _c(wine_type="white", varietal="Chardonnay")
+    assert apply_type_gate([white], set()) == [white]
+
+
+def test_gate_fails_open_when_it_would_empty_the_pool():
+    whites = [_c(wine_type="white", varietal="Chardonnay"), _c(wine_type="white", varietal="Riesling")]
+    assert apply_type_gate(whites, {"red"}) == whites
