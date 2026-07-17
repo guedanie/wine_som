@@ -16,10 +16,15 @@ def test_active_stores_loaded():
 
 
 def test_inactive_stores_excluded():
-    """Stores marked active=false in the CSV are not in STORE_REGISTRY."""
-    inactive_ids = {"26", "84", "85", "102", "178", "262"}
+    """Every store marked active=false in the CSV is absent from STORE_REGISTRY.
+    Derived from the CSV so activating/deactivating stores never breaks it."""
+    import csv
+    csv_path = Path(__file__).parents[2] / "data" / "heb-stores.csv"
+    inactive_ids = {r["store_id"].strip() for r in csv.DictReader(open(csv_path))
+                    if r["active"].strip() == "false"}
+    assert inactive_ids, "expected at least one inactive store in the CSV"
     for sid in inactive_ids:
-        assert sid not in STORE_REGISTRY, f"store {sid} should be inactive"
+        assert sid not in STORE_REGISTRY, f"inactive store {sid} leaked into the registry"
 
 
 def test_store_record_shape():
