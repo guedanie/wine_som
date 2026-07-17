@@ -99,6 +99,21 @@ def test_detect_store_ignores_generic_retailer_word_only():
     assert detect_store("something red at heb", _NEARBY) is None
 
 
+def test_detect_store_no_false_positive_on_geographic_words():
+    """Common geo/descriptor words shared with wine vocabulary must not lock a
+    store: 'oaky'/'valley'/'heights' appear in both store names and wine talk."""
+    nearby = [
+        {"id": "s1", "name": "Lincoln Heights Market H-E-B"},
+        {"id": "s4", "name": "Oak Park Market H-E-B"},
+        {"id": "s5", "name": "Valley View Market H-E-B"},
+    ]
+    assert detect_store("an oaky red under $30", nearby) is None
+    assert detect_store("a napa valley cabernet", nearby) is None
+    assert detect_store("something from the heights", nearby) is None
+    # but the distinctive name token still resolves Lincoln Heights (typo-tolerant)
+    assert detect_store("bordeaux at lincon heights", nearby)["id"] == "s1"
+
+
 from recommendation.candidate_filters import merge_candidates
 
 

@@ -49,8 +49,15 @@ def requested_types_from(chip_types: Optional[List[str]],
 
 
 # Generic tokens that don't distinguish one store from another.
-_STORE_STOPWORDS = {"the", "and", "wine", "wines", "market", "shop", "store",
-                    "plus", "natural", "heb", "h-e-b", "heb's", "central"}
+_STORE_STOPWORDS = {
+    "the", "and", "wine", "wines", "market", "shop", "store", "plus",
+    "natural", "heb", "h-e-b", "heb's", "central",
+    # geographic / descriptor words that also appear in wine names & regions —
+    # too generic to distinguish a store, and prone to false fuzzy matches
+    "heights", "oak", "oaks", "valley", "park", "hill", "hills", "creek",
+    "ridge", "coast", "river", "springs", "grove", "lake", "mountain",
+    "village", "canyon", "vista", "view",
+}
 
 
 def _store_tokens(s: str) -> List[str]:
@@ -70,6 +77,7 @@ def detect_store(message: str, nearby_stores: List[Dict[str, Any]]) -> Optional[
         name_toks = _store_tokens(st.get("name", ""))
         score = sum(1 for nt in name_toks
                     if difflib.get_close_matches(nt, msg, n=1, cutoff=0.8))
+        # strict > keeps the first (nearest, since nearby_stores is distance-ordered) on ties
         if score > best_score:
             best, best_score = st, score
     return best if best_score >= 1 else None
