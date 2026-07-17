@@ -96,3 +96,41 @@ input JSON in field order: `narrative` → `picks` → `followup_suggestions`.
   inventory fetch already capped candidates at the slider max. Fail-soft: parse errors
   return `None` and the request proceeds on explicit fields only. The router skips
   parsing the default placeholder message (`"Recommend wines based on my preferences"`).
+
+### Candidate-fetch fix — intent-aware targeted fetch + type gate (2026-07-17)
+Live bug: the per-retailer 500-row breadth fetch is unordered/intent-blind, so a
+specific ask ("red Bordeaux blend at Lincoln Heights") could get sampled away
+before scoring ever saw it — the app wrongly said no match existed.
+
+- **New pure module `recommendation/candidate_filters.py`** (unit-tested,
+  `tests/test_candidate_filters.py`): `resolve_wine_type(wine)` infers a NULL
+  `wine_type` from varietal → name → first-grape (`utils.infer_wine_type`);
+  `apply_type_gate(candidates, requested_types)` resolves NULLs in place then
+  hard-drops candidates whose resolved type is known-and-not-requested (keeps
+  unresolvable None, fails open); `requested_types_from(chips, parsed)`;
+  `detect_store(message, nearby_stores)` (typo-tolerant fuzzy store-name match,
+  ignores generic geo/retailer words to dodge false positives); `merge_candidates`
+  (dedup by `(wine_id, store_ref)`).
+- **Targeted relevance fetch** (`api/routers/recommend.py`) — when the parsed
+  intent carries a `region` and/or `detect_store` hits, a small `.limit(300)`
+  query (region via `.ilike('wines.region', ...)`, store via `.eq('store_ref', ...)`)
+  fetches those exact matches within the 10-mile radius and merges them into the
+  pool, bypassing the unordered 500-row sample. Same staleness filter
+  (`_STALE_INVENTORY_DAYS`, fail-open) as the breadth fetch.
+- **Resolved-type hard gate** replaces the old raw `wine_type` filter — a
+  requested type never surfaces a conflicting type, while mis-typed NULL reds
+  (e.g. a "Bordeaux Red Wine" with `wine_type=NULL`) resolve to red and are kept.
+- **Type-aware breadth fetch** — `INVENTORY_SELECT` switched to `wines!inner(...)`
+  + `_apply_type_breadth_filter` constrains the 500-row query to
+  requested-type-OR-NULL (chip types only, since parse runs after the fetch; the
+  gate folds in the parsed type).
+- **Fuzzy store detection + boost** — a named store (typo-tolerant) guarantees
+  its matches into the pool and boosts them to the top; never hard-filters.
+- **Somm absence-hedging** (`recommendation/claude_client.py`) — hedges absence
+  to the surfaced set ("nothing matching turned up nearby") instead of claiming a
+  wine/style is absent from a store's full inventory.
+- **Verified end-to-end** (DB-level acceptance gate, zip 78209): `detect_store`
+  resolves "lincon heights"→Lincoln Heights; targeted fetch + red gate surface 4
+  red Bordeaux blends ≤$45 there (incl. a NULL-typed Château Saint-Sulpice) —
+  all previously dropped by the 500-sample. Rhône likewise surfaces its
+  qualifying red with rosés correctly gated out.
