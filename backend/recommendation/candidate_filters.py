@@ -36,3 +36,13 @@ def apply_type_gate(candidates: List[Dict[str, Any]],
     kept = [c for c in candidates
             if c.get("wine_type") is None or c["wine_type"] in requested_types]
     return kept or candidates
+
+
+def requested_types_from(chip_types: Optional[List[str]],
+                         parsed_type: Optional[str]) -> set:
+    """The set of wine types the user explicitly asked for — UI chips plus the
+    parsed message intent."""
+    types = set(t for t in (chip_types or []) if t)
+    if parsed_type:
+        types.add(parsed_type)
+    return types

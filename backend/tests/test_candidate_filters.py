@@ -62,3 +62,13 @@ def test_gate_noop_when_no_requested_types():
 def test_gate_fails_open_when_it_would_empty_the_pool():
     whites = [_c(wine_type="white", varietal="Chardonnay"), _c(wine_type="white", varietal="Riesling")]
     assert apply_type_gate(whites, {"red"}) == whites
+
+
+from recommendation.candidate_filters import requested_types_from
+
+
+def test_requested_types_union_of_chips_and_parsed_intent():
+    assert requested_types_from(["red"], None) == {"red"}
+    assert requested_types_from([], "white") == {"white"}
+    assert requested_types_from(["red"], "red") == {"red"}
+    assert requested_types_from([], None) == set()
