@@ -97,3 +97,21 @@ def test_detect_store_none_when_no_store_named():
 
 def test_detect_store_ignores_generic_retailer_word_only():
     assert detect_store("something red at heb", _NEARBY) is None
+
+
+from recommendation.candidate_filters import merge_candidates
+
+
+def test_merge_dedups_by_wine_and_store():
+    a = {"wine_id": "w1", "store_ref": "s1", "name": "A"}
+    b = {"wine_id": "w2", "store_ref": "s1", "name": "B"}
+    dup_a = {"wine_id": "w1", "store_ref": "s1", "name": "A"}
+    out = merge_candidates([a, b], [dup_a])
+    assert len(out) == 2
+
+
+def test_merge_adds_targeted_rows_absent_from_breadth():
+    breadth = [{"wine_id": "w1", "store_ref": "s1"}]
+    targeted = [{"wine_id": "w9", "store_ref": "s1"}]
+    out = merge_candidates(breadth, targeted)
+    assert {c["wine_id"] for c in out} == {"w1", "w9"}

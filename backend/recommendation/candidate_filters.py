@@ -73,3 +73,17 @@ def detect_store(message: str, nearby_stores: List[Dict[str, Any]]) -> Optional[
         if score > best_score:
             best, best_score = st, score
     return best if best_score >= 1 else None
+
+
+def merge_candidates(breadth: List[Dict[str, Any]],
+                     targeted: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Union breadth + targeted candidate dicts, deduped by (wine_id, store_ref)."""
+    seen = set()
+    out: List[Dict[str, Any]] = []
+    for c in list(breadth) + list(targeted):
+        key = (c.get("wine_id"), c.get("store_ref"))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(c)
+    return out
