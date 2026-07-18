@@ -151,15 +151,14 @@ def parent_region_for(appellation: Optional[str]) -> Optional[str]:
 # communes, Rhône, Alsace, bare regions like Tuscany/Piedmont/Douro) are
 # deliberately absent — they can't be typed from place alone. Keyed by _norm.
 _APPELLATION_TYPE_RAW = {
-    "white": ["Chablis", "Petit Chablis", "Sancerre", "Pouilly-Fumé", "Muscadet",
-              "Savennières", "Gavi", "Soave", "Vinho Verde", "Rueda",
-              "Rías Baixas", "Entre-Deux-Mers"],
+    "white": ["Chablis", "Petit Chablis", "Pouilly-Fumé", "Muscadet",
+              "Savennières", "Gavi", "Soave", "Entre-Deux-Mers"],
     "red": ["Brunello di Montalcino", "Rosso di Montalcino", "Barolo", "Barbaresco",
             "Chianti", "Chianti Classico", "Vino Nobile di Montepulciano",
             "Morellino di Scansano", "Amarone della Valpolicella"],
     "sparkling": ["Champagne", "Cava", "Prosecco", "Franciacorta", "Lambrusco",
                   "Crémant"],
-    "dessert": ["Sauternes", "Barsac", "Tokaji", "Recioto", "Vin Santo"],
+    "dessert": ["Sauternes", "Barsac", "Recioto", "Vin Santo"],
     "fortified": ["Port", "Porto", "Sherry", "Jerez", "Fino", "Manzanilla",
                   "Amontillado", "Oloroso", "Madeira", "Marsala", "Banyuls"],
 }

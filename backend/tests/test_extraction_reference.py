@@ -58,6 +58,14 @@ def test_wine_type_for_appellation_rejects_multicolor_and_unknown():
     assert wine_type_for_appellation(None, None) is None
 
 
+def test_wine_type_for_appellation_excludes_multicolor_appellations():
+    """These legally make more than one color/style — must not be typed from
+    place (a Sancerre Rouge / dry Tokaji must not be forced white/dessert)."""
+    from enrichment.extraction.reference import wine_type_for_appellation
+    for place in ["Sancerre", "Vinho Verde", "Rueda", "Rías Baixas", "Tokaji"]:
+        assert wine_type_for_appellation(None, place) is None, place
+
+
 def test_unaccented_rhone_canonicalizes():
     """21 prod wines sit under region 'Rhone' (no accent) fragmenting the
     catalog — plus 'Rhone Valley' variants."""
