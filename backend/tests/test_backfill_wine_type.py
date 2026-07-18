@@ -72,3 +72,9 @@ def test_non_wine_guard_does_not_over_reach_real_wines():
     assert plan_change(_row(name="Maple Creek Zinfandel", varietal="Zinfandel")) == {"wine_type": "red"}
     assert plan_change(_row(name="Sakonnet Vineyards Chardonnay", varietal="Chardonnay")) == {"wine_type": "white"}
     assert plan_change(_row(name="Duplin Sweet Muscadine Red", varietal=None)) == {"wine_type": "red"}  # muscadine IS a grape
+
+
+def test_plural_cocktails_are_skipped():
+    for junk in ["Dailys Wine Cocktails Tea Lemon",
+                 "Coral Agave Based Cocktails Variety Pack"]:
+        assert plan_change(_row(name=junk, varietal="Red Blend")) == {}, junk

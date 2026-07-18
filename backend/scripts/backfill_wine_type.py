@@ -64,7 +64,7 @@ _NON_WINE_MARKERS = (
     "sake", "junmai", "daiginjo", "ginjo", "nigori",
     "non-alcoholic", "non alcoholic", "nonalcoholic", "alcohol removed",
     "alcohol-removed", "zero proof", "kombucha", "seltzer", "hard cider",
-    "cider", "mead", "cocktail", "lemonade", "limeade", "iced tea",
+    "cider", "mead", "cocktail", "cocktails", "lemonade", "limeade", "iced tea",
     "sweet tea", "sparkling water", "tonic water", "energy drink",
     "maple syrup", "pancake", "waffle", "grapefruit", "fruit cup",
     "oatmeal", "grits", "fruit wine", "apple wine", "peach wine", "plum wine",
