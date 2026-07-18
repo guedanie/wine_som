@@ -9,18 +9,21 @@ def _fold(s: str) -> str:
     return "".join(ch for ch in s if not unicodedata.combining(ch)).lower()
 
 RED_VARIETALS = {
-    "cabernet sauvignon", "cabernet", "merlot", "pinot noir", "syrah", "shiraz",
-    "malbec", "zinfandel", "sangiovese", "tempranillo", "grenache", "red blend",
-    "petit verdot", "petite sirah", "mourvedre", "nebbiolo", "barbera", "dolcetto",
-    "montepulciano", "primitivo", "carmenere", "tannat",
+    "cabernet sauvignon", "cabernet", "cabernet franc", "merlot", "pinot noir",
+    "syrah", "shiraz", "malbec", "zinfandel", "sangiovese", "tempranillo",
+    "grenache", "garnacha", "red blend", "petit verdot", "petite sirah",
+    "mourvedre", "monastrell", "nebbiolo", "barbera", "dolcetto", "montepulciano",
+    "primitivo", "carmenere", "tannat", "gamay", "cinsault", "carignan",
+    "aglianico", "corvina", "pinotage", "nero d'avola",
     "touriga nacional", "touriga", "baga", "trincadeira", "tinto",
 }
 WHITE_VARIETALS = {
     "chardonnay", "sauvignon blanc", "pinot grigio", "pinot gris", "riesling",
-    "albarino", "albariño", "viognier", "white blend", "moscato", "muscat",
+    "albarino", "alvarinho", "viognier", "white blend", "moscato", "muscat",
     "gewurztraminer", "chenin blanc", "gruner veltliner", "vermentino",
-    "torrontes", "torrontés", "roussanne", "marsanne", "verdejo", "semillon",
-    "loureiro", "encruzado", "rabigato", "arinto", "alvarinho", "branco", "blanco",
+    "torrontes", "roussanne", "marsanne", "verdejo", "semillon", "garganega",
+    "trebbiano", "cortese", "melon de bourgogne", "fiano", "greco", "assyrtiko",
+    "furmint", "loureiro", "encruzado", "rabigato", "arinto", "branco", "blanco",
 }
 SPARKLING_TERMS = {"prosecco", "champagne", "cava", "sparkling", "cremant",
                    "frizzante", "espumante", "spumante", "pet nat", "pet-nat",
