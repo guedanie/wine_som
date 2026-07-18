@@ -67,3 +67,74 @@ def plan_change(row: Dict[str, Any]) -> Dict[str, Any]:
             return {"wine_type": t}
     t = wine_type_for_appellation(row.get("region"), row.get("sub_region"))
     return {"wine_type": t} if t else {}
+
+
+def fetch_null_type_wines(db, limit: int = 0) -> List[Dict[str, Any]]:
+    """All wines with wine_type NULL (paged)."""
+    wines, page, page_size = [], 0, 1000
+    while True:
+        rows = (db.table("wines")
+                .select("id,name,varietal,grapes,region,sub_region,wine_type")
+                .is_("wine_type", "null")
+                .order("id")
+                .range(page * page_size, (page + 1) * page_size - 1)
+                .execute().data)
+        wines.extend(rows)
+        page += 1
+        if len(rows) < page_size or (limit and len(wines) >= limit):
+            break
+    if limit:
+        wines = wines[:limit]
+    return wines
+
+
+def _notify_slack(text: str) -> None:
+    url = os.environ.get("SLACK_WEBHOOK_URL")
+    if not url:
+        return
+    try:
+        req = urllib.request.Request(
+            url, data=json.dumps({"text": text}).encode(),
+            headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=10)
+    except Exception as e:
+        print(f"slack notify failed: {e}")
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--limit", type=int, default=0)
+    args = ap.parse_args()
+
+    from db import get_service_client
+    db = get_service_client()
+
+    wines = fetch_null_type_wines(db, limit=args.limit)
+    print(f"examining {len(wines)} NULL-wine_type wines", flush=True)
+
+    by_type: Dict[str, int] = {}
+    changed = 0
+    for w in wines:
+        changes = plan_change(w)
+        if not changes:
+            continue
+        changed += 1
+        t = changes["wine_type"]
+        by_type[t] = by_type.get(t, 0) + 1
+        tag = "DRY " if args.dry_run else ""
+        print(f'{tag}{w["id"][:8]} | {(w["name"] or "")[:55]} | {t}', flush=True)
+        if not args.dry_run:
+            db.table("wines").update(changes).eq("id", w["id"]).execute()
+
+    dist = ", ".join(f"{n} {t}" for t, n in sorted(by_type.items(), key=lambda x: -x[1]))
+    summary = (f"wine_type backfill{' (dry run)' if args.dry_run else ''}: "
+               f"{changed} of {len(wines)} NULL-type wines filled ({dist}), "
+               f"{len(wines) - changed} left NULL")
+    print(summary, flush=True)
+    if not args.dry_run:
+        _notify_slack(f":wine_glass: {summary}")
+
+
+if __name__ == "__main__":
+    main()
