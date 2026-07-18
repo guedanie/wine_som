@@ -44,6 +44,15 @@ def test_ancestral_brand_word_does_not_force_sparkling():
     assert infer_wine_type("Domaine X Méthode Ancestrale") == "sparkling"
 
 
+def test_port_sherry_madeira_are_fortified_not_dessert():
+    assert infer_wine_type("Taylor Fladgate 10 Year Tawny Port") == "fortified"
+    assert infer_wine_type("Lustau Fino Sherry") == "fortified"
+    assert infer_wine_type("Blandy's Madeira") == "fortified"
+    # true dessert wines unchanged
+    assert infer_wine_type("Château d'Yquem Sauternes") == "dessert"
+    assert infer_wine_type("Inniskillin Ice Wine") == "dessert"
+
+
 def test_infer_covers_core_grapes():
     from enrichment.extraction.reference import CORE_GRAPES
     for g in CORE_GRAPES["red"]:

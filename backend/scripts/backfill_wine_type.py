@@ -31,6 +31,12 @@ from enrichment.extraction.reference import (                           # noqa: 
 )
 
 
+# Appellation keys too ambiguous to word-match inside a free-text NAME (common
+# words / surnames). They still resolve via the authoritative region/sub_region
+# path in wine_type_for_appellation — just not from a name scan.
+_NAME_SCAN_SKIP = {"fino", "marsala", "jerez", "gavi"}
+
+
 def _appellation_in_text(text: Optional[str]) -> Optional[str]:
     """Scan free text (e.g. a wine name) for a definitionally single-color
     appellation ('Domaine X Chablis 2022' -> white) using the same map
@@ -41,6 +47,8 @@ def _appellation_in_text(text: Optional[str]) -> Optional[str]:
         return None
     hay = f" {_region_norm(text)} "
     for app_norm, t in APPELLATION_WINE_TYPE.items():
+        if app_norm in _NAME_SCAN_SKIP:
+            continue
         if f" {app_norm} " in hay:
             return t
     return None

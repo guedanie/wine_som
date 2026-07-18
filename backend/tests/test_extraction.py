@@ -76,7 +76,7 @@ def test_infer_wine_type_uses_word_boundaries():
     assert infer_wine_type('Portuguese Red Wine') == 'red'
     assert infer_wine_type('Patio Pounder Vino Verde Portuguese White Wine') == 'white'
     assert infer_wine_type('Primrose Hill Chardonnay') == 'white'
-    assert infer_wine_type('Ruby Port') == 'dessert'
+    assert infer_wine_type('Ruby Port') == 'fortified'
     assert infer_wine_type('Rosé of Pinot Noir') == 'rosé'
 
 
@@ -86,7 +86,7 @@ def test_infer_wine_type_knows_portuguese_terms():
     assert infer_wine_type('Ameal, Vinho Verde, Portugal, Loureiro, 2023') == 'white'
     assert infer_wine_type('Xisto Ilimitado Branco, Douro, Rabigato Blend') == 'white'
     assert infer_wine_type('Espumante Bruto Natural, Bairrada') == 'sparkling'
-    assert infer_wine_type('Quinta do Infantado, Tawny-Medium Dry, Porto') == 'dessert'
+    assert infer_wine_type('Quinta do Infantado, Tawny-Medium Dry, Porto') == 'fortified'
     assert infer_wine_type('Vinho Tinto Reserva') == 'red'
 
 

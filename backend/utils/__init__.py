@@ -30,7 +30,9 @@ SPARKLING_TERMS = {"prosecco", "champagne", "cava", "sparkling", "cremant",
                    "petnat", "petillant", "col fondo", "methode ancestrale",
                    "lambrusco", "franciacorta"}
 ROSE_TERMS = {"rose", "rosado", "rosato"}
-DESSERT_TERMS = {"port", "porto", "tawny", "sherry", "madeira", "sauternes", "ice wine", "icewine", "late harvest"}
+FORTIFIED_TERMS = {"port", "porto", "tawny", "sherry", "jerez", "madeira",
+                   "banyuls", "oloroso", "amontillado", "manzanilla"}
+DESSERT_TERMS = {"sauternes", "ice wine", "icewine", "late harvest"}
 
 
 def infer_wine_type(text: str) -> Optional[str]:
@@ -63,6 +65,8 @@ def infer_wine_type(text: str) -> Optional[str]:
         return "sparkling"
     if any(_has(t) for t in ROSE_TERMS):
         return "rosé"
+    if any(_has(t) for t in FORTIFIED_TERMS):
+        return "fortified"
     if any(_has(t) for t in DESSERT_TERMS):
         return "dessert"
     if any(_has(t) for t in RED_VARIETALS):

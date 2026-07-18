@@ -39,3 +39,11 @@ def test_noop_when_unresolvable():
 
 def test_pet_nat_resolves_sparkling_not_red():
     assert plan_change(_row(name="Old World Winery Zinfandel Pet Nat")) == {"wine_type": "sparkling"}
+
+
+def test_ambiguous_appellation_words_in_name_do_not_type():
+    # 'fino'/'marsala'/'jerez'/'gavi' as name homonyms must not force a type
+    assert plan_change(_row(name="Fino House Cuvee Red 2020")) == {"wine_type": "red"}
+    assert plan_change(_row(name="Marsala Family Estate 2021")) == {}
+    # explicit region path still works for a real Jerez sherry
+    assert plan_change(_row(name="Bodega X", region="Other Spain", sub_region="Jerez")) == {"wine_type": "fortified"}
