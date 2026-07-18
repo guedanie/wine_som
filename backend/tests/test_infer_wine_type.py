@@ -37,6 +37,13 @@ def test_newly_added_grapes_resolve():
         assert infer_wine_type(white) == "white", white
 
 
+def test_ancestral_brand_word_does_not_force_sparkling():
+    """'Ancestral' is a common English brand word — it must not override a real
+    varietal signal (méthode ancestrale is still caught by its own phrase)."""
+    assert infer_wine_type("Ancestral Vines Cabernet") == "red"
+    assert infer_wine_type("Domaine X Méthode Ancestrale") == "sparkling"
+
+
 def test_infer_covers_core_grapes():
     from enrichment.extraction.reference import CORE_GRAPES
     for g in CORE_GRAPES["red"]:

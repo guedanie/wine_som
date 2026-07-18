@@ -28,13 +28,13 @@ WHITE_VARIETALS = {
 SPARKLING_TERMS = {"prosecco", "champagne", "cava", "sparkling", "cremant",
                    "frizzante", "espumante", "spumante", "pet nat", "pet-nat",
                    "petnat", "petillant", "col fondo", "methode ancestrale",
-                   "ancestral", "lambrusco", "franciacorta"}
-ROSE_TERMS = {"rosé", "rose", "rosado", "rosato"}
+                   "lambrusco", "franciacorta"}
+ROSE_TERMS = {"rose", "rosado", "rosato"}
 DESSERT_TERMS = {"port", "porto", "tawny", "sherry", "madeira", "sauternes", "ice wine", "icewine", "late harvest"}
 
 
 def infer_wine_type(text: str) -> Optional[str]:
-    """Infer wine type (red/white/rosé/sparkling/dessert) from varietal or category text.
+    """Infer wine type (red/white/rosé/sparkling/dessert/orange/fortified) from varietal or category text.
     Handles both Shopify product_type strings ('Red Wine') and varietal names ('Cabernet Sauvignon').
     """
     s = _fold(text)
