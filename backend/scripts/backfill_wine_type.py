@@ -19,6 +19,7 @@ Run from backend/ (../.env resolves):
 import argparse
 import json
 import os
+import re
 import sys
 import urllib.request
 from typing import Any, Dict, List, Optional
@@ -54,9 +55,36 @@ def _appellation_in_text(text: Optional[str]) -> Optional[str]:
     return None
 
 
+# Non-grape-wine catalog noise (grocery scrapers pull these into `wines`): sake,
+# cocktails, non-alcoholic drinks, cider/mead, and food. The backfill leaves them
+# NULL rather than stamp a spurious wine_type from a color/style word in the name.
+# Distinctive tokens only, word-boundary matched, to avoid skipping real wines
+# (a 'Maple Creek' winery, 'Sakonnet Vineyards', a 'Muscadine' grape wine).
+_NON_WINE_MARKERS = (
+    "sake", "junmai", "daiginjo", "ginjo", "nigori",
+    "non-alcoholic", "non alcoholic", "nonalcoholic", "alcohol removed",
+    "alcohol-removed", "zero proof", "kombucha", "seltzer", "hard cider",
+    "cider", "mead", "cocktail", "lemonade", "limeade", "iced tea",
+    "sweet tea", "sparkling water", "tonic water", "energy drink",
+    "maple syrup", "pancake", "waffle", "grapefruit", "fruit cup",
+    "oatmeal", "grits", "fruit wine", "apple wine", "peach wine", "plum wine",
+    "syrup",
+)
+
+
+def _is_non_wine(name: Optional[str]) -> bool:
+    """True when the name marks a non-grape-wine product that must not be typed."""
+    if not name:
+        return False
+    low = name.lower()
+    return any(re.search(rf"\b{re.escape(m)}\b", low) for m in _NON_WINE_MARKERS)
+
+
 def plan_change(row: Dict[str, Any]) -> Dict[str, Any]:
     """Return {"wine_type": <resolved>} to write, or {} for a no-op."""
     if row.get("wine_type"):
+        return {}
+    if _is_non_wine(row.get("name")):
         return {}
     varietal, name = row.get("varietal"), row.get("name")
     grape = (row.get("grapes") or [None])[0]

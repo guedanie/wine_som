@@ -47,3 +47,28 @@ def test_ambiguous_appellation_words_in_name_do_not_type():
     assert plan_change(_row(name="Marsala Family Estate 2021")) == {}
     # explicit region path still works for a real Jerez sherry
     assert plan_change(_row(name="Bodega X", region="Other Spain", sub_region="Jerez")) == {"wine_type": "fortified"}
+
+
+def test_non_wine_products_are_not_typed():
+    """Grocery/beverage catalog noise (sake, cocktails, food) must stay NULL —
+    they have color/style words but aren't grape wine."""
+    for junk in [
+        "Hiro Sake Red Junmai", "Ninki-ichi Junmai Daiginjo Sparkling Sake",
+        "Stella Rosa Naturals Peach Non-alcoholic Wine",
+        "Coral Sparkling Cocktail Cucumber & Watermelon",
+        "Simple Truth Organic Dark Color Maple Syrup",
+        "Sunrise Flour Mill Heritage Pancake Mix",
+        "Kroger Red Grapefruit Cup in Extra Light Syrup",
+        "Rama Caida Sidra Demi Sec Sparkling Apple Wine",
+        "Country Crush Fruit Wine Co Peach Fruit Wine",
+        "Ozeki Hana Awaka Sparkling Sake",
+    ]:
+        assert plan_change(_row(name=junk, varietal="Red Blend")) == {}, junk
+
+
+def test_non_wine_guard_does_not_over_reach_real_wines():
+    """Real wines whose names merely contain a substring of a junk token must
+    still be typed (word-boundary matching, not substring)."""
+    assert plan_change(_row(name="Maple Creek Zinfandel", varietal="Zinfandel")) == {"wine_type": "red"}
+    assert plan_change(_row(name="Sakonnet Vineyards Chardonnay", varietal="Chardonnay")) == {"wine_type": "white"}
+    assert plan_change(_row(name="Duplin Sweet Muscadine Red", varietal=None)) == {"wine_type": "red"}  # muscadine IS a grape
