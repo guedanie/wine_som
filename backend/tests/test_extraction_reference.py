@@ -38,6 +38,26 @@ def test_cheat_sheets_are_populated():
     assert len(FEW_SHOT) >= 4
 
 
+def test_wine_type_for_appellation_single_color():
+    from enrichment.extraction.reference import wine_type_for_appellation
+    assert wine_type_for_appellation("Burgundy", "Chablis") == "white"
+    assert wine_type_for_appellation("Champagne", None) == "sparkling"
+    assert wine_type_for_appellation("Tuscany", "Brunello di Montalcino") == "red"
+    assert wine_type_for_appellation("Bordeaux", "Sauternes") == "dessert"
+    assert wine_type_for_appellation("Other Spain", "Jerez") == "fortified"
+    assert wine_type_for_appellation("Douro", "Port") == "fortified"
+
+
+def test_wine_type_for_appellation_rejects_multicolor_and_unknown():
+    from enrichment.extraction.reference import wine_type_for_appellation
+    # multi-color / unmapped places can't be typed from place -> None
+    assert wine_type_for_appellation("Burgundy", "Meursault") is None
+    assert wine_type_for_appellation("Bordeaux", "Margaux") is None
+    assert wine_type_for_appellation("Tuscany", None) is None
+    assert wine_type_for_appellation("Douro", None) is None
+    assert wine_type_for_appellation(None, None) is None
+
+
 def test_unaccented_rhone_canonicalizes():
     """21 prod wines sit under region 'Rhone' (no accent) fragmenting the
     catalog — plus 'Rhone Valley' variants."""

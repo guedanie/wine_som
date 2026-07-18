@@ -146,6 +146,41 @@ def parent_region_for(appellation: Optional[str]) -> Optional[str]:
     return _APPELLATION_INDEX.get(_norm(appellation))
 
 
+# Definitionally single-color/style appellations (and a few single-style
+# regions) → wine_type. Multi-color places (Burgundy villages, Bordeaux
+# communes, Rhône, Alsace, bare regions like Tuscany/Piedmont/Douro) are
+# deliberately absent — they can't be typed from place alone. Keyed by _norm.
+_APPELLATION_TYPE_RAW = {
+    "white": ["Chablis", "Petit Chablis", "Sancerre", "Pouilly-Fumé", "Muscadet",
+              "Savennières", "Gavi", "Soave", "Vinho Verde", "Rueda",
+              "Rías Baixas", "Entre-Deux-Mers"],
+    "red": ["Brunello di Montalcino", "Rosso di Montalcino", "Barolo", "Barbaresco",
+            "Chianti", "Chianti Classico", "Vino Nobile di Montepulciano",
+            "Morellino di Scansano", "Amarone della Valpolicella"],
+    "sparkling": ["Champagne", "Cava", "Prosecco", "Franciacorta", "Lambrusco",
+                  "Crémant"],
+    "dessert": ["Sauternes", "Barsac", "Tokaji", "Recioto", "Vin Santo"],
+    "fortified": ["Port", "Porto", "Sherry", "Jerez", "Fino", "Manzanilla",
+                  "Amontillado", "Oloroso", "Madeira", "Marsala", "Banyuls"],
+}
+APPELLATION_WINE_TYPE = {}
+for _t, _names in _APPELLATION_TYPE_RAW.items():
+    for _n in _names:
+        APPELLATION_WINE_TYPE[_norm(_n)] = _t
+
+
+def wine_type_for_appellation(region, sub_region) -> Optional[str]:
+    """Wine type from a definitionally single-color/style appellation, checking
+    the (finer) sub_region first, then the region. None when the place is
+    multi-color or unknown."""
+    for place in (sub_region, region):
+        if place:
+            t = APPELLATION_WINE_TYPE.get(_norm(place))
+            if t:
+                return t
+    return None
+
+
 # ── deterministic normalization (lifts every extractor backend) ──────────────
 
 # Parent region -> country. Keyed by canonical region name (APPELLATIONS keys +
