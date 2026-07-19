@@ -131,6 +131,7 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
         if wine.get("varietal"):
             grapes.add(_norm(wine["varietal"]))   # symmetric with _norm_liked
         region = _norm(wine.get("region"))
+        country = _norm(wine.get("country"))
 
         # avoid exclusion: search grapes, region, flavor tags, and notes
         haystack = " ".join([notes, region, " ".join(grapes), " ".join(tags)])
@@ -153,7 +154,9 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
                 or _blend_match(want_grapes, wine.get("wine_type"), wine.get("grapes"))):
             score += _W_GRAPE
 
-        if want_region and region and (want_region in region or region in want_region):
+        if want_region and (
+                (region and (want_region in region or region in want_region))
+                or (country and (want_region in country or country in want_region))):
             score += _W_REGION
 
         if want_flavors:

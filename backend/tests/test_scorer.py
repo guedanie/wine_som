@@ -330,3 +330,16 @@ def test_candidate_varietal_now_counts_for_grape_requests():
     result = score_candidates(_intent(grapes=["Tempranillo"]),
                               [other, varietal_only])
     assert result[0]["name"] == "Varietal Only"
+
+
+def test_region_intent_boosts_a_wine_matched_by_country():
+    """The intent parser puts a country ('Argentina') in the region field, but
+    wines are stored region=Mendoza / country=Argentina. The region boost must
+    credit a country match so 'from Argentina' ranks Argentine wines up."""
+    other = _wine("Chilean White", wine_type="white", varietal="Sauvignon Blanc",
+                  region="Casablanca Valley", country="Chile")
+    argentine = _wine("Mendoza White", wine_type="white", varietal="Torrontés",
+                      region="Mendoza", country="Argentina")
+    result = score_candidates(_intent(wine_type="white", region="Argentina"),
+                              [other, argentine])
+    assert result[0]["name"] == "Mendoza White"
