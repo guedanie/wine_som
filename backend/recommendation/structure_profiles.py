@@ -155,12 +155,24 @@ def structure_to_persist(varietal: Optional[str], grapes: Optional[List[str]],
                          existing: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """Return the table structure to WRITE for a wine, or None to skip.
 
-    Precedence: never overwrite authoritative structure. An existing profile is
-    authoritative unless it's empty or was itself written by the table (source
-    == 'table', safe to refresh). Vivino (source 'vivino') and GrapeMinds (real
-    data, no source key) are both preserved. Returns None when there's no grape
-    to anchor on.
+    Precedence: vivino/grapeminds > table > llm. An existing profile is
+    refreshable only if its source is explicitly 'table' or 'llm' (both are
+    safe to overwrite with the table, which beats an LLM guess on body/
+    tannins/acidity). Vivino (source 'vivino') and GrapeMinds (real data, no
+    source key) are both preserved. When refreshing an 'llm' profile, its
+    sweetness (which the table doesn't provide) is carried over. Returns None
+    when there's no grape to anchor on.
     """
-    if existing and existing.get("source") != "table":
-        return None   # vivino / grapeminds / any non-table authoritative data
-    return structure_for(varietal, grapes, region)
+    if existing:
+        src = existing.get("source")
+        if src not in ("table", "llm"):   # None (grapeminds), 'vivino', etc. -> preserve
+            return None
+    base = structure_for(varietal, grapes, region)
+    if base is None:
+        return None   # no grape to anchor — leave any existing profile as-is
+    if existing and existing.get("source") == "llm" and existing.get("sweetness") is not None:
+        base = dict(base)
+        base["sweetness"] = existing["sweetness"]
+        if existing.get("sweetness_source"):
+            base["sweetness_source"] = existing["sweetness_source"]
+    return base

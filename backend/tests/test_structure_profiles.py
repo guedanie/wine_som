@@ -122,3 +122,30 @@ def test_persist_recomputes_prior_table_entry():
 def test_persist_none_when_no_grape():
     from recommendation.structure_profiles import structure_to_persist
     assert structure_to_persist("Frankenwine", None, "Napa Valley", existing={}) is None
+
+
+def test_persist_refreshes_llm_profile_keeping_its_sweetness():
+    from recommendation.structure_profiles import structure_to_persist
+    llm = {"body": 5, "tannins": 4, "acidity": 6, "sweetness": 8, "source": "llm",
+           "sweetness_source": "llm"}
+    out = structure_to_persist("Cabernet Sauvignon", ["Cabernet Sauvignon"], "Napa Valley", llm)
+    assert out is not None                       # table now anchors -> refresh
+    assert out["source"] == "table"
+    assert out["sweetness"] == 8                 # llm sweetness preserved
+    assert out["body"] >= 7                       # table's Cab body wins over the llm 5
+
+
+def test_persist_still_preserves_vivino_and_grapeminds():
+    from recommendation.structure_profiles import structure_to_persist
+    assert structure_to_persist("Merlot", ["Merlot"], None,
+                                {"body": 6, "source": "vivino"}) is None
+    assert structure_to_persist("Merlot", ["Merlot"], None,
+                                {"body": 6}) is None   # grapeminds (no source key)
+
+
+def test_persist_llm_profile_with_no_table_anchor_is_left_alone():
+    from recommendation.structure_profiles import structure_to_persist
+    # an llm blend the table STILL can't anchor -> no table refresh (return None)
+    llm = {"body": 5, "tannins": 4, "acidity": 6, "sweetness": 3, "source": "llm"}
+    assert structure_to_persist("Xinomavro-Moschofilero blend",
+                                ["Xinomavro", "Moschofilero"], None, llm) is None
