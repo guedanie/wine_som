@@ -84,3 +84,147 @@ def validate_batch(resp: Dict[str, Any],
             continue
         clean[wid] = r
     return clean, bad_id, bad_val
+
+
+def _call_ollama(wines: List[Dict[str, Any]], timeout: int = 180) -> Dict[str, Any]:
+    """One ollama batch call using the benchmark's tuned prompt."""
+    listing = "\n".join(
+        f'- wine_id={w["id"]} | name="{w.get("name","")}" | type={w.get("wine_type")} '
+        f'| desc="{(w.get("desc") or "")[:300]}"' for w in wines)
+    body = json.dumps({
+        "model": MODEL,
+        "messages": [{"role": "system", "content": _SYSTEM},
+                     {"role": "user", "content": "Estimate structure:\n" + listing}],
+        "stream": False, "format": "json", "options": {"temperature": 0},
+    }).encode()
+    req = urllib.request.Request(OLLAMA_URL, data=body,
+                                 headers={"Content-Type": "application/json"})
+    data = json.loads(urllib.request.urlopen(req, timeout=timeout).read())
+    return json.loads((data.get("message") or {}).get("content") or "{}")
+
+
+def _fetch_eligible(db, limit: int) -> Tuple[List[dict], List[dict]]:
+    """Return (sweetness_rows, blend_rows), each row {id,name,desc,wine_type,
+    varietal,grapes,region,profile}. Paged; filtered client-side."""
+    sweetness, blends, page = [], [], 0
+    while True:
+        rows = (db.table("wines")
+                .select("id,name,varietal,region,grapes,wine_type,"
+                        "wine_details(structure_profile,tasting_notes)")
+                .order("id").range(page * 1000, (page + 1) * 1000 - 1).execute().data)
+        if not rows:
+            break
+        for w in rows:
+            wd = w.get("wine_details") or {}
+            wd = wd[0] if isinstance(wd, list) else wd
+            profile = wd.get("structure_profile")
+            base = {"id": w["id"], "name": w.get("name"),
+                    "desc": wd.get("tasting_notes"), "wine_type": w.get("wine_type"),
+                    "varietal": w.get("varietal"), "grapes": w.get("grapes") or [],
+                    "region": w.get("region"), "profile": profile}
+            if needs_sweetness(profile):
+                sweetness.append(base)
+            elif needs_full_profile(w, has_profile=bool(profile)):
+                blends.append(base)
+        page += 1
+        if limit and (len(sweetness) + len(blends)) >= limit:
+            break
+    if limit:
+        merged = (sweetness + blends)[:limit]
+        s_ids = {r["id"] for r in sweetness}
+        sweetness = [r for r in merged if r["id"] in s_ids]
+        blends = [r for r in merged if r["id"] not in s_ids]
+    return sweetness, blends
+
+
+def _notify_slack(text: str) -> None:
+    url = os.environ.get("SLACK_WEBHOOK_URL")
+    if not url:
+        return
+    try:
+        req = urllib.request.Request(
+            url, data=json.dumps({"text": text}).encode(),
+            headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=10)
+    except Exception as e:
+        print(f"slack notify failed: {e}")
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--batch", type=int, default=8)
+    args = ap.parse_args()
+
+    from db import get_service_client
+    import uuid
+    from datetime import datetime, timezone
+    db = get_service_client()
+
+    run_id = str(uuid.uuid4())
+    if not args.dry_run:
+        db.table("scraper_runs").insert({
+            "id": run_id, "retailer_name": "Structure LLM (local qwen)",
+            "status": "running"}).execute()
+
+    sweetness, blends, filled_s, filled_b, bad = [], [], 0, 0, 0
+    try:
+        sweetness, blends = _fetch_eligible(db, args.limit)
+        print(f"eligible: {len(sweetness)} sweetness-fill, {len(blends)} unanchored blends", flush=True)
+
+        def _run(rows, is_full):
+            nonlocal filled_s, filled_b, bad
+            for i in range(0, len(rows), args.batch):
+                chunk = rows[i:i + args.batch]
+                ids = {r["id"] for r in chunk}
+                try:
+                    resp = _call_ollama(chunk)
+                except Exception as e:
+                    print(f"  batch {i // args.batch} call failed: {e}", flush=True)
+                    continue
+                clean, bad_id, bad_val = validate_batch(resp, ids)
+                bad += bad_id + bad_val
+                by_id = {r["id"]: r for r in chunk}
+                for wid, row in clean.items():
+                    if is_full:
+                        prof = full_profile_from(row)
+                        if prof is None:
+                            bad += 1
+                            continue
+                    else:
+                        prof = merge_sweetness(by_id[wid]["profile"],
+                                               clamp_1_10(row["sweetness"]))
+                    if not args.dry_run:
+                        db.table("wine_details").upsert(
+                            {"wine_id": wid, "structure_profile": prof},
+                            on_conflict="wine_id").execute()
+                    if is_full:
+                        filled_b += 1
+                    else:
+                        filled_s += 1
+                print(f"  {('blend' if is_full else 'sweetness')} {i + len(chunk)}/{len(rows)} "
+                      f"| filled s={filled_s} b={filled_b} bad={bad}", flush=True)
+
+        _run(sweetness, is_full=False)
+        _run(blends, is_full=True)
+
+        summary = (f"Structure LLM{' (dry run)' if args.dry_run else ''}: "
+                   f"{filled_s} sweetness filled, {filled_b} blends profiled, "
+                   f"{bad} dropped (bad id/value)")
+        print(summary, flush=True)
+        if not args.dry_run:
+            db.table("scraper_runs").update({
+                "status": "success", "records_updated": filled_s + filled_b,
+                "completed_at": datetime.now(timezone.utc).isoformat()}).eq("id", run_id).execute()
+            _notify_slack(f":test_tube: {summary}")
+    except Exception as e:
+        if not args.dry_run:
+            db.table("scraper_runs").update({
+                "status": "failed", "error_message": str(e)[:500],
+                "completed_at": datetime.now(timezone.utc).isoformat()}).eq("id", run_id).execute()
+        raise
+
+
+if __name__ == "__main__":
+    main()
