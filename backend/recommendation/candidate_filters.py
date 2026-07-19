@@ -41,10 +41,14 @@ def apply_type_gate(candidates: List[Dict[str, Any]],
 def requested_types_from(chip_types: Optional[List[str]],
                          parsed_type: Optional[str]) -> set:
     """The set of wine types the user explicitly asked for — UI chips plus the
-    parsed message intent."""
+    parsed message intent. 'dessert' also accepts 'fortified' (the intent enum
+    has no fortified value, so Port/Sherry — typed fortified — surface under a
+    dessert/after-dinner ask). One-directional."""
     types = set(t for t in (chip_types or []) if t)
     if parsed_type:
         types.add(parsed_type)
+    if "dessert" in types:
+        types.add("fortified")
     return types
 
 

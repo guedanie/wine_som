@@ -130,3 +130,14 @@ def test_merge_adds_targeted_rows_absent_from_breadth():
     targeted = [{"wine_id": "w9", "store_ref": "s1"}]
     out = merge_candidates(breadth, targeted)
     assert {c["wine_id"] for c in out} == {"w1", "w9"}
+
+
+def test_dessert_request_also_accepts_fortified():
+    """The intent enum can't express 'fortified' (only 'dessert'), so a
+    dessert/after-dinner request must also surface Port/Sherry (item 30 typed
+    them fortified). One-directional: fortified requests stay strict."""
+    assert requested_types_from(["dessert"], None) == {"dessert", "fortified"}
+    assert requested_types_from([], "dessert") == {"dessert", "fortified"}
+    assert requested_types_from(["red"], None) == {"red"}
+    assert requested_types_from(["fortified"], None) == {"fortified"}
+    assert requested_types_from([], None) == set()
