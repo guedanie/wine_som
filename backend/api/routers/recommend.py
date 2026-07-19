@@ -373,7 +373,8 @@ async def recommend(req: RecommendRequest):
                  .in_("store_ref", nearby_ids).eq("in_stock", True)
                  .gte("price", req.budget_min).lte("price", req.budget_max))
             if region:
-                q = q.ilike("wines.region", f"%{region}%")
+                q = q.or_(f"region.ilike.%{region}%,country.ilike.%{region}%",
+                          reference_table="wines")
             if detected_store:
                 q = q.eq("store_ref", detected_store["id"])
             if since:
