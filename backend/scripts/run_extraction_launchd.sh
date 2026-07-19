@@ -35,8 +35,11 @@ PERSIST_EXIT=0
     echo "--- chaining persist_structure.py ---"
     "$PY" scripts/persist_structure.py
     PERSIST_EXIT=$?
+    echo "--- chaining backfill_structure_llm.py (sweetness + unanchored blends) ---"
+    "$PY" -m scripts.backfill_structure_llm --limit 500
+    STRUCT_LLM_EXIT=$?
   fi
-  echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') | extraction run end (extract=$EXTRACT_EXIT persist=$PERSIST_EXIT skipped=$SKIPPED) ==="
+  echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') | extraction run end (extract=$EXTRACT_EXIT persist=$PERSIST_EXIT structllm=$STRUCT_LLM_EXIT skipped=$SKIPPED) ==="
   echo ""
 } >> "$LOG" 2>&1
 DURATION=$(( $(date +%s) - START ))
