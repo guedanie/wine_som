@@ -90,6 +90,7 @@ def _call_ollama(wines: List[Dict[str, Any]], timeout: int = 180) -> Dict[str, A
     """One ollama batch call using the benchmark's tuned prompt."""
     listing = "\n".join(
         f'- wine_id={w["id"]} | name="{w.get("name","")}" | type={w.get("wine_type")} '
+        f'| grapes="{", ".join(w.get("grapes") or [])}" '
         f'| desc="{(w.get("desc") or "")[:300]}"' for w in wines)
     body = json.dumps({
         "model": MODEL,
@@ -130,7 +131,7 @@ def _fetch_eligible(db, limit: int) -> Tuple[List[dict], List[dict]]:
         if limit and (len(sweetness) + len(blends)) >= limit:
             break
     if limit:
-        merged = (sweetness + blends)[:limit]
+        merged = (blends + sweetness)[:limit]
         s_ids = {r["id"] for r in sweetness}
         sweetness = [r for r in merged if r["id"] in s_ids]
         blends = [r for r in merged if r["id"] not in s_ids]
@@ -206,8 +207,8 @@ def main() -> None:
                 print(f"  {('blend' if is_full else 'sweetness')} {i + len(chunk)}/{len(rows)} "
                       f"| filled s={filled_s} b={filled_b} bad={bad}", flush=True)
 
-        _run(sweetness, is_full=False)
         _run(blends, is_full=True)
+        _run(sweetness, is_full=False)
 
         summary = (f"Structure LLM{' (dry run)' if args.dry_run else ''}: "
                    f"{filled_s} sweetness filled, {filled_b} blends profiled, "
