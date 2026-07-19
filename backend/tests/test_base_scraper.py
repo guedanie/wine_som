@@ -339,3 +339,48 @@ def test_upsert_wines_writes_canonical_column():
                                  zip_code="78209", upc="073395212314")]
     scraper._upsert_wines(items)
     assert "73395212314" in db.rows   # canonical core stored as key
+
+
+# ── deadlock/serialization retry (concurrent scrapers hitting the same rows) ──
+import pytest
+import scrapers.base as _base
+from postgrest.exceptions import APIError
+
+
+def _pg_error(code):
+    return APIError({"message": "err", "code": code, "hint": None, "details": None})
+
+
+def test_execute_with_retry_retries_transient_deadlock(monkeypatch):
+    monkeypatch.setattr(_base.time, "sleep", lambda s: None)
+    calls = {"n": 0}
+
+    class _Q:
+        def execute(self):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise _pg_error("40P01")   # deadlock_detected
+            return "ok"
+
+    assert _base._execute_with_retry(_Q()) == "ok"
+    assert calls["n"] == 3
+
+
+def test_execute_with_retry_propagates_non_retryable():
+    class _Q:
+        def execute(self):
+            raise _pg_error("42703")       # undefined_column — not transient
+
+    with pytest.raises(APIError):
+        _base._execute_with_retry(_Q())
+
+
+def test_execute_with_retry_gives_up_after_exhausting_retries(monkeypatch):
+    monkeypatch.setattr(_base.time, "sleep", lambda s: None)
+
+    class _Q:
+        def execute(self):
+            raise _pg_error("40001")       # serialization_failure, always
+
+    with pytest.raises(APIError):
+        _base._execute_with_retry(_Q(), retries=3)

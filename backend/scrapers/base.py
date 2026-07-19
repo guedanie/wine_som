@@ -6,14 +6,37 @@ Each scraper is responsible for:
   2. Parsing HTML into RetailInventoryItem dataclasses
   3. Upserting results to Supabase and logging the run to scraper_runs
 """
+import time
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional, List
 
+from postgrest.exceptions import APIError
+
 from db import get_service_client
 from utils.geo import zip_to_centroid
+
+# Transient Postgres errors from two writers touching the same rows at once —
+# 40P01 deadlock_detected, 40001 serialization_failure. Retryable: the loser
+# aborts, the winner commits, and a retry almost always clears. This surfaced
+# when Spec's moved to the mini (Sun 10:00 UTC) and overlapped the still-running
+# GitHub weekly scrape, both upserting overlapping wines on `upc_canonical`.
+_RETRYABLE_PG_CODES = {"40P01", "40001"}
+
+
+def _execute_with_retry(query, retries: int = 4, base_delay: float = 0.5):
+    """Execute a supabase query, retrying transient deadlock/serialization
+    failures with exponential backoff. Non-retryable errors propagate at once."""
+    for attempt in range(retries):
+        try:
+            return query.execute()
+        except APIError as e:
+            if getattr(e, "code", None) in _RETRYABLE_PG_CODES and attempt < retries - 1:
+                time.sleep(base_delay * (2 ** attempt))
+                continue
+            raise
 
 
 @dataclass
@@ -80,7 +103,7 @@ class BaseScraper(ABC):
         records = list(by_canon.values())
 
         if records:
-            self.supabase.table("wines").upsert(records, on_conflict="upc_canonical").execute()
+            _execute_with_retry(self.supabase.table("wines").upsert(records, on_conflict="upc_canonical"))
 
         # Build {raw_upc -> wine_id}. retail_inventory stores the RAW upc, so we map
         # each item's raw upc through its canonical to the resulting wine_id.
@@ -118,9 +141,9 @@ class BaseScraper(ABC):
                 }.items() if v is not None}
         if not seen:
             return {}
-        self.supabase.table("stores").upsert(
+        _execute_with_retry(self.supabase.table("stores").upsert(
             list(seen.values()), on_conflict="retailer_name,store_id"
-        ).execute()
+        ))
         store_ids = [k[1] for k in seen]
         result = (
             self.supabase.table("stores")
@@ -152,9 +175,9 @@ class BaseScraper(ABC):
             by_key[(item.upc, store_ref)] = record
         records = list(by_key.values())
         if records:
-            self.supabase.table("retail_inventory").upsert(
+            _execute_with_retry(self.supabase.table("retail_inventory").upsert(
                 records, on_conflict="upc,store_ref"
-            ).execute()
+            ))
 
     async def run(self, zip_codes: List[str]) -> int:
         """
