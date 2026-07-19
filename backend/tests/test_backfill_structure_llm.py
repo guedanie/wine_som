@@ -55,6 +55,14 @@ def test_full_profile_from_maps_tannin_and_clamps():
     assert full_profile_from({"body": 9, "tannin": 99, "acidity": 6, "sweetness": 1}) is None
 
 
+def test_non_wine_names_are_skipped_from_eligibility():
+    from scripts.backfill_structure_llm import is_non_wine_row
+    assert is_non_wine_row({"name": "Slamzees Cookies and Cream"}) is True
+    assert is_non_wine_row({"name": "Hiro Sake Red Junmai"}) is True
+    assert is_non_wine_row({"name": "Domaine X Chablis 2022"}) is False
+    assert is_non_wine_row({"name": None}) is False
+
+
 def test_validate_batch_drops_foreign_and_malformed_ids():
     batch_ids = {"a", "b"}
     resp = {"wines": [

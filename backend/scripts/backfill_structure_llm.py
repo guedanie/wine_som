@@ -20,8 +20,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from recommendation.structure_profiles import structure_for               # noqa: E402
 from enrichment.extraction.structure_benchmark import _SYSTEM, OLLAMA_URL  # noqa: E402
+from scripts.backfill_wine_type import _is_non_wine                        # noqa: E402
 
 MODEL = os.environ.get("OLLAMA_MODEL", "qwen2.5:7b")
+
+
+def is_non_wine_row(row) -> bool:
+    """True when the row's name marks non-grape-wine catalog noise (sake,
+    cocktails, food) that must not receive a structure profile — shares the
+    detector with the wine_type backfill."""
+    return _is_non_wine((row or {}).get("name"))
 
 
 def clamp_1_10(v) -> Optional[int]:
@@ -123,6 +131,8 @@ def _fetch_eligible(db, limit: int) -> Tuple[List[dict], List[dict]]:
                     "desc": wd.get("tasting_notes"), "wine_type": w.get("wine_type"),
                     "varietal": w.get("varietal"), "grapes": w.get("grapes") or [],
                     "region": w.get("region"), "profile": profile}
+            if is_non_wine_row(base):
+                continue
             if needs_sweetness(profile):
                 sweetness.append(base)
             elif needs_full_profile(w, has_profile=bool(profile)):

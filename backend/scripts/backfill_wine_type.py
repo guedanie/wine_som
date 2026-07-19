@@ -68,7 +68,7 @@ _NON_WINE_MARKERS = (
     "sweet tea", "sparkling water", "tonic water", "energy drink",
     "maple syrup", "pancake", "waffle", "grapefruit", "fruit cup",
     "oatmeal", "grits", "fruit wine", "apple wine", "peach wine", "plum wine",
-    "syrup",
+    "syrup", "cookies and cream", "cookies & cream",
 )
 
 
