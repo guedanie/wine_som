@@ -134,3 +134,7 @@ before scoring ever saw it — the app wrongly said no match existed.
   red Bordeaux blends ≤$45 there (incl. a NULL-typed Château Saint-Sulpice) —
   all previously dropped by the 500-sample. Rhône likewise surfaces its
   qualifying red with rosés correctly gated out.
+
+### Country-aware matching + fortified request path (2026-07-19)
+- **Country queries** ("white wines from Argentina"): the intent parser has no `country` field, so it stuffs a country into `region`. Wines are stored region=Mendoza / country=Argentina, so a region-only match missed them. Both the targeted fetch (`recommend.py` `_targeted_rows` — `region.ilike OR country.ilike` via postgrest `or_`) and the scorer's region boost (`scorer.py` — the `_W_REGION` condition also credits `_norm(country)`) now match the intent place against region OR country. Fixes the compound country+type gap (previously surfaced only on breadth-sample luck; `white+Argentina`→0).
+- **Fortified via dessert**: the intent enum has no `fortified` (only `dessert`), but item 30 retyped Port/Sherry/Madeira to `fortified`. `requested_types_from` (`candidate_filters.py`) folds `fortified` into any request containing `dessert` (one-directional — a `fortified` request stays strict), so Port/Sherry surface under a dessert/after-dinner ask through both the type gate and the type-aware breadth fetch. No intent-enum or frontend-chip change.
