@@ -13,9 +13,10 @@ from db import get_supabase_client, get_service_client
 from recommendation.scorer import score_candidates
 from recommendation.claude_client import stream_recommendations
 from recommendation.intent import parse_message, merge_intent, intent_from_request
-from recommendation.candidate_filters import (apply_type_gate, detect_store,
-                                              merge_candidates, requested_types_from,
-                                              significant_name_tokens)
+from recommendation.candidate_filters import (apply_type_gate, deep_fetch_reason,
+                                              detect_store, merge_candidates,
+                                              pin_named_matches, rank_name_matches,
+                                              requested_types_from, significant_name_tokens)
 from utils.geo import zip_to_centroid, find_nearby_store_ids, haversine
 from api.ratelimit import RateLimiter, limit_dependency
 
@@ -380,6 +381,49 @@ async def recommend(req: RecommendRequest):
         candidates = merge_candidates(candidates, targeted)
         logger.info("TARGETED FETCH | region=%r store=%r → +%d rows",
                     resolved.get("region"), detected_store and detected_store["name"], len(targeted))
+
+    def _named_fetch(wine_name: str) -> list:
+        """Full nearby-store inventory whose wine name matches the named bottle —
+        budget IGNORED (a direct lookup must not be hidden by the slider)."""
+        tokens = significant_name_tokens(wine_name)
+        if not tokens:
+            return []
+        cond = ",".join(f"name.ilike.%{t}%" for t in tokens)
+
+        def _q(since: Optional[str]) -> list:
+            q = (supabase.table("retail_inventory").select(INVENTORY_SELECT)
+                 .in_("store_ref", nearby_ids).eq("in_stock", True)
+                 .or_(cond, reference_table="wines"))
+            if since:
+                q = q.gte("last_scraped_at", since)
+            return q.limit(80).execute().data or []
+
+        rows = _q(stale_cutoff) or _q(None)
+        cands = [c for c in (_row_to_candidate(r) for r in rows) if c]
+        return rank_name_matches(cands, tokens)
+
+    def _constraint_fetch() -> list:
+        """Full nearby-store inventory matching a concrete grape/region the breadth
+        sample missed. Budget HONORED (this is still a recommendation)."""
+        grapes = resolved.get("grapes") or []
+        region = resolved.get("region")
+        conds = [f'grapes.cs.["{g.title()}"]' for g in grapes]
+        if region:
+            conds.append(f"region.ilike.%{region}%")
+        if not conds:
+            return []
+
+        def _q(since: Optional[str]) -> list:
+            q = (supabase.table("retail_inventory").select(INVENTORY_SELECT)
+                 .in_("store_ref", nearby_ids).eq("in_stock", True)
+                 .gte("price", req.budget_min).lte("price", req.budget_max)
+                 .or_(",".join(conds), reference_table="wines"))
+            if since:
+                q = q.gte("last_scraped_at", since)
+            return q.limit(200).execute().data or []
+
+        rows = _q(stale_cutoff) or _q(None)
+        return [c for c in (_row_to_candidate(r) for r in rows) if c]
 
     preferred_retailer = _detect_retailer(req.message)
     if preferred_retailer:
