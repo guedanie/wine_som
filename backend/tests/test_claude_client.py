@@ -423,3 +423,29 @@ def test_build_user_message_includes_taste_profile():
 def test_no_taste_profile_block_without_profile():
     msg = _build_user_message(_CANDS, {"message": "something"})
     assert "taste profile" not in msg.lower()
+
+
+# ── named-bottle directive (name-directed fallback) ─────────────────
+
+def _intent(**kw):
+    base = {"flavors": [], "avoid": [], "budget_min": 10.0, "budget_max": 50.0, "message": "do you have Opus One?"}
+    base.update(kw)
+    return base
+
+
+def test_named_found_directive_present():
+    msg = _build_user_message([{"wine_id": "1", "name": "Opus One"}],
+                              _intent(named_bottle="Opus One", named_bottle_found=True))
+    assert "Opus One" in msg
+    assert "specifically asked" in msg.lower()
+
+
+def test_named_not_found_hedge_directive():
+    msg = _build_user_message([{"wine_id": "1", "name": "Silver Oak"}],
+                              _intent(named_bottle="Opus One", named_bottle_found=False))
+    assert "could not find" in msg.lower() or "couldn't find" in msg.lower()
+
+
+def test_no_named_bottle_no_directive():
+    msg = _build_user_message([{"wine_id": "1", "name": "Silver Oak"}], _intent())
+    assert "specifically asked" not in msg.lower()

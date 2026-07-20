@@ -327,6 +327,23 @@ def _build_user_message(
         if any(w.get("price_drop") for w in candidates) else ""
     )
 
+    # If the user named a specific bottle, tell Claude to either confirm it
+    # (lead with it) or hedge plainly and offer alternatives — deterministic
+    # facts from the intent parse/lookup, not something Claude should guess.
+    named_directive = ""
+    named_bottle = intent.get("named_bottle")
+    if named_bottle:
+        if intent.get("named_bottle_found"):
+            named_directive = (
+                f"\n\nThe user specifically asked for \"{named_bottle}\". It IS available nearby and "
+                "leads the listings — confirm you found it and open with it before any alternatives."
+            )
+        else:
+            named_directive = (
+                f"\n\nThe user specifically asked for \"{named_bottle}\", but I could not find it in "
+                "nearby inventory. Say so plainly, then offer the closest alternatives from the listings."
+            )
+
     return (
         f"{history_preamble}"
         f"{message_line}"
@@ -341,6 +358,7 @@ def _build_user_message(
         f"Set wine_id to the exact id shown in [wine_id: ...] for each pick."
         f"{similarity_note}"
         f"{drop_note}"
+        f"{named_directive}"
         f"{followup_directive}"
     )
 
