@@ -135,6 +135,40 @@ before scoring ever saw it — the app wrongly said no match existed.
   all previously dropped by the 500-sample. Rhône likewise surfaces its
   qualifying red with rosés correctly gated out.
 
+### Name-directed fallback (2026-07-19)
+Item 31. When a prompt names a specific bottle, or a concrete grape/region/type
+ask goes unmet by the random-500 breadth sample, the router digs past the
+sample into the full zip-scoped inventory instead of reporting "no match."
+
+- **`deep_fetch_reason(intent, top)`** (`candidate_filters.py`) decides whether
+  to dig deeper, returning `"named"` (a `wine_name` was parsed — always wins),
+  `"weak"` (a grape/region/wine_type constraint is present but none of the
+  scored `top` candidates satisfy it), or `None` (fast path, unchanged).
+- **Two fetch modes**, both closures in `recommend.py`: `_named_fetch(wine_name)`
+  searches full nearby inventory by `wines.name ilike` on
+  `significant_name_tokens(wine_name)` (generic varietal/geo words stripped,
+  shared with narrative reconcile); `_constraint_fetch()` re-fetches by grape
+  (jsonb `grapes.cs.["Grape"]`) or region the breadth sample missed.
+- **Budget-bypass rule**: the named fetch ignores `budget_min`/`budget_max` —
+  a direct lookup for a bottle by name must not be hidden by the price slider.
+  The constraint fetch keeps the budget filter — it's still a recommendation,
+  not a lookup.
+- Named matches are ranked all-token-first (`rank_name_matches`) and pinned to
+  the front, deduped by wine_id keeping the cheapest row, capped at 3
+  (`pin_named_matches`); constraint-fetch results are merged into the pool and
+  re-scored/re-selected normally.
+- **Status frame**: the deep fetch and the Claude call run *inside* the SSE
+  generator, behind a `{"type":"status","text":"Looking deeper into the
+  cellar…"}` frame emitted only when `reason` is set — so the fast path (no
+  named bottle, no unmet constraint) never shows it and pays no extra latency.
+- **Narrative honesty**: `named_bottle`/`named_bottle_found` intent keys (set
+  after the named fetch resolves) drive a directive in
+  `claude_client._build_user_message` — confirm and lead with the bottle when
+  found, hedge plainly and offer alternatives when not.
+- Acceptance replay: `backend/scripts/verify_name_fallback.py` (live 78209
+  query) — name search via `ilike` + grape jsonb containment both surface real
+  rows.
+
 ### Country-aware matching + fortified request path (2026-07-19)
 - **Country queries** ("white wines from Argentina"): the intent parser has no `country` field, so it stuffs a country into `region`. Wines are stored region=Mendoza / country=Argentina, so a region-only match missed them. Both the targeted fetch (`recommend.py` `_targeted_rows` — `region.ilike OR country.ilike` via postgrest `or_`) and the scorer's region boost (`scorer.py` — the `_W_REGION` condition also credits `_norm(country)`) now match the intent place against region OR country. Fixes the compound country+type gap (previously surfaced only on breadth-sample luck; `white+Argentina`→0).
 - **Fortified via dessert**: the intent enum has no `fortified` (only `dessert`), but item 30 retyped Port/Sherry/Madeira to `fortified`. `requested_types_from` (`candidate_filters.py`) folds `fortified` into any request containing `dessert` (one-directional — a `fortified` request stays strict), so Port/Sherry surface under a dessert/after-dinner ask through both the type gate and the type-aware breadth fetch. No intent-enum or frontend-chip change.
