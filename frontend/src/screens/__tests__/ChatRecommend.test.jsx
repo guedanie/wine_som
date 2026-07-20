@@ -386,6 +386,21 @@ it('does not call streamRecommend when _restored state is provided', async () =>
   expect(screen.getByText('Esprit de Tablas')).toBeInTheDocument();
 });
 
+it('shows the themed status line while digging deeper, then clears it on first token', async () => {
+  let release;
+  const gate = new Promise(r => { release = r; });
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'status', text: 'Looking deeper into the cellar…' };
+    await gate;
+    yield { type: 'token', text: 'Here' };
+  });
+  renderScreen();
+  expect(await screen.findByText('Looking deeper into the cellar…')).toBeInTheDocument();
+  release();
+  await screen.findByText(/Here/);
+  expect(screen.queryByText('Looking deeper into the cellar…')).not.toBeInTheDocument();
+});
+
 it('restores dynamic follow-up chips (not the defaults) from _restored', async () => {
   renderScreen({
     prefs, apiReq,

@@ -150,6 +150,7 @@ export default function ChatRecommend() {
   const [followups,  setFollowups] = useState(() => _restored?.followups ?? DEFAULT_FOLLOWUPS);
   const [loading,    setLoading]   = useState(() => !_restored);
   const [streaming,  setStreaming] = useState(false);
+  const [statusText, setStatusText] = useState(null);
   const [error,      setError]     = useState(null);
   const [input,      setInput]     = useState('');
 
@@ -184,6 +185,7 @@ export default function ChatRecommend() {
         if (event.type === 'token') {
           if (firstToken) {
             firstToken = false;
+            setStatusText(null);
             setLoading(false);
             setStreaming(true);
             setMessages(prev => [...prev, { id: uuid(), role: 'sommelier', text: event.text }]);
@@ -194,6 +196,8 @@ export default function ChatRecommend() {
               return msgs;
             });
           }
+        } else if (event.type === 'status') {
+          setStatusText(event.text);
         } else if (event.type === 'pick') {
           // Progressive card — render as soon as the model finishes this pick.
           // The final 'picks' event replaces the list wholesale, so any pick
@@ -232,6 +236,7 @@ export default function ChatRecommend() {
     } finally {
       setLoading(false);
       setStreaming(false);
+      setStatusText(null);
     }
   }
 
@@ -349,7 +354,14 @@ export default function ChatRecommend() {
           {loading && (
             <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: 16 }}>
               <Stamp size={32} reversed />
-              <WineGlassLoader />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <WineGlassLoader />
+                {statusText && (
+                  <span className="t-eyebrow" style={{ animation: 'skeleton-pulse 1.4s ease-in-out infinite' }}>
+                    {statusText}
+                  </span>
+                )}
+              </div>
             </div>
           )}
           {error && (
@@ -425,7 +437,14 @@ export default function ChatRecommend() {
           {loading && (
             <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start', marginBottom: 14 }}>
               <Stamp size={32} reversed />
-              <WineGlassLoader />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <WineGlassLoader />
+                {statusText && (
+                  <span className="t-eyebrow" style={{ animation: 'skeleton-pulse 1.4s ease-in-out infinite' }}>
+                    {statusText}
+                  </span>
+                )}
+              </div>
             </div>
           )}
           {error && (
