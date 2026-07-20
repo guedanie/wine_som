@@ -74,6 +74,30 @@ def deep_fetch_reason(intent: Dict[str, Any],
     return "weak"
 
 
+def pin_named_matches(top: List[Dict[str, Any]],
+                      named: List[Dict[str, Any]],
+                      cap: int = 3) -> List[Dict[str, Any]]:
+    """Put named-bottle matches at the front of `top`, deduped by wine_id (keeping
+    the cheapest row per wine), capped at `cap`. Scored candidates follow, minus any
+    now pinned. `named` is assumed already relevance-ordered (rank_name_matches)."""
+    if not named:
+        return top
+    best_by_wine: Dict[Any, Dict[str, Any]] = {}
+    order: List[Any] = []
+    for c in named:
+        wid = c.get("wine_id")
+        prev = best_by_wine.get(wid)
+        if prev is None:
+            best_by_wine[wid] = c
+            order.append(wid)
+        elif (c.get("price") or float("inf")) < (prev.get("price") or float("inf")):
+            best_by_wine[wid] = c
+    pinned = [best_by_wine[w] for w in order][:cap]
+    pinned_ids = {w.get("wine_id") for w in pinned}
+    rest = [w for w in top if w.get("wine_id") not in pinned_ids]
+    return pinned + rest
+
+
 def resolve_wine_type(wine: Dict[str, Any]) -> Optional[str]:
     """Return the wine's type, inferring from varietal -> name -> first grape
     when the stored wine_type is NULL. None only when nothing resolves."""

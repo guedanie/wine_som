@@ -223,3 +223,28 @@ def test_reason_none_when_no_concrete_constraint():
 def test_named_beats_weak():
     intent = {"wine_name": "Opus One", "grapes": ["Chenin Blanc"], "region": None, "wine_type": None}
     assert deep_fetch_reason(intent, [_cand()]) == "named"
+
+
+from recommendation.candidate_filters import pin_named_matches
+
+
+def test_pin_named_first_dedup_and_cap():
+    top = [{"wine_id": "s1", "name": "Scored A"}, {"wine_id": "s2", "name": "Scored B"}]
+    named = [
+        {"wine_id": "n1", "name": "Opus One", "price": 400},
+        {"wine_id": "n1", "name": "Opus One", "price": 380},   # dup wine, cheaper
+        {"wine_id": "n2", "name": "Opus One 2018", "price": 350},
+        {"wine_id": "n3", "name": "Opus One 2017", "price": 360},
+        {"wine_id": "n4", "name": "Opus One 2016", "price": 370},  # beyond cap
+    ]
+    out = pin_named_matches(top, named, cap=3)
+    ids = [w["wine_id"] for w in out]
+    assert ids[:3] == ["n1", "n2", "n3"]              # 3 distinct named, cheapest n1 kept
+    assert next(w for w in out if w["wine_id"] == "n1")["price"] == 380
+    assert "s1" in ids and "s2" in ids                # scored still present, after
+    assert ids.count("n1") == 1                        # deduped
+
+
+def test_pin_no_named_returns_top_unchanged():
+    top = [{"wine_id": "s1", "name": "A"}]
+    assert pin_named_matches(top, [], cap=3) == top
