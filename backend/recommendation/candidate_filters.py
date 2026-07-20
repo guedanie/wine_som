@@ -26,6 +26,22 @@ def significant_name_tokens(name: Optional[str]) -> List[str]:
             if t not in _GENERIC_WINE_WORDS]
 
 
+def rank_name_matches(candidates: List[Dict[str, Any]],
+                      tokens: List[str]) -> List[Dict[str, Any]]:
+    """Keep candidates whose name contains at least one search token, ordered by
+    how many tokens matched (all-token matches first). Empty tokens → []."""
+    if not tokens:
+        return []
+    scored = []
+    for c in candidates:
+        name = (c.get("name") or "").lower()
+        hits = sum(1 for t in tokens if t in name)
+        if hits:
+            scored.append((hits, c))
+    scored.sort(key=lambda hc: hc[0], reverse=True)
+    return [c for _, c in scored]
+
+
 def resolve_wine_type(wine: Dict[str, Any]) -> Optional[str]:
     """Return the wine's type, inferring from varietal -> name -> first grape
     when the stored wine_type is NULL. None only when nothing resolves."""

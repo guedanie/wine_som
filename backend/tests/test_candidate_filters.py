@@ -161,3 +161,24 @@ def test_tokens_all_generic_is_empty():
 
 def test_tokens_none_safe():
     assert significant_name_tokens(None) == []
+
+
+from recommendation.candidate_filters import rank_name_matches
+
+
+def test_rank_all_tokens_before_partial():
+    cands = [
+        {"name": "Caymus Cabernet Sauvignon"},           # matches "caymus" only
+        {"name": "Caymus Special Selection Cabernet"},    # matches both
+    ]
+    ranked = rank_name_matches(cands, ["caymus", "special"])
+    assert ranked[0]["name"] == "Caymus Special Selection Cabernet"
+
+
+def test_rank_drops_zero_match():
+    cands = [{"name": "Silver Oak"}, {"name": "Opus One"}]
+    assert rank_name_matches(cands, ["caymus"]) == []
+
+
+def test_rank_empty_tokens_returns_empty():
+    assert rank_name_matches([{"name": "Anything"}], []) == []
