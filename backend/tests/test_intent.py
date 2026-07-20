@@ -117,3 +117,22 @@ def test_parse_message_fails_soft_on_no_tool_block():
         mock_client.messages.create.return_value = resp
         out = parse_message("gibberish")
     assert out is None
+
+
+def test_intent_from_request_sets_wine_name_none():
+    out = intent_from_request(wine_type=None, style_preferences=[], avoid=[],
+                              budget_min=10.0, budget_max=50.0)
+    assert out["wine_name"] is None
+
+
+def test_merge_takes_parsed_wine_name():
+    explicit = intent_from_request(wine_type=None, style_preferences=[], avoid=[],
+                                   budget_min=10.0, budget_max=50.0)
+    merged = merge_intent({"wine_name": "Opus One", "flavors": [], "grapes": [], "avoid": []}, explicit)
+    assert merged["wine_name"] == "Opus One"
+
+
+def test_merge_no_parsed_leaves_wine_name_none():
+    explicit = intent_from_request(wine_type=None, style_preferences=[], avoid=[],
+                                   budget_min=10.0, budget_max=50.0)
+    assert merge_intent(None, explicit)["wine_name"] is None
