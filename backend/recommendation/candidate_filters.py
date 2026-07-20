@@ -54,7 +54,7 @@ def deep_fetch_reason(intent: Dict[str, Any],
     """Return "named" if the user named a specific bottle, else "weak" if the
     user expressed a concrete constraint (grape/region/wine_type) that NONE of the
     selected top candidates satisfies, else None. Named always wins."""
-    if (intent.get("wine_name") or "").strip():
+    if significant_name_tokens(intent.get("wine_name")):
         return "named"
 
     want_grapes = {str(g).lower() for g in (intent.get("grapes") or [])}

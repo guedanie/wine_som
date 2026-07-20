@@ -197,6 +197,13 @@ def test_reason_named_when_wine_name_present():
     assert deep_fetch_reason({"wine_name": "Opus One"}, [_cand()]) == "named"
 
 
+def test_reason_none_when_wine_name_all_generic():
+    # "Red Blend" has no significant tokens — must not fire the named deep-fetch
+    # (no false "I couldn't find Red Blend nearby"); with no other constraint → None.
+    intent = {"wine_name": "Red Blend", "grapes": [], "region": None, "wine_type": None}
+    assert deep_fetch_reason(intent, [_cand()]) is None
+
+
 def test_reason_weak_when_grape_unmet():
     intent = {"wine_name": None, "grapes": ["Chenin Blanc"], "region": None, "wine_type": None}
     top = [_cand(grapes=["Cabernet Sauvignon"], wine_type="red")]

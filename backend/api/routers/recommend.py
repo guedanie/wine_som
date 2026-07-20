@@ -463,17 +463,25 @@ async def recommend(req: RecommendRequest):
         if reason:
             yield "data: " + json.dumps(
                 {"type": "status", "text": "Looking deeper into the cellar…"}) + "\n\n"
-            if reason == "named":
-                named = _named_fetch(resolved["wine_name"])
-                pool = merge_candidates(candidates, named)
-                resolved["named_bottle"] = resolved.get("wine_name")
-                resolved["named_bottle_found"] = bool(named)
-                top = _score_and_select(pool)
-                top = pin_named_matches(top, named, cap=3)[:_MAX_CANDIDATES]
-            else:  # weak
-                extra = _constraint_fetch()
-                if extra:
-                    top = _score_and_select(merge_candidates(candidates, extra))
+            try:
+                if reason == "named":
+                    named = _named_fetch(resolved["wine_name"])
+                    pool = merge_candidates(candidates, named)
+                    resolved["named_bottle"] = resolved.get("wine_name")
+                    resolved["named_bottle_found"] = bool(named)
+                    top = _score_and_select(pool)
+                    top = pin_named_matches(top, named, cap=3)[:_MAX_CANDIDATES]
+                else:  # weak
+                    extra = _constraint_fetch()
+                    if extra:
+                        top = _score_and_select(
+                            apply_type_gate(merge_candidates(candidates, extra), req_types))
+            except Exception:
+                # A bad PostgREST filter or transient DB error must not kill the
+                # already-open stream (no error frame, no [DONE], no session save).
+                # top still holds the fast-path selection — degrade to breadth top.
+                logger.exception(
+                    "DEEP FETCH | %s fetch failed — falling back to breadth top", reason)
 
         _annotate_price_drops(supabase, top)
         logger.info(
