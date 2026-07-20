@@ -42,6 +42,38 @@ def rank_name_matches(candidates: List[Dict[str, Any]],
     return [c for _, c in scored]
 
 
+def _cand_grapes(c: Dict[str, Any]) -> set:
+    g = {str(x).lower() for x in (c.get("grapes") or [])}
+    if c.get("varietal"):
+        g.add(str(c["varietal"]).lower())
+    return g
+
+
+def deep_fetch_reason(intent: Dict[str, Any],
+                      top: List[Dict[str, Any]]) -> Optional[str]:
+    """Return "named" if the user named a specific bottle, else "weak" if the
+    user expressed a concrete constraint (grape/region/wine_type) that NONE of the
+    selected top candidates satisfies, else None. Named always wins."""
+    if (intent.get("wine_name") or "").strip():
+        return "named"
+
+    want_grapes = {str(g).lower() for g in (intent.get("grapes") or [])}
+    want_region = (intent.get("region") or "").strip().lower()
+    want_type = intent.get("wine_type")
+    if not want_grapes and not want_region and not want_type:
+        return None
+
+    for c in top:
+        if want_grapes and (want_grapes & _cand_grapes(c)):
+            return None
+        region = (c.get("region") or "").lower()
+        if want_region and region and (want_region in region or region in want_region):
+            return None
+        if want_type and c.get("wine_type") == want_type:
+            return None
+    return "weak"
+
+
 def resolve_wine_type(wine: Dict[str, Any]) -> Optional[str]:
     """Return the wine's type, inferring from varietal -> name -> first grape
     when the stored wine_type is NULL. None only when nothing resolves."""

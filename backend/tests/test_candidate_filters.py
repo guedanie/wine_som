@@ -182,3 +182,44 @@ def test_rank_drops_zero_match():
 
 def test_rank_empty_tokens_returns_empty():
     assert rank_name_matches([{"name": "Anything"}], []) == []
+
+
+from recommendation.candidate_filters import deep_fetch_reason
+
+
+def _cand(**kw):
+    base = {"grapes": [], "region": None, "wine_type": None, "varietal": None}
+    base.update(kw)
+    return base
+
+
+def test_reason_named_when_wine_name_present():
+    assert deep_fetch_reason({"wine_name": "Opus One"}, [_cand()]) == "named"
+
+
+def test_reason_weak_when_grape_unmet():
+    intent = {"wine_name": None, "grapes": ["Chenin Blanc"], "region": None, "wine_type": None}
+    top = [_cand(grapes=["Cabernet Sauvignon"], wine_type="red")]
+    assert deep_fetch_reason(intent, top) == "weak"
+
+
+def test_reason_none_when_grape_met():
+    intent = {"wine_name": None, "grapes": ["Chenin Blanc"], "region": None, "wine_type": None}
+    top = [_cand(grapes=["Chenin Blanc"], wine_type="white")]
+    assert deep_fetch_reason(intent, top) is None
+
+
+def test_reason_weak_when_region_unmet():
+    intent = {"wine_name": None, "grapes": [], "region": "Rioja", "wine_type": None}
+    top = [_cand(region="Napa Valley")]
+    assert deep_fetch_reason(intent, top) == "weak"
+
+
+def test_reason_none_when_no_concrete_constraint():
+    intent = {"wine_name": None, "grapes": [], "region": None, "wine_type": None, "flavors": ["bold"]}
+    assert deep_fetch_reason(intent, [_cand()]) is None
+
+
+def test_named_beats_weak():
+    intent = {"wine_name": "Opus One", "grapes": ["Chenin Blanc"], "region": None, "wine_type": None}
+    assert deep_fetch_reason(intent, [_cand()]) == "named"
