@@ -141,3 +141,23 @@ def test_dessert_request_also_accepts_fortified():
     assert requested_types_from(["red"], None) == {"red"}
     assert requested_types_from(["fortified"], None) == {"fortified"}
     assert requested_types_from([], None) == set()
+
+
+from recommendation.candidate_filters import significant_name_tokens
+
+
+def test_tokens_drop_generic_keep_producer():
+    assert significant_name_tokens("Caymus Cabernet Sauvignon") == ["caymus"]
+
+
+def test_tokens_multi_word_producer():
+    toks = significant_name_tokens("Opus One 2019")
+    assert "opus" in toks and "one" in toks
+
+
+def test_tokens_all_generic_is_empty():
+    assert significant_name_tokens("Red Blend Reserve") == []
+
+
+def test_tokens_none_safe():
+    assert significant_name_tokens(None) == []

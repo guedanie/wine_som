@@ -14,7 +14,8 @@ from recommendation.scorer import score_candidates
 from recommendation.claude_client import stream_recommendations
 from recommendation.intent import parse_message, merge_intent, intent_from_request
 from recommendation.candidate_filters import (apply_type_gate, detect_store,
-                                              merge_candidates, requested_types_from)
+                                              merge_candidates, requested_types_from,
+                                              significant_name_tokens)
 from utils.geo import zip_to_centroid, find_nearby_store_ids, haversine
 from api.ratelimit import RateLimiter, limit_dependency
 
@@ -115,22 +116,11 @@ def _apply_type_breadth_filter(q, requested_types: set):
     return q.or_(f"{ors},wine_type.is.null", reference_table="wines")
 
 
-_GENERIC_WINE_WORDS = {
-    "cabernet", "sauvignon", "merlot", "pinot", "noir", "gris", "grigio", "chardonnay",
-    "syrah", "shiraz", "zinfandel", "malbec", "tempranillo", "sangiovese", "nebbiolo",
-    "grenache", "mourvedre", "carignan", "riesling", "blanc", "chenin", "viognier",
-    "barbera", "tannat", "red", "white", "rose", "wine", "blend", "reserve", "reserva",
-    "vineyard", "vineyards", "valley", "county", "napa", "sonoma", "paso", "robles",
-    "california", "italian", "the", "and", "estate", "old", "vine", "vines", "cuvee",
-}
-
-
 def _pick_named_in_narrative(pick: Dict[str, Any], narr_lower: str) -> bool:
     """True when the narrative mentions a DISTINCTIVE token of the pick's name
     (producer/vineyard, not grape/type/region) — or the name has none, in which
     case we keep it (conservative)."""
-    name = (pick.get("name") or "").lower()
-    tokens = [t for t in re.findall(r"[a-z0-9é]{3,}", name) if t not in _GENERIC_WINE_WORDS]
+    tokens = significant_name_tokens(pick.get("name"))
     return not tokens or any(re.search(r"\b" + re.escape(t) + r"\b", narr_lower) for t in tokens)
 
 

@@ -7,6 +7,24 @@ from typing import Any, Dict, List, Optional
 
 from utils import infer_wine_type
 
+# Generic wine words that don't identify a specific bottle — dropped when
+# tokenizing a wine name for name search / narrative reconcile.
+_GENERIC_WINE_WORDS = {
+    "cabernet", "sauvignon", "merlot", "pinot", "noir", "gris", "grigio", "chardonnay",
+    "syrah", "shiraz", "zinfandel", "malbec", "tempranillo", "sangiovese", "nebbiolo",
+    "grenache", "mourvedre", "carignan", "riesling", "blanc", "chenin", "viognier",
+    "barbera", "tannat", "red", "white", "rose", "wine", "blend", "reserve", "reserva",
+    "vineyard", "vineyards", "valley", "county", "napa", "sonoma", "paso", "robles",
+    "california", "italian", "the", "and", "estate", "old", "vine", "vines", "cuvee",
+}
+
+
+def significant_name_tokens(name: Optional[str]) -> List[str]:
+    """Lowercased 3+ char tokens of a wine name, minus generic varietal/geo words —
+    the distinctive producer/bottle tokens to search or reconcile on."""
+    return [t for t in re.findall(r"[a-z0-9é]{3,}", (name or "").lower())
+            if t not in _GENERIC_WINE_WORDS]
+
 
 def resolve_wine_type(wine: Dict[str, Any]) -> Optional[str]:
     """Return the wine's type, inferring from varietal -> name -> first grape
