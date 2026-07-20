@@ -198,7 +198,10 @@ async def test_recommend_missing_zip_returns_422():
 
 
 @pytest.mark.asyncio
-async def test_recommend_claude_failure_returns_500():
+async def test_recommend_claude_failure_yields_sse_error_frame():
+    # The Claude call now inits INSIDE the SSE generator (deep fetch may replace
+    # `top` first), so an init failure yields an SSE {"type":"error"} frame then
+    # [DONE] — the HTTP response has already started (200), not a 500.
     with patch("api.routers.recommend.stream_recommendations", side_effect=Exception("API down")), \
          patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([WINE_ROW])), \
          patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]):
@@ -208,8 +211,11 @@ async def test_recommend_claude_failure_returns_500():
                 "budget_min": 15.0,
                 "budget_max": 35.0,
             })
-    assert response.status_code == 500
-    assert "unavailable" in response.json()["detail"]
+    assert response.status_code == 200
+    events = _sse_events(response.text)
+    assert any(e.get("type") == "error" and "unavailable" in e.get("message", "")
+               for e in events)
+    assert response.text.strip().endswith("[DONE]")
 
 
 @pytest.mark.asyncio

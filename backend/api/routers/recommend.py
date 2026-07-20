@@ -441,33 +441,56 @@ async def recommend(req: RecommendRequest):
 
     # Seeded jitter (±0.4, well under any single axis weight) varies the
     # candidate mix between turns without ever dropping strong matches.
-    scored = score_candidates(resolved, candidates)
-    for w in scored:
-        w["_score"] += rng.uniform(-0.4, 0.4)
-    scored.sort(key=lambda w: w["_score"], reverse=True)
-    top = _select_diverse_top(scored, _MAX_CANDIDATES, _RETAILER_CAP, _VARIETAL_CAP)
-    if detected_store:
-        top.sort(key=lambda w: (w.get("store_ref") == detected_store["id"],
-                                w.get("_score", 0)), reverse=True)
-    _annotate_price_drops(supabase, top)
+    def _score_and_select(pool: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        scored = score_candidates(resolved, pool)
+        for w in scored:
+            w["_score"] += rng.uniform(-0.4, 0.4)
+        scored.sort(key=lambda w: w["_score"], reverse=True)
+        sel = _select_diverse_top(scored, _MAX_CANDIDATES, _RETAILER_CAP, _VARIETAL_CAP)
+        if detected_store:
+            sel.sort(key=lambda w: (w.get("store_ref") == detected_store["id"],
+                                    w.get("_score", 0)), reverse=True)
+        return sel
 
-    logger.info(
-        "RECOMMEND | zip=%s budget=%.0f-%.0f message=%r candidates=%d history=%d",
-        req.zip_code, req.budget_min, req.budget_max,
-        req.message[:80], len(top), len(req.conversation_history or []),
-    )
+    top = _score_and_select(candidates)
+    reason = deep_fetch_reason(resolved, top)
 
-    # Raises immediately (before StreamingResponse starts) if the client can't init.
-    try:
-        gen = stream_recommendations(top, resolved, req.conversation_history, req.conversational)
-    except Exception:
-        raise HTTPException(status_code=500, detail="Recommendation service unavailable")
-
-    by_id = {c["wine_id"]: c for c in top}
     session_id = str(uuid.uuid4())
     _result: dict = {"narrative": [], "picks": []}
 
     def event_gen():
+        nonlocal top
+        if reason:
+            yield "data: " + json.dumps(
+                {"type": "status", "text": "Looking deeper into the cellar…"}) + "\n\n"
+            if reason == "named":
+                named = _named_fetch(resolved["wine_name"])
+                pool = merge_candidates(candidates, named)
+                resolved["named_bottle"] = resolved.get("wine_name")
+                resolved["named_bottle_found"] = bool(named)
+                top = _score_and_select(pool)
+                top = pin_named_matches(top, named, cap=3)[:_MAX_CANDIDATES]
+            else:  # weak
+                extra = _constraint_fetch()
+                if extra:
+                    top = _score_and_select(merge_candidates(candidates, extra))
+
+        _annotate_price_drops(supabase, top)
+        logger.info(
+            "RECOMMEND | zip=%s budget=%.0f-%.0f message=%r candidates=%d reason=%s",
+            req.zip_code, req.budget_min, req.budget_max, req.message[:80],
+            len(top), reason,
+        )
+
+        by_id = {c["wine_id"]: c for c in top}
+        try:
+            gen = stream_recommendations(top, resolved, req.conversation_history, req.conversational)
+        except Exception:
+            yield "data: " + json.dumps(
+                {"type": "error", "message": "Recommendation service unavailable"}) + "\n\n"
+            yield "data: [DONE]\n\n"
+            return
+
         for event_type, data in gen:
             if event_type == "token":
                 _result["narrative"].append(data)
