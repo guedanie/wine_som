@@ -1,4 +1,11 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(git pull *)",
+      "Bash(scutil --get ComputerName)",
+      "Bash(python3 -c ' *)"
+    ]
+  },
   "enabledPlugins": {
     "superpowers@claude-plugins-official": true
   }

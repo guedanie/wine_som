@@ -79,7 +79,9 @@ Logic, for each term (normalized via `_norm`):
   kills `port`→Portugal and `red`→red-fruit.)
 - **Non-type term**: word-boundary match `re.search(r"\b" + re.escape(term) + r"\b", text)`
   against a structured text built from `varietal + name + grapes + region + country +
-  flavor tags`, each `_norm`'d and space-joined. No `flavor_profile`, no raw substring.
+  flavor tags + tasting_notes`, each `_norm`'d and space-joined. **Excludes only the
+  metadata `flavor_profile`** — real `tasting_notes` stays in (so "avoid oaky" matches a
+  note "heavy oak"; it's empty in prod today but enriches later). No raw substring.
 
 Returns `True` (exclude) on the first matching term, else `False`. Empty `avoid_terms`
 → `False` immediately.
