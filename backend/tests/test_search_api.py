@@ -42,7 +42,7 @@ def _make_db(stores=None, wines=None, inventory=None):
 
     wines_resp = MagicMock()
     wines_resp.data = wines if wines is not None else _WINES
-    q.or_.return_value.limit.return_value.execute.return_value = wines_resp
+    q.or_.return_value.is_.return_value.limit.return_value.execute.return_value = wines_resp
 
     inv_resp = MagicMock()
     inv_resp.data = inventory if inventory is not None else _INVENTORY

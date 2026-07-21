@@ -15,7 +15,7 @@ _REGION_ALIASES: Dict[str, str] = {
 _REGION_INVENTORY_SELECT = (
     "price, wine_id,"
     "stores!inner(retailer_name, address),"
-    "wines!inner(id, name, varietal, region, country, wine_type, grapes, image_url,"
+    "wines!inner(id, excluded_at, name, varietal, region, country, wine_type, grapes, image_url,"
     "wine_details(flavor_profile))"
 )
 
@@ -30,6 +30,8 @@ def _db_region_name(region: str) -> str:
 def _row_to_wine_item(row: Dict[str, Any], retailer: str, address: Optional[str]) -> Optional[RegionWineItem]:
     wine = row.get("wines") or {}
     if not wine:
+        return None
+    if wine.get("excluded_at"):
         return None
     details_raw = wine.get("wine_details") or {}
     details = details_raw[0] if isinstance(details_raw, list) else (details_raw if isinstance(details_raw, dict) else {})
@@ -67,6 +69,7 @@ async def get_subregion_counts(
         .select("id, sub_region")
         .eq("region", db_region)
         .not_.is_("sub_region", "null")
+        .is_("excluded_at", "null")
         .limit(10000)
         .execute()
     ).data or []

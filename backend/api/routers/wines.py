@@ -17,6 +17,7 @@ async def search_wines(
         client.table("wines")
         .select("id,name,brand,varietal,region,country,avg_price,wine_type")
         .ilike("name", f"%{q}%")
+        .is_("excluded_at", "null")
         .limit(limit)
         .execute()
     )

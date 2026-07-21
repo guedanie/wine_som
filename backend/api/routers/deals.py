@@ -81,6 +81,7 @@ async def get_deals(
             .select("id,name,brand,vintage_year,varietal,region,wine_type,image_url,"
                     "vivino_rating,vivino_ratings_count,wine_details(tasting_notes,flavor_profile)")
             .in_("id", drop_wine_ids[i:i + 200])
+            .is_("excluded_at", "null")
             .execute()
             .data
             or []

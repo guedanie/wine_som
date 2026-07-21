@@ -102,7 +102,7 @@ def _detect_retailer(message: str) -> Optional[str]:
 INVENTORY_SELECT = (
     "price, curbside_price, wine_id,"
     "stores!inner(id, retailer_name, name, zip_code, address, latitude, longitude),"
-    "wines!inner(id, name, varietal, region, country, wine_type, grapes, abv, body,"
+    "wines!inner(id, excluded_at, name, varietal, region, country, wine_type, grapes, abv, body,"
     "image_url, vivino_rating, vivino_ratings_count,"
     "wine_details(tasting_notes, flavor_profile, structure_profile, grapeminds_enriched_at))"
 )
@@ -276,6 +276,8 @@ async def recommend(req: RecommendRequest):
     def _row_to_candidate(row: dict) -> Optional[dict]:
         wine = row.get("wines") or {}
         if not wine:
+            return None
+        if wine.get("excluded_at"):
             return None
         details_raw = wine.get("wine_details") or {}
         details = details_raw[0] if isinstance(details_raw, list) else (details_raw if isinstance(details_raw, dict) else {})

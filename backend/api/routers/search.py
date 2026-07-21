@@ -93,6 +93,7 @@ async def search(
         .or_(f"name.ilike.{ilike},brand.ilike.{ilike},"
              f"varietal.ilike.{ilike},region.ilike.{ilike},"
              f"sub_region.ilike.{ilike}")
+        .is_("excluded_at", "null")
         .limit(_WINE_MATCH_LIMIT)
     )
     wine_rows = wines_q.execute().data or []
