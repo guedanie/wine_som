@@ -30,6 +30,7 @@ from utils import infer_wine_type                                       # noqa: 
 from enrichment.extraction.reference import (                           # noqa: E402
     wine_type_for_appellation, APPELLATION_WINE_TYPE, _norm as _region_norm,
 )
+from enrichment.non_wine import is_non_wine_name as _is_non_wine         # noqa: E402
 
 
 # Appellation keys too ambiguous to word-match inside a free-text NAME (common
@@ -53,31 +54,6 @@ def _appellation_in_text(text: Optional[str]) -> Optional[str]:
         if f" {app_norm} " in hay:
             return t
     return None
-
-
-# Non-grape-wine catalog noise (grocery scrapers pull these into `wines`): sake,
-# cocktails, non-alcoholic drinks, cider/mead, and food. The backfill leaves them
-# NULL rather than stamp a spurious wine_type from a color/style word in the name.
-# Distinctive tokens only, word-boundary matched, to avoid skipping real wines
-# (a 'Maple Creek' winery, 'Sakonnet Vineyards', a 'Muscadine' grape wine).
-_NON_WINE_MARKERS = (
-    "sake", "junmai", "daiginjo", "ginjo", "nigori",
-    "non-alcoholic", "non alcoholic", "nonalcoholic", "alcohol removed",
-    "alcohol-removed", "zero proof", "kombucha", "seltzer", "hard cider",
-    "cider", "mead", "cocktail", "cocktails", "lemonade", "limeade", "iced tea",
-    "sweet tea", "sparkling water", "tonic water", "energy drink",
-    "maple syrup", "pancake", "waffle", "grapefruit", "fruit cup",
-    "oatmeal", "grits", "fruit wine", "apple wine", "peach wine", "plum wine",
-    "syrup", "cookies and cream", "cookies & cream",
-)
-
-
-def _is_non_wine(name: Optional[str]) -> bool:
-    """True when the name marks a non-grape-wine product that must not be typed."""
-    if not name:
-        return False
-    low = name.lower()
-    return any(re.search(rf"\b{re.escape(m)}\b", low) for m in _NON_WINE_MARKERS)
 
 
 def plan_change(row: Dict[str, Any]) -> Dict[str, Any]:
