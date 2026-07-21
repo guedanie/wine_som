@@ -19,7 +19,6 @@ Run from backend/ (../.env resolves):
 import argparse
 import json
 import os
-import re
 import sys
 import urllib.request
 from typing import Any, Dict, List, Optional
