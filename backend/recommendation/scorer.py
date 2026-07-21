@@ -170,17 +170,14 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
     scored = []
     for wine in candidates:
         tags = flavor_tags_for(wine.get("varietal"), wine.get("grapes"), wine.get("region"))
-        notes = _norm(wine.get("tasting_notes")) + " " + " ".join(
-            _norm(x) for x in (wine.get("flavor_profile") or []))
+        notes = _norm(wine.get("tasting_notes"))
         grapes = {_norm(g) for g in (wine.get("grapes") or [])}
         if wine.get("varietal"):
             grapes.add(_norm(wine["varietal"]))   # symmetric with _norm_liked
         region = _norm(wine.get("region"))
         country = _norm(wine.get("country"))
 
-        # avoid exclusion: search grapes, region, flavor tags, and notes
-        haystack = " ".join([notes, region, " ".join(grapes), " ".join(tags)])
-        if any(a and a in haystack for a in avoid):
+        if wine_excluded_by_avoid(wine, avoid, tags):
             continue
 
         score = 0.0

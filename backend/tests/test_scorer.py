@@ -416,3 +416,14 @@ def test_avoid_matches_tasting_notes_not_metadata():
 def test_avoid_empty_is_false():
     w = _wine("Anything")
     assert wine_excluded_by_avoid(w, [], _tags(w)) is False
+
+
+def test_flavor_profile_metadata_does_not_score_as_flavor():
+    # 'earthy' requested; a wine whose ONLY 'earthy' source is metadata flavor_profile
+    # must not get a flavor credit for it. Compare against a genuine earthy grape.
+    meta = _wine("Meta", wine_type="red", varietal="Chardonnay", region="Napa",
+                 grapes=["Chardonnay"], flavor_profile=["earthy", "review-92plus"])
+    genuine = _wine("GSM", wine_type="red", varietal="Grenache", region="Rhône",
+                    grapes=["Grenache"])  # Grenache/Rhône -> earthy tag
+    result = score_candidates(_intent(wine_type="red", flavors=["earthy"]), [meta, genuine])
+    assert result[0]["name"] == "GSM"
