@@ -99,6 +99,51 @@ def _norm(s: str) -> str:
     return re.sub(r"\s+", " ", s).strip().lower()
 
 
+# avoid → wine_type synonyms (conservative: unambiguous words + the two orange
+# phrases only). Keys are _norm'd (accent-folded, lowercased). 'sweet'/'orange'/
+# 'green' are deliberately absent — sweetness is a different axis, bare 'orange' is
+# the fruit, and Vinho Verde ('green') is a region reached via text matching.
+_TYPE_FOR_TERM = {
+    "sparkling": "sparkling", "bubbles": "sparkling", "bubbly": "sparkling",
+    "champagne": "sparkling", "prosecco": "sparkling", "cava": "sparkling", "fizz": "sparkling",
+    "rose": "rosé", "pink": "rosé",
+    "port": "fortified", "sherry": "fortified", "madeira": "fortified",
+    "marsala": "fortified", "fortified": "fortified",
+    "dessert": "dessert", "ice wine": "dessert", "icewine": "dessert", "sauternes": "dessert",
+    "orange wine": "orange", "skin contact": "orange",
+    "red": "red", "white": "white",
+}
+
+
+def wine_excluded_by_avoid(wine: Dict[str, Any], avoid_terms: List[str],
+                           tags: set) -> bool:
+    """Hard exclusion. A term that names a wine type excludes only wines of that
+    resolved type (never falls through to substring — kills port→Portugal,
+    red→red-fruit). Any other term word-boundary matches structured fields
+    (varietal, name, grapes, region, country, flavor tags, real tasting_notes) —
+    NOT the metadata flavor_profile, never a raw substring."""
+    if not avoid_terms:
+        return False
+    wtype = _norm(wine.get("wine_type"))
+    parts = [wine.get("varietal"), wine.get("name"), wine.get("region"),
+             wine.get("country"), wine.get("tasting_notes")]
+    parts += list(wine.get("grapes") or [])
+    parts += list(tags or [])
+    text = " ".join(_norm(p) for p in parts if p)
+    for term in avoid_terms:
+        t = _norm(term)
+        if not t:
+            continue
+        mapped = _TYPE_FOR_TERM.get(t)
+        if mapped is not None:
+            if wtype == _norm(mapped):
+                return True
+            continue  # type word, wrong type — do NOT substring-match
+        if re.search(r"\b" + re.escape(t) + r"\b", text):
+            return True
+    return False
+
+
 def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Knowledge-based deterministic scoring. `intent` is the resolved-intent dict."""
     budget_min = float(intent.get("budget_min", 10.0))

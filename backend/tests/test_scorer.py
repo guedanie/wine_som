@@ -343,3 +343,76 @@ def test_region_intent_boosts_a_wine_matched_by_country():
     result = score_candidates(_intent(wine_type="white", region="Argentina"),
                               [other, argentine])
     assert result[0]["name"] == "Mendoza White"
+
+
+# --- avoid rework (type-aware + word-boundary) ---
+from recommendation.scorer import wine_excluded_by_avoid
+from recommendation.flavor_profiles import flavor_tags_for
+
+
+def _tags(w):
+    return flavor_tags_for(w.get("varietal"), w.get("grapes"), w.get("region"))
+
+
+def test_avoid_type_excludes_only_that_type():
+    sparkling = _wine("Prosecco", wine_type="sparkling", varietal="Glera",
+                      region="Veneto", country="Italy")
+    red = _wine("Malbec", wine_type="red")
+    assert wine_excluded_by_avoid(sparkling, ["sparkling"], _tags(sparkling)) is True
+    assert wine_excluded_by_avoid(red, ["sparkling"], _tags(red)) is False
+
+
+def test_avoid_type_synonyms_map():
+    champ = _wine("Brut", wine_type="sparkling", varietal="Chardonnay", region="Champagne", country="France")
+    port = _wine("Tawny", wine_type="fortified", varietal="Touriga Nacional", region="Douro", country="Portugal")
+    assert wine_excluded_by_avoid(champ, ["bubbles"], _tags(champ)) is True
+    assert wine_excluded_by_avoid(port, ["port"], _tags(port)) is True
+
+
+def test_avoid_port_does_not_exclude_portuguese_table_wine():
+    douro_red = _wine("Douro Red", wine_type="red", varietal="Touriga Nacional",
+                      region="Douro", country="Portugal")
+    assert wine_excluded_by_avoid(douro_red, ["port"], _tags(douro_red)) is False
+
+
+def test_avoid_red_excludes_by_type_not_red_fruit():
+    red = _wine("Cab", wine_type="red", varietal="Cabernet Sauvignon")
+    fruity_white = _wine("Pinot Blanc", wine_type="white", varietal="Merlot")  # Merlot -> red-fruit tag
+    assert wine_excluded_by_avoid(red, ["red"], _tags(red)) is True
+    assert wine_excluded_by_avoid(fruity_white, ["red"], _tags(fruity_white)) is False
+
+
+def test_avoid_rose_accent_insensitive():
+    rose = _wine("Rosado", wine_type="rosé", varietal="Grenache")
+    assert wine_excluded_by_avoid(rose, ["rose"], _tags(rose)) is True
+    assert wine_excluded_by_avoid(rose, ["pink"], _tags(rose)) is True
+
+
+def test_avoid_orange_phrase_only():
+    orange = _wine("Skin Contact", wine_type="orange", varietal="Ribolla Gialla")
+    assert wine_excluded_by_avoid(orange, ["orange"], _tags(orange)) is False
+    assert wine_excluded_by_avoid(orange, ["orange wine"], _tags(orange)) is True
+    assert wine_excluded_by_avoid(orange, ["skin contact"], _tags(orange)) is True
+
+
+def test_avoid_grape_country_tag_word_boundary():
+    chard = _wine("Big Oak", wine_type="white", varietal="Chardonnay", region="Napa", country="USA")
+    italian = _wine("Chianti", wine_type="red", varietal="Sangiovese", region="Tuscany", country="Italy")
+    gsm = _wine("Rhone Blend", wine_type="red", varietal="Grenache", region="Rhône", country="France")
+    assert wine_excluded_by_avoid(chard, ["chardonnay"], _tags(chard)) is True
+    assert wine_excluded_by_avoid(italian, ["italy"], _tags(italian)) is True
+    assert wine_excluded_by_avoid(gsm, ["earthy"], _tags(gsm)) is True
+
+
+def test_avoid_matches_tasting_notes_not_metadata():
+    noted = _wine("Oaky White", wine_type="white", varietal="Chardonnay",
+                  tasting_notes="heavy oak and butter")
+    meta = _wine("Clean White", wine_type="white", varietal="Chardonnay",
+                 tasting_notes="", flavor_profile=["France", "review-92plus", "oak-barrel"])
+    assert wine_excluded_by_avoid(noted, ["oak"], _tags(noted)) is True
+    assert wine_excluded_by_avoid(meta, ["oak"], _tags(meta)) is False
+
+
+def test_avoid_empty_is_false():
+    w = _wine("Anything")
+    assert wine_excluded_by_avoid(w, [], _tags(w)) is False
