@@ -344,6 +344,15 @@ def _build_user_message(
                 "nearby inventory. Say so plainly, then offer the closest alternatives from the listings."
             )
 
+    comparison_directive = ""
+    cmp_regions = intent.get("comparison_regions")
+    if cmp_regions and len(cmp_regions) >= 2:
+        joined = " vs ".join(cmp_regions)
+        comparison_directive = (
+            f"\n\nThe user is comparing wines from {joined} — recommend one from each so "
+            "they can taste the difference side by side, drawing from the listings."
+        )
+
     return (
         f"{history_preamble}"
         f"{message_line}"
@@ -359,6 +368,7 @@ def _build_user_message(
         f"{similarity_note}"
         f"{drop_note}"
         f"{named_directive}"
+        f"{comparison_directive}"
         f"{followup_directive}"
     )
 

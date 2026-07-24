@@ -449,3 +449,15 @@ def test_named_not_found_hedge_directive():
 def test_no_named_bottle_no_directive():
     msg = _build_user_message([{"wine_id": "1", "name": "Silver Oak"}], _intent())
     assert "specifically asked" not in msg.lower()
+
+
+def test_comparison_directive_present():
+    msg = _build_user_message([{"wine_id": "1", "name": "X"}],
+                              _intent(comparison_regions=["California", "Mendoza"]))
+    assert "California" in msg and "Mendoza" in msg
+    assert "one from each" in msg.lower()
+
+
+def test_no_comparison_directive_when_absent():
+    msg = _build_user_message([{"wine_id": "1", "name": "X"}], _intent())
+    assert "one from each" not in msg.lower()
