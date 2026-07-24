@@ -111,3 +111,8 @@ difference side by side." Renders nothing when absent (single-region unchanged).
   item the user deferred.
 - Comparisons across a non-place axis (grape vs grape, "old world vs new world") — only
   named regions/countries here.
+- **Region hierarchy / synonyms**: matching stays string-containment (item 33), so
+  "California" matches `region="California"` but NOT `region="Napa Valley"`, and "Rhône"
+  won't match "Côtes du Rhône"'s sub-appellations beyond containment. Both sides of a
+  comparison rely on there being inventory labeled at the named granularity (there is for
+  California/Mendoza). A place→sub-region gazetteer is a separate future enhancement.
