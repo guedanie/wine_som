@@ -255,3 +255,36 @@ def test_pin_named_first_dedup_and_cap():
 def test_pin_no_named_returns_top_unchanged():
     top = [{"wine_id": "s1", "name": "A"}]
     assert pin_named_matches(top, [], cap=3) == top
+
+
+from recommendation.candidate_filters import ensure_region_representation
+
+
+def _c(wid, region, country="USA", score=1.0):
+    return {"wine_id": wid, "store_ref": "s", "region": region, "country": country, "_score": score}
+
+
+def test_representation_pins_missing_region():
+    top = [_c("1", "Napa Valley", score=5), _c("2", "Sonoma", score=4)]
+    scored = top + [_c("9", "Mendoza", "Argentina", score=1)]
+    out = ensure_region_representation(top, scored, ["California", "Mendoza"], 12)
+    assert any(c["wine_id"] == "9" for c in out)
+
+
+def test_representation_noop_when_both_present():
+    top = [_c("1", "Napa Valley", score=5), _c("9", "Mendoza", "Argentina", score=4)]
+    out = ensure_region_representation(top, top, ["Napa", "Mendoza"], 12)
+    assert {c["wine_id"] for c in out} == {"1", "9"}
+
+
+def test_representation_noop_single_region():
+    top = [_c("1", "Napa Valley", score=5)]
+    assert ensure_region_representation(top, top, ["California"], 12) == top
+
+
+def test_representation_respects_cap_keeps_pinned():
+    top = [_c(str(i), "Napa Valley", score=10 - i) for i in range(12)]
+    scored = top + [_c("M", "Mendoza", "Argentina", score=0.5)]
+    out = ensure_region_representation(top, scored, ["California", "Mendoza"], 12)
+    assert len(out) == 12
+    assert any(c["wine_id"] == "M" for c in out)

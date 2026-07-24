@@ -3,6 +3,7 @@ resolution + hard type gate, fuzzy store detection, and candidate merge/dedup.
 Kept free of I/O so they unit-test without a DB (the router wires them)."""
 import difflib
 import re
+import unicodedata
 from typing import Any, Dict, List, Optional
 
 from utils import infer_wine_type
@@ -189,3 +190,47 @@ def merge_candidates(breadth: List[Dict[str, Any]],
         seen.add(key)
         out.append(c)
     return out
+
+
+def _norm_place(s: Optional[str]) -> str:
+    s = unicodedata.normalize("NFKD", s or "")
+    s = "".join(ch for ch in s if not unicodedata.combining(ch))
+    return re.sub(r"\s+", " ", s).strip().lower()
+
+
+def _cand_in_place(cand: Dict[str, Any], nr: str) -> bool:
+    reg = _norm_place(cand.get("region"))
+    ctry = _norm_place(cand.get("country"))
+    return bool((reg and (nr in reg or reg in nr)) or (ctry and (nr in ctry or ctry in nr)))
+
+
+def ensure_region_representation(top: List[Dict[str, Any]], scored: List[Dict[str, Any]],
+                                 regions: List[str], max_candidates: int) -> List[Dict[str, Any]]:
+    """For a 2+ place comparison, guarantee `top` contains >=1 candidate per named place.
+    Pins each missing place's best-scoring candidate from `scored` (score-sorted desc);
+    pinned candidates survive the `max_candidates` cap, the rest fill by score. No-op for
+    <2 regions."""
+    norm_regions = [_norm_place(r) for r in regions if r]
+    if len(norm_regions) < 2:
+        return top
+
+    def key(c):
+        return (c.get("wine_id"), c.get("store_ref"))
+
+    present_ids = {key(c) for c in top}
+    pinned: List[Dict[str, Any]] = []
+    for nr in norm_regions:
+        if any(_cand_in_place(c, nr) for c in top) or any(_cand_in_place(p, nr) for p in pinned):
+            continue
+        best = next((c for c in scored
+                     if _cand_in_place(c, nr) and key(c) not in present_ids), None)
+        if best is not None:
+            pinned.append(best)
+            present_ids.add(key(best))
+    if not pinned:
+        return top
+
+    pinned_ids = {key(p) for p in pinned}
+    others = [c for c in top if key(c) not in pinned_ids]
+    others.sort(key=lambda c: c.get("_score", 0), reverse=True)
+    return (pinned + others)[:max_candidates]
