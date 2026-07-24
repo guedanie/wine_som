@@ -14,9 +14,10 @@ from recommendation.scorer import score_candidates
 from recommendation.claude_client import stream_recommendations
 from recommendation.intent import parse_message, merge_intent, intent_from_request
 from recommendation.candidate_filters import (apply_type_gate, deep_fetch_reason,
-                                              detect_store, merge_candidates,
-                                              pin_named_matches, rank_name_matches,
-                                              requested_types_from, significant_name_tokens)
+                                              detect_store, ensure_region_representation,
+                                              merge_candidates, pin_named_matches,
+                                              rank_name_matches, requested_types_from,
+                                              significant_name_tokens)
 from utils.geo import zip_to_centroid, find_nearby_store_ids, haversine
 from api.ratelimit import RateLimiter, limit_dependency
 
@@ -353,20 +354,23 @@ async def recommend(req: RecommendRequest):
     resolved["liked_wines"] = (req.taste or {}).get("liked_wines") or []
     resolved["disliked_wines"] = (req.taste or {}).get("disliked_wines") or []
     resolved["profile"] = (req.taste or {}).get("profile") or None
+    _cmp = resolved.get("regions") or []
+    resolved["comparison_regions"] = _cmp if len(_cmp) >= 2 else None
 
     detected_store = detect_store(req.message, stores_meta.data or [])
 
     def _targeted_rows() -> list:
-        region = resolved.get("region")
-        if not region and not detected_store:
+        regions = resolved.get("regions") or (
+            [resolved["region"]] if resolved.get("region") else [])
+        if not regions and not detected_store:
             return []
 
-        def _q(since: Optional[str]) -> list:
+        def _q(place: Optional[str], since: Optional[str]) -> list:
             q = (supabase.table("retail_inventory").select(INVENTORY_SELECT)
                  .in_("store_ref", nearby_ids).eq("in_stock", True)
                  .gte("price", req.budget_min).lte("price", req.budget_max))
-            if region:
-                q = q.or_(f"region.ilike.%{region}%,country.ilike.%{region}%",
+            if place:
+                q = q.or_(f"region.ilike.%{place}%,country.ilike.%{place}%",
                           reference_table="wines")
             if detected_store:
                 q = q.eq("store_ref", detected_store["id"])
@@ -374,9 +378,13 @@ async def recommend(req: RecommendRequest):
                 q = q.gte("last_scraped_at", since)
             return q.limit(300).execute().data or []
 
-        # Same staleness policy as the breadth fetch: bench dead-scraper rows,
-        # but fail open (stale bottles beat a blank targeted result).
-        return _q(stale_cutoff) or _q(None)
+        # Fetch each named place separately so a comparison ("California vs Mendoza")
+        # gets candidates from BOTH — a single combined OR could return mostly one.
+        # Same staleness policy as the breadth fetch (fail open to stale).
+        rows: list = []
+        for place in (regions or [None]):   # [None] → store-only fetch when no region
+            rows.extend(_q(place, stale_cutoff) or _q(place, None))
+        return rows
 
     targeted = [c for c in (_row_to_candidate(r) for r in _targeted_rows()) if c]
     if targeted:
@@ -449,6 +457,8 @@ async def recommend(req: RecommendRequest):
             w["_score"] += rng.uniform(-0.4, 0.4)
         scored.sort(key=lambda w: w["_score"], reverse=True)
         sel = _select_diverse_top(scored, _MAX_CANDIDATES, _RETAILER_CAP, _VARIETAL_CAP)
+        sel = ensure_region_representation(
+            sel, scored, resolved.get("regions") or [], _MAX_CANDIDATES)
         if detected_store:
             sel.sort(key=lambda w: (w.get("store_ref") == detected_store["id"],
                                     w.get("_score", 0)), reverse=True)
