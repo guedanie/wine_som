@@ -427,3 +427,17 @@ def test_flavor_profile_metadata_does_not_score_as_flavor():
                     grapes=["Grenache"])  # Grenache/Rhône -> earthy tag
     result = score_candidates(_intent(wine_type="red", flavors=["earthy"]), [meta, genuine])
     assert result[0]["name"] == "GSM"
+
+
+def test_region_boost_credits_any_named_place():
+    mendoza = _wine("Malbec", wine_type="red", varietal="Malbec", region="Mendoza", country="Argentina")
+    napa = _wine("Cab", wine_type="red", varietal="Cabernet Sauvignon", region="Napa Valley", country="USA")
+    intent = _intent(wine_type="red")
+    intent["regions"] = ["California", "Mendoza"]
+    result = score_candidates(intent, [napa, mendoza])
+    scores = {w["name"]: w["_score"] for w in result}
+    assert scores["Malbec"] > 0          # 2nd named place still boosted
+    other = _wine("Rioja Red", wine_type="red", varietal="Tempranillo", region="Rioja", country="Spain")
+    r2 = score_candidates(intent, [mendoza, other])
+    s2 = {w["name"]: w["_score"] for w in r2}
+    assert s2["Malbec"] > s2["Rioja Red"]   # named place beats an unnamed one

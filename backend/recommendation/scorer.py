@@ -155,7 +155,8 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
     budget_target = max(budget_min, 0.75 * budget_max)
     want_type = intent.get("wine_type")
     want_body = intent.get("body")
-    want_region = _norm(intent.get("region")) if intent.get("region") else None
+    want_regions = [_norm(r) for r in (intent.get("regions")
+                    or ([intent["region"]] if intent.get("region") else [])) if r]
     want_grapes = {_norm(g) for g in (intent.get("grapes") or [])}
     want_flavors = {_norm(f) for f in (intent.get("flavors") or [])}
     avoid = [_norm(a) for a in (intent.get("avoid") or [])]
@@ -196,9 +197,10 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
                 or _blend_match(want_grapes, wine.get("wine_type"), wine.get("grapes"))):
             score += _W_GRAPE
 
-        if want_region and (
-                (region and (want_region in region or region in want_region))
-                or (country and (want_region in country or country in want_region))):
+        if want_regions and any(
+                (region and (wr in region or region in wr))
+                or (country and (wr in country or country in wr))
+                for wr in want_regions):
             score += _W_REGION
 
         if want_flavors:
@@ -223,7 +225,7 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
         # Taste profile — soft nudges that only fill a dimension the explicit
         # request left unspecified (the request always wins).
         if profile:
-            if p_regions and not want_region and region and any(
+            if p_regions and not want_regions and region and any(
                     r and (r in region or region in r) for r in p_regions):
                 score += _W_PROFILE_REGION
             if p_body and not want_body:
