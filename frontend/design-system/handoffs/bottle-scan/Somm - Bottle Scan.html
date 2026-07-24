@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="design_doc_mode" content="canvas" />
+<title>Somm — Bottle Scan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Archivo:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink:#1A1A1A; --ink-2:#33312C; --faded:#6B6453; --faded-2:#9E9282;
+    --bordeaux:#6E1023; --bordeaux-deep:#560B1B; --bordeaux-tint:#F5ECEE;
+    --brass:#B08D57; --brass-deep:#5C4A2E; --sage:#7C8A5A; --sage-deep:#556037;
+    --paper:#EFE6D4; --cream:#F5EFE6; --cream-raised:#FBF8F2;
+    --border:rgba(26,26,26,0.15); --border-strong:rgba(26,26,26,0.28);
+    --font-serif:'DM Serif Display', Georgia, serif;
+    --font-sans:'Archivo', system-ui, sans-serif;
+    --font-mono:'DM Mono', monospace;
+    --shadow-pop:0 12px 40px rgba(0,0,0,0.22);
+  }
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:var(--font-sans); background:#E6DECF; color:var(--ink-2); }
+
+  .zone-title { position:absolute; font-family:var(--font-serif); font-size:30px; color:var(--ink); }
+  .zone-sub { position:absolute; font-family:var(--font-sans); font-size:12.5px; color:var(--ink-2); max-width:470px; line-height:1.6; }
+  .cap { font-family:var(--font-sans); font-size:11px; color:var(--faded); line-height:1.55; }
+  .cap b { color:var(--ink); font-weight:600; }
+  .lbl { font-family:var(--font-sans); font-size:9.5px; letter-spacing:0.22em; text-transform:uppercase; color:var(--faded); font-weight:600; }
+
+  .t-eyebrow { font-family:var(--font-sans); font-size:9.5px; letter-spacing:0.24em; text-transform:uppercase; color:var(--faded); font-weight:600; }
+  .t-coord { font-family:var(--font-mono); font-size:10px; letter-spacing:0.13em; color:var(--sage); }
+  .t-tag { font-family:var(--font-sans); font-size:10.5px; letter-spacing:0.05em; color:var(--brass-deep); border:0.75px solid var(--brass); padding:3px 8px; white-space:nowrap; }
+  .t-body { font-family:var(--font-sans); font-size:13px; line-height:1.6; color:var(--ink-2); }
+  .serif { font-family:var(--font-serif); }
+
+  /* price-movement chip (carried over from price-intelligence) */
+  .pchip { display:inline-flex; align-items:center; gap:6px; font-family:var(--font-sans); font-size:10.5px; font-weight:600; letter-spacing:0.04em; padding:3px 8px; border:0.75px solid var(--bordeaux); background:var(--bordeaux-tint); color:var(--bordeaux); white-space:nowrap; }
+  .pchip .arw { font-family:var(--font-mono); font-size:11px; line-height:1; }
+
+  /* buttons */
+  .btn { font-family:var(--font-sans); font-size:12px; font-weight:600; letter-spacing:0.05em; cursor:pointer; border-radius:0; padding:11px 18px; text-align:center; }
+  .btn-primary { background:var(--bordeaux); color:var(--cream); border:none; }
+  .btn-ghost { background:transparent; color:var(--bordeaux); border:1.5px solid var(--bordeaux); }
+  .btn-sage { background:transparent; color:var(--sage-deep); border:1.5px solid var(--sage); }
+
+  /* phone */
+  .phone { width:390px; background:var(--cream); box-shadow:0 22px 70px rgba(0,0,0,0.42); overflow:hidden; position:relative; }
+  .topbar { height:54px; background:var(--cream); border-bottom:1.5px solid var(--ink); display:flex; align-items:center; padding:0 16px; gap:10px; }
+  .topbar-title { font-family:var(--font-serif); font-size:19px; color:var(--ink); }
+  .topbar-zip { margin-left:auto; font-family:var(--font-mono); font-size:11px; color:var(--faded); letter-spacing:0.1em; }
+  .stamp { width:30px; height:30px; border-radius:50%; background:var(--bordeaux); display:flex; align-items:center; justify-content:center; flex:none; }
+  .stamp svg { width:14px; height:14px; }
+  .tabbar { display:flex; background:var(--cream); border-top:1.5px solid var(--ink); }
+  .tab { flex:1; padding:8px 0 11px; display:flex; flex-direction:column; align-items:center; gap:3px; font-size:8.5px; letter-spacing:0.07em; text-transform:uppercase; color:var(--faded); }
+  .tab.active { color:var(--bordeaux); font-weight:600; }
+  .tab.scan { position:relative; }
+  .scan-fab { width:44px; height:44px; border-radius:50%; background:var(--bordeaux); display:flex; align-items:center; justify-content:center; margin-top:-14px; border:2.5px solid var(--cream); box-shadow:0 3px 10px rgba(110,16,35,0.35); }
+
+  /* store rows */
+  .store-row { display:flex; align-items:center; gap:12px; padding:11px 14px; }
+  .store-row + .store-row { border-top:1px solid var(--border); }
+  .store-row.best { background:var(--bordeaux-tint); }
+  .store-dot { width:22px; height:22px; border-radius:50%; border:1px solid var(--brass); flex:none; background:var(--paper); display:flex; align-items:center; justify-content:center; }
+  .store-name { font-family:var(--font-sans); font-size:13px; font-weight:600; color:var(--ink); }
+  .store-sub { font-size:10.5px; color:var(--faded); }
+  .store-price { font-family:var(--font-serif); font-size:18px; color:var(--bordeaux); }
+  .store-was { font-family:var(--font-sans); font-size:10.5px; color:var(--faded-2); text-decoration:line-through; }
+
+  /* result sheet */
+  .sheet { border-radius:16px 16px 0 0; background:var(--cream); border-top:1.5px solid var(--ink); box-shadow:0 -10px 44px rgba(0,0,0,0.3); overflow:hidden; }
+  .sheet-handle { width:38px; height:4px; background:var(--border-strong); border-radius:2px; margin:9px auto 0; }
+  .rating-badge { display:inline-flex; align-items:baseline; gap:3px; font-family:var(--font-serif); font-size:17px; color:var(--brass-deep); border:0.75px solid var(--brass); padding:2px 9px; background:var(--cream-raised); }
+  .rating-badge small { font-family:var(--font-sans); font-size:9px; letter-spacing:0.1em; text-transform:uppercase; color:var(--faded); }
+  .struct-row { display:flex; align-items:center; gap:9px; margin-bottom:5px; }
+  .struct-label { font-size:9.5px; color:var(--faded); width:52px; letter-spacing:0.03em; text-transform:uppercase; font-weight:600; }
+  .struct-track { flex:1; height:3px; background:var(--paper); border:0.75px solid var(--border); }
+  .struct-fill { height:100%; background:var(--brass); }
+
+  /* camera / capture surface */
+  .cam { position:absolute; inset:0; background:#22201C; display:flex; flex-direction:column; }
+  .cam-view { flex:1; position:relative; overflow:hidden; background:linear-gradient(160deg,#2E2A24,#1A1815); }
+  .cam-frame { position:absolute; inset:14% 22%; border:1.5px solid rgba(245,239,230,0.85); }
+  .cam-frame::before,.cam-frame::after { content:''; position:absolute; width:22px; height:22px; border:2.5px solid var(--brass); }
+  .cam-corner { position:absolute; width:20px; height:20px; border:2.5px solid var(--brass); }
+  .cam-hint { position:absolute; left:0; right:0; bottom:20px; text-align:center; font-family:var(--font-sans); font-size:12.5px; color:rgba(245,239,230,0.9); font-style:italic; }
+  .cam-mode { display:flex; gap:0; background:rgba(26,24,20,0.9); border-top:1px solid rgba(245,239,230,0.12); }
+  .cam-mode-btn { flex:1; padding:15px 0 30px; text-align:center; font-family:var(--font-sans); font-size:11px; letter-spacing:0.14em; text-transform:uppercase; color:rgba(245,239,230,0.5); font-weight:600; }
+  .cam-mode-btn.active { color:var(--cream); }
+  .cam-mode-btn.active .u { display:block; height:2px; background:var(--brass); width:34px; margin:7px auto -2px; }
+  .cam-top { display:flex; align-items:center; padding:14px 16px; gap:12px; }
+  .cam-top-x { color:rgba(245,239,230,0.7); font-size:20px; line-height:1; }
+  .cam-top-t { font-family:var(--font-serif); font-size:17px; color:var(--cream); }
+
+  /* label preview scan-line */
+  @keyframes scanmove { 0%{top:8%;} 100%{top:88%;} }
+  .scanline { position:absolute; left:8%; right:8%; height:2px; background:linear-gradient(90deg,transparent,var(--brass),transparent); animation:scanmove 1.8s ease-in-out infinite alternate; }
+  @keyframes dot { 0%,80%,100%{opacity:0.25;} 40%{opacity:1;} }
+  .d1{animation:dot 1.2s infinite 0s;} .d2{animation:dot 1.2s infinite .2s;} .d3{animation:dot 1.2s infinite .4s;}
+
+  .cand-row { display:flex; align-items:center; gap:12px; padding:12px 14px; cursor:pointer; }
+  .cand-row + .cand-row { border-top:1px solid var(--border); }
+  .cand-thumb { width:38px; height:52px; flex:none; background:repeating-linear-gradient(135deg,var(--paper),var(--paper) 4px,#E4D9C2 4px,#E4D9C2 8px); border:0.75px solid var(--brass); }
+  .cand-name { font-family:var(--font-serif); font-size:16px; color:var(--ink); line-height:1.1; }
+  .cand-sub { font-size:10.5px; color:var(--faded); margin-top:2px; }
+
+  .bottle-thumb { width:54px; height:74px; flex:none; background:repeating-linear-gradient(135deg,var(--paper),var(--paper) 5px,#E4D9C2 5px,#E4D9C2 10px); border:0.75px solid var(--brass); position:relative; }
+  .action-stack { display:flex; flex-direction:column; gap:8px; }
+  .icon-action { display:flex; align-items:center; justify-content:center; gap:8px; font-family:var(--font-sans); font-size:12px; font-weight:600; letter-spacing:0.04em; padding:11px; border:1.5px solid var(--border-strong); background:var(--cream-raised); color:var(--ink); cursor:pointer; }
+  .icon-action svg { width:15px; height:15px; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════ ZONE 0 — ENTRY POINTS ══════════════ -->
+<div class="zone-title" style="left:60px; top:44px;">Entry — show your sommelier a bottle</div>
+<div class="zone-sub" style="left:64px; top:88px;">One primary home: a <b>camera FAB in the center of the tab bar</b> — findable in-aisle in two seconds, reads as "show Somm a bottle," not a barcode utility. Plus a conversational entry inside the chat overlay ("show me the bottle"). Both open the same capture surface.</div>
+
+<!-- tab bar FAB detail -->
+<div style="position:absolute; left:64px; top:180px;">
+  <div class="phone" style="width:390px; height:auto;">
+    <div style="height:150px; background:var(--paper); display:flex; align-items:flex-end; justify-content:center; padding-bottom:14px;">
+      <span class="cap" style="color:var(--faded);">…Discover feed above…</span>
+    </div>
+    <div class="tabbar">
+      <div class="tab active"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>Discover</div>
+      <div class="tab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 6h18M3 12h18M3 18h12"/></svg>Regions</div>
+      <div class="tab scan">
+        <div class="scan-fab"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#F5EFE6" stroke-width="1.6"><path d="M3 8.5V7a2 2 0 0 1 2-2h1.5l1-1.6h5l1 1.6H20a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2"/><circle cx="12" cy="12.5" r="3.6"/></svg></div>
+        <span style="margin-top:2px;">Scan</span>
+      </div>
+      <div class="tab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 3h14v18l-7-5-7 5V3z"/></svg>Saved</div>
+      <div class="tab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 12 0v1"/></svg>You</div>
+    </div>
+  </div>
+  <div class="cap" style="margin-top:10px; max-width:390px;"><b>Primary — tab-bar FAB.</b> Bordeaux camera pin raised out of the bar; thumb-reachable one-handed.</div>
+</div>
+
+<!-- chat entry -->
+<div style="position:absolute; left:494px; top:180px;">
+  <div class="phone" style="width:390px; height:auto;">
+    <div style="padding:16px; background:var(--paper); display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; gap:10px;">
+        <div class="stamp"><svg viewBox="0 0 100 100" fill="none"><circle cx="50" cy="50" r="46" stroke="#EFE6D4" stroke-width="5"/><path d="M50 18 C40 18 32 26 32 36 C32 48 50 68 50 68 C50 68 68 48 68 36 C68 26 60 18 50 18Z" fill="#EFE6D4"/></svg></div>
+        <div style="background:var(--cream-raised); border:1px solid var(--border); border-radius:4px 14px 14px 14px; padding:12px 14px; max-width:270px;"><div class="t-body">Holding a bottle you don't know? Show me — I'll tell you what it is and where to find it.</div></div>
+      </div>
+      <div style="display:flex; justify-content:flex-end;">
+        <button class="btn" style="display:inline-flex; align-items:center; gap:8px; background:var(--cream-raised); border:1.5px solid var(--bordeaux); color:var(--bordeaux); border-radius:999px; padding:9px 16px;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 8.5V7a2 2 0 0 1 2-2h1.5l1-1.6h5l1 1.6H20a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2"/><circle cx="12" cy="12.5" r="3.6"/></svg>Show me the bottle</button>
+      </div>
+    </div>
+  </div>
+  <div class="cap" style="margin-top:10px; max-width:390px;"><b>Conversational entry.</b> A chip inside the Somm chat overlay — pill radius, chat-surface soft corners. Opens the same capture.</div>
+</div>
+
+<!-- ══════════════ ZONE 1 — CAPTURE ══════════════ -->
+<div class="zone-title" style="left:60px; top:640px;">1 · Capture — the native-camera round-trip</div>
+<div class="zone-sub" style="left:64px; top:684px;">Two modes, two buttons (no clever auto-detect to misfire): <b>Label</b> photo is the universal path, <b>Barcode</b> the fast exact path when the bottle's in hand. Tapping fires the OS camera (<span style="font-family:var(--font-mono); font-size:11px;">capture="environment"</span>); the live-viewfinder barcode scanner is a progressive enhancement. One quiet line notes photos identify only, aren't stored.</div>
+
+<!-- label capture -->
+<div class="phone" style="position:absolute; left:64px; top:780px; height:730px;">
+  <div class="cam">
+    <div class="cam-top"><span class="cam-top-x">✕</span><span class="cam-top-t">Show me the bottle</span></div>
+    <div class="cam-view">
+      <div class="cam-frame"></div>
+      <div class="cam-corner" style="top:12%; left:20%; border-right:none; border-bottom:none;"></div>
+      <div class="cam-corner" style="top:12%; right:20%; border-left:none; border-bottom:none;"></div>
+      <div class="cam-corner" style="bottom:12%; left:20%; border-right:none; border-top:none;"></div>
+      <div class="cam-corner" style="bottom:12%; right:20%; border-left:none; border-top:none;"></div>
+      <div class="cam-hint">Get the whole front label in frame</div>
+    </div>
+    <div style="text-align:center; padding:16px 0 8px; background:rgba(26,24,20,0.9);">
+      <div style="width:64px; height:64px; border-radius:50%; border:3px solid var(--cream); margin:0 auto; display:flex; align-items:center; justify-content:center;"><div style="width:50px; height:50px; border-radius:50%; background:var(--cream);"></div></div>
+      <div style="font-family:var(--font-mono); font-size:9px; letter-spacing:0.1em; color:rgba(245,239,230,0.45); margin-top:10px;">PHOTOS IDENTIFY ONLY — NOT STORED</div>
+    </div>
+    <div class="cam-mode">
+      <div class="cam-mode-btn active">Label<div class="u"></div></div>
+      <div class="cam-mode-btn">Barcode</div>
+    </div>
+  </div>
+</div>
+<div class="cap" style="position:absolute; left:64px; top:1524px; width:390px;"><b>Label mode.</b> Framing guides + one concrete tip; shutter fires the OS camera. Mode toggle pinned at the bottom.</div>
+
+<!-- barcode capture -->
+<div class="phone" style="position:absolute; left:494px; top:780px; height:730px;">
+  <div class="cam">
+    <div class="cam-top"><span class="cam-top-x">✕</span><span class="cam-top-t">Scan the barcode</span></div>
+    <div class="cam-view">
+      <div style="position:absolute; inset:34% 16%; border:1.5px solid rgba(245,239,230,0.85);"></div>
+      <div class="scanline" style="left:16%; right:16%; top:44%; animation-name:scanmove; animation-duration:1.6s;"></div>
+      <div class="cam-hint">Line up the barcode — I'll catch it automatically</div>
+    </div>
+    <div style="text-align:center; padding:22px 0 14px; background:rgba(26,24,20,0.9);">
+      <div style="font-family:var(--font-mono); font-size:9px; letter-spacing:0.1em; color:var(--sage);">◎ LIVE SCANNER · 54% OF CATALOG HAS BARCODES</div>
+    </div>
+    <div class="cam-mode">
+      <div class="cam-mode-btn">Label</div>
+      <div class="cam-mode-btn active">Barcode<div class="u"></div></div>
+    </div>
+  </div>
+</div>
+<div class="cap" style="position:absolute; left:494px; top:1524px; width:390px;"><b>Barcode mode.</b> Live viewfinder (progressive enhancement); instant exact match on catch. Falls back to Label when a bottle has no barcode.</div>
+
+<!-- identifying state -->
+<div class="phone" style="position:absolute; left:924px; top:780px; height:730px;">
+  <div class="cam">
+    <div class="cam-top"><span class="cam-top-x">✕</span><span class="cam-top-t">Reading the label…</span></div>
+    <div class="cam-view">
+      <div style="position:absolute; inset:14% 26%; border:1.5px solid rgba(245,239,230,0.4); background:repeating-linear-gradient(135deg,rgba(176,141,87,0.14),rgba(176,141,87,0.14) 6px,transparent 6px,transparent 12px);"></div>
+      <div class="scanline"></div>
+      <div style="position:absolute; left:0; right:0; bottom:70px; text-align:center;">
+        <span style="display:inline-flex; align-items:center; gap:5px; font-family:var(--font-mono); font-size:8px; letter-spacing:0.14em; color:rgba(245,239,230,0.4);">
+          <span style="width:5px;height:5px;border-radius:50%;background:var(--brass);" class="d1"></span>
+          <span style="width:5px;height:5px;border-radius:50%;background:var(--brass);" class="d2"></span>
+          <span style="width:5px;height:5px;border-radius:50%;background:var(--brass);" class="d3"></span>
+        </span>
+      </div>
+    </div>
+    <div style="background:var(--cream); padding:18px 18px 26px;">
+      <div style="display:flex; gap:10px; align-items:center;">
+        <div class="stamp"><svg viewBox="0 0 100 100" fill="none"><circle cx="50" cy="50" r="46" stroke="#EFE6D4" stroke-width="5"/><path d="M50 18 C40 18 32 26 32 36 C32 48 50 68 50 68 C50 68 68 48 68 36 C68 26 60 18 50 18Z" fill="#EFE6D4"/></svg></div>
+        <div class="t-body" style="font-style:italic; color:var(--faded);">Let me get a look at it<span class="d1">.</span><span class="d2">.</span><span class="d3">.</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="cap" style="position:absolute; left:924px; top:1524px; width:390px;"><b>Identifying (2–5s).</b> A real state, not a spinner flash — the somm "squinting at the label," matching the chat streaming voice.</div>
+
+<!-- ══════════════ ZONE 2 — RESULT STATES ══════════════ -->
+<div class="zone-title" style="left:60px; top:1600px;">2 · Result states — one sheet, five faces</div>
+<div class="zone-sub" style="left:64px; top:1644px;">Confidence is a spectrum. All five states are one bottom-sheet component family — same header grammar, swapped body + action hierarchy. Never a dead end, never "no results found."</div>
+
+<!-- STATE 1: EXACT HIT -->
+<div class="phone" style="position:absolute; left:64px; top:1740px; height:760px;">
+  <div style="position:absolute; inset:0; background:linear-gradient(160deg,#2E2A24,#1A1815);"></div>
+  <div class="sheet" style="position:absolute; bottom:0; left:0; right:0; max-height:88%;">
+    <div class="sheet-handle"></div>
+    <div style="padding:16px 18px 14px; border-bottom:0.75px solid var(--brass);">
+      <div style="display:flex; align-items:baseline; justify-content:space-between;"><span class="t-eyebrow">Got it · exact match</span><span class="t-coord">◎ 78209</span></div>
+      <div style="display:flex; gap:14px; margin-top:10px;">
+        <div class="bottle-thumb"></div>
+        <div style="flex:1;">
+          <div class="serif" style="font-size:24px; color:var(--ink); line-height:1.05;">Esprit de Tablas</div>
+          <div style="font-size:11px; color:var(--faded); margin-top:3px;">Tablas Creek · Paso Robles · 2021</div>
+          <div style="display:flex; gap:6px; margin-top:8px; align-items:center;"><span class="rating-badge">93 <small>pts</small></span><span class="t-tag">Rhône blend</span></div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:13px 18px; border-bottom:1px solid var(--border);">
+      <div class="struct-row"><div class="struct-label">Body</div><div class="struct-track"><div class="struct-fill" style="width:80%;"></div></div></div>
+      <div class="struct-row"><div class="struct-label">Tannin</div><div class="struct-track"><div class="struct-fill" style="width:65%;"></div></div></div>
+      <div class="struct-row"><div class="struct-label">Acidity</div><div class="struct-track"><div class="struct-fill" style="width:50%;"></div></div></div>
+      <div style="display:flex; gap:5px; margin-top:9px; flex-wrap:wrap;"><span class="t-tag">dark cherry</span><span class="t-tag">garrigue</span><span class="t-tag">long finish</span></div>
+    </div>
+    <div style="padding:11px 18px 6px;"><span class="t-eyebrow">Where to buy near you</span></div>
+    <div>
+      <div class="store-row best">
+        <div class="store-dot" style="background:var(--bordeaux);"><svg width="8" height="8" viewBox="0 0 10 10"><circle cx="5" cy="5" r="2.4" fill="var(--cream)"/></svg></div>
+        <div style="flex:1;"><div class="store-name">H-E-B Central Market</div><div class="store-sub">Broadway · 5.1 mi</div></div>
+        <div style="text-align:right;"><div class="store-was">$24.99</div><div class="store-price">$19.99</div></div>
+      </div>
+      <div class="store-row">
+        <div class="store-dot"><svg width="8" height="8" viewBox="0 0 10 10"><circle cx="5" cy="5" r="2.4" fill="var(--brass)"/></svg></div>
+        <div style="flex:1;"><div class="store-name">Spec's</div><div class="store-sub">Alamo Heights · 4.2 mi</div></div>
+        <div class="store-price">$22.99</div>
+      </div>
+    </div>
+    <div style="padding:12px 18px 18px; display:flex; gap:8px;">
+      <button class="btn btn-primary" style="flex:1;">Directions to H-E-B</button>
+      <button class="icon-action" style="flex:none; width:46px; padding:0;" title="Save"><svg viewBox="0 0 24 24" fill="none" stroke="#6E1023" stroke-width="1.6"><path d="M6 3h12v18l-6-4-6 4V3z"/></svg></button>
+    </div>
+  </div>
+</div>
+<div class="cap" style="position:absolute; left:64px; top:2516px; width:390px;"><b>① Exact hit.</b> Barcode or unambiguous label match → straight to the compressed dossier. Primary = <b>where to buy</b>; save is a quiet secondary icon. Deep-links to the full dossier.</div>
+
+<!-- STATE 2: CANDIDATES -->
+<div class="phone" style="position:absolute; left:494px; top:1740px; height:760px;">
+  <div style="position:absolute; inset:0; background:linear-gradient(160deg,#2E2A24,#1A1815);"></div>
+  <div class="sheet" style="position:absolute; bottom:0; left:0; right:0; max-height:80%;">
+    <div class="sheet-handle"></div>
+    <div style="padding:16px 18px 12px;">
+      <div style="display:flex; gap:10px; align-items:flex-start;">
+        <div class="stamp" style="margin-top:2px;"><svg viewBox="0 0 100 100" fill="none"><circle cx="50" cy="50" r="46" stroke="#EFE6D4" stroke-width="5"/><path d="M50 18 C40 18 32 26 32 36 C32 48 50 68 50 68 C50 68 68 48 68 36 C68 26 60 18 50 18Z" fill="#EFE6D4"/></svg></div>
+        <div class="t-body">That's a Tablas Creek — which one are you holding?</div>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--border);">
+      <div class="cand-row">
+        <div class="cand-thumb"></div>
+        <div style="flex:1;"><div class="cand-name">Esprit de Tablas</div><div class="cand-sub">Red Rhône blend · 2021</div></div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B6453" stroke-width="1.6"><path d="m9 6 6 6-6 6"/></svg>
+      </div>
+      <div class="cand-row">
+        <div class="cand-thumb"></div>
+        <div style="flex:1;"><div class="cand-name">Esprit de Tablas Blanc</div><div class="cand-sub">White Rhône blend · 2022</div></div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B6453" stroke-width="1.6"><path d="m9 6 6 6-6 6"/></svg>
+      </div>
+      <div class="cand-row">
+        <div class="cand-thumb"></div>
+        <div style="flex:1;"><div class="cand-name">Patelin de Tablas</div><div class="cand-sub">Red Rhône blend · 2022</div></div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B6453" stroke-width="1.6"><path d="m9 6 6 6-6 6"/></svg>
+      </div>
+    </div>
+    <div style="padding:14px 18px 20px; border-top:1px solid var(--border);">
+      <button class="btn btn-ghost" style="width:100%;">None of these — try again</button>
+    </div>
+  </div>
+</div>
+<div class="cap" style="position:absolute; left:494px; top:2516px; width:390px;"><b>② A few candidates.</b> Good vision read, 2–4 catalog rows. Thumbnail + name + vintage, one tap to resolve. Escape hatch at the bottom.</div>
+
+<!-- STATE 3: VINTAGE MISMATCH -->
+<div class="phone" style="position:absolute; left:924px; top:1740px; height:760px;">
+  <div style="position:absolute; inset:0; background:linear-gradient(160deg,#2E2A24,#1A1815);"></div>
+  <div class="sheet" style="position:absolute; bottom:0; left:0; right:0; max-height:86%;">
+    <div class="sheet-handle"></div>
+    <div style="padding:16px 18px 12px;">
+      <div style="display:flex; gap:10px; align-items:flex-start;">
+        <div class="stamp" style="margin-top:2px;"><svg viewBox="0 0 100 100" fill="none"><circle cx="50" cy="50" r="46" stroke="#EFE6D4" stroke-width="5"/><path d="M50 18 C40 18 32 26 32 36 C32 48 50 68 50 68 C50 68 68 48 68 36 C68 26 60 18 50 18Z" fill="#EFE6D4"/></svg></div>
+        <div class="t-body">That's Tablas Creek's Esprit — yours looks like the <b style="color:var(--ink); font-weight:600;">2019</b>. I see the <b style="color:var(--ink); font-weight:600;">2021</b> nearby; close cousin, worth knowing.</div>
+      </div>
+    </div>
+    <div style="padding:2px 18px 12px; border-bottom:0.75px solid var(--brass);">
+      <div style="display:flex; gap:14px; margin-top:8px;">
+        <div class="bottle-thumb"></div>
+        <div style="flex:1;">
+          <div class="serif" style="font-size:22px; color:var(--ink); line-height:1.05;">Esprit de Tablas</div>
+          <div style="font-size:11px; color:var(--faded); margin-top:3px;">Tablas Creek · Paso Robles</div>
+          <div style="display:flex; gap:6px; margin-top:8px; align-items:center;">
+            <span class="t-tag" style="border-color:var(--border-strong); color:var(--faded);">yours · 2019</span>
+            <span class="t-tag" style="background:var(--bordeaux-tint); border-color:var(--bordeaux); color:var(--bordeaux);">nearby · 2021</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="padding:11px 18px 6px;"><span class="t-eyebrow">The 2021, near you</span></div>
+    <div>
+      <div class="store-row best">
+        <div class="store-dot" style="background:var(--bordeaux);"><svg width="8" height="8" viewBox="0 0 10 10"><circle cx="5" cy="5" r="2.4" fill="var(--cream)"/></svg></div>
+        <div style="flex:1;"><div class="store-name">Spec's</div><div class="store-sub">Alamo Heights · 4.2 mi</div></div>
+        <div class="store-price">$22.99</div>
+      </div>
+    </div>
+    <div style="padding:12px 18px 18px; display:flex; gap:8px;">
+      <button class="btn btn-primary" style="flex:1;">See the 2021</button>
+      <button class="btn btn-ghost" style="flex:1;">Save the 2019</button>
+    </div>
+  </div>
+</div>
+<div class="cap" style="position:absolute; left:924px; top:2516px; width:390px;"><b>③ Different vintage.</b> Soft confirm — names yours vs. nearby, never a dead end. Two vintages tagged; user can chase the stocked one or just remember theirs.</div>
+
+<!-- STATE 4: NOT STOCKED -->
+<div class="phone" style="position:absolute; left:64px; top:2600px; height:700px;">
+  <div style="position:absolute; inset:0; background:linear-gradient(160deg,#2E2A24,#1A1815);"></div>
+  <div class="sheet" style="position:absolute; bottom:0; left:0; right:0; max-height:82%;">
+    <div class="sheet-handle"></div>
+    <div style="padding:16px 18px 12px;">
+      <div style="display:flex; gap:10px; align-items:flex-start;">
+        <div class="stamp" style="margin-top:2px;"><svg viewBox="0 0 100 100" fill="none"><circle cx="50" cy="50" r="46" stroke="#EFE6D4" stroke-width="5"/><path d="M50 18 C40 18 32 26 32 36 C32 48 50 68 50 68 C50 68 68 48 68 36 C68 26 60 18 50 18Z" fill="#EFE6D4"/></svg></div>
+        <div class="t-body">I know this one — Clos Rougeard's Saumur-Champigny. Nobody near you stocks it right now, but it's a beauty. I'll remember it for you.</div>
+      </div>
+    </div>
+    <div style="padding:2px 18px 14px; border-bottom:0.75px solid var(--brass);">
+      <div style="display:flex; gap:14px; margin-top:8px;">
+        <div class="bottle-thumb"></div>
+        <div style="flex:1;">
+          <div class="serif" style="font-size:21px; color:var(--ink); line-height:1.05;">Le Bourg</div>
+          <div style="font-size:11px; color:var(--faded); margin-top:3px;">Clos Rougeard · Saumur-Champigny · 2019</div>
+          <div style="display:flex; gap:6px; margin-top:8px;"><span class="t-tag">Cabernet Franc</span><span class="t-tag">Loire</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="action-stack" style="padding:14px 18px 12px;">
+      <button class="icon-action" style="border-color:var(--bordeaux); color:var(--bordeaux);"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 3h12v18l-6-4-6 4V3z"/></svg>Remember this for me</button>
+      <button class="icon-action"><svg viewBox="0 0 24 24" fill="none" stroke="#556037" stroke-width="1.6"><path d="M4 4v16M4 4h13l-2 5 2 5H4"/></svg>Tell me if it shows up nearby</button>
+    </div>
+    <div style="padding:0 18px 20px;"><div class="cap" style="font-style:italic;">Availability watch — future seam, mirrors the price watch.</div></div>
+  </div>
+</div>
+<div class="cap" style="position:absolute; left:64px; top:3316px; width:390px;"><b>④ Recognized, not stocked.</b> Still a win — remembering is the product. Save is primary; the "tell me if it shows up" ghost is the availability-watch seam (designed, not built).</div>
+
+<!-- STATE 5: UNREADABLE -->
+<div class="phone" style="position:absolute; left:494px; top:2600px; height:700px;">
+  <div style="position:absolute; inset:0; background:linear-gradient(160deg,#2E2A24,#1A1815);"></div>
+  <div class="sheet" style="position:absolute; bottom:0; left:0; right:0; max-height:66%;">
+    <div class="sheet-handle"></div>
+    <div style="padding:20px 20px 10px;">
+      <div style="display:flex; gap:10px; align-items:flex-start;">
+        <div class="stamp" style="margin-top:2px;"><svg viewBox="0 0 100 100" fill="none"><circle cx="50" cy="50" r="46" stroke="#EFE6D4" stroke-width="5"/><path d="M50 18 C40 18 32 26 32 36 C32 48 50 68 50 68 C50 68 68 48 68 36 C68 26 60 18 50 18Z" fill="#EFE6D4"/></svg></div>
+        <div class="t-body">Couldn't quite make it out — the glare's hiding the name. Try again with the whole front label in frame, and I'll get it.</div>
+      </div>
+    </div>
+    <div style="padding:6px 20px 8px;">
+      <div style="border:0.75px dashed var(--border-strong); padding:14px; display:flex; gap:12px; align-items:center; background:var(--cream-raised);">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6B6453" stroke-width="1.4"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+        <div class="cap" style="color:var(--faded);"><b>One tip:</b> no flash on foil — tilt the bottle so the label isn't reflecting light back.</div>
+      </div>
+    </div>
+    <div style="padding:12px 20px 22px; display:flex; flex-direction:column; gap:8px;">
+      <button class="btn btn-primary" style="width:100%;">Retake the photo</button>
+      <button class="btn btn-ghost" style="width:100%;">Search by name instead</button>
+    </div>
+  </div>
+</div>
+<div class="cap" style="position:absolute; left:494px; top:3316px; width:390px;"><b>⑤ Can't read it.</b> Never an error tone. One concrete tip + retry, plus a type-the-name fallback into the existing search.</div>
+
+<!-- SIGN-IN NUDGE on save -->
+<div class="phone" style="position:absolute; left:924px; top:2600px; height:700px;">
+  <div style="position:absolute; inset:0; background:linear-gradient(160deg,#2E2A24,#1A1815);"></div>
+  <!-- dimmed result behind -->
+  <div style="position:absolute; bottom:0; left:0; right:0; height:40%; background:var(--cream); opacity:0.25; border-radius:16px 16px 0 0;"></div>
+  <div class="sheet" style="position:absolute; bottom:0; left:0; right:0; max-height:62%;">
+    <div class="sheet-handle"></div>
+    <div style="padding:18px 22px 24px;">
+      <span class="t-eyebrow">Remember this bottle</span>
+      <div class="serif" style="font-size:22px; color:var(--ink); line-height:1.25; margin-top:9px;">I'll remember<br><span style="color:var(--bordeaux);">Le Bourg</span> for you.</div>
+      <div class="t-body" style="color:var(--faded); margin-top:8px;">Saved bottles live with your account — passwordless, free. Sign in and it's on your list the moment you tap the link.</div>
+      <label style="font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--faded); font-weight:600; margin:16px 0 6px; display:block;">Your email</label>
+      <input style="width:100%; border:1.5px solid var(--ink); background:var(--cream); font-family:var(--font-sans); font-size:14px; color:var(--ink); padding:11px 13px; outline:none;" type="email" placeholder="you@example.com" />
+      <button class="btn btn-primary" style="width:100%; margin-top:10px;">Send magic link</button>
+      <div class="cap" style="text-align:center; margin-top:10px;">No account needed to browse — this just saves the bottle.</div>
+    </div>
+  </div>
+</div>
+<div class="cap" style="position:absolute; left:924px; top:3316px; width:390px;"><b>Anonymous save → sign-in nudge.</b> Identify works signed-out; saving opens the existing contextual magic-link sheet, pending-intent carried through the round-trip.</div>
+
+</body>
+</html>
