@@ -11,7 +11,7 @@ _W_GRAPE = 2.0
 _W_REGION = 1.5
 _W_FLAVOR_TAG = 1.0      # per matched flavor tag, capped
 _FLAVOR_CAP = 3.0
-_W_BUDGET = 1.0
+_W_BUDGET = 1.5          # felt, but below _W_GRAPE/_W_TYPE so quality still leads
 _W_TIER = 0.5
 _W_RATING = 1.5          # max community-rating boost (never a penalty)
 _MIN_RATINGS = 25        # below this, the rating is noise — ignore it
@@ -148,11 +148,10 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
     """Knowledge-based deterministic scoring. `intent` is the resolved-intent dict."""
     budget_min = float(intent.get("budget_min", 10.0))
     budget_max = float(intent.get("budget_max", 50.0))
-    # The budget pull targets 0.75×max, not the window midpoint — a $150 budget
-    # reads as appetite to spend (~$112), not "anything under $150 is equally
-    # fine". Clamped to the floor so narrow windows don't target an unreachable
-    # price below budget_min.
-    budget_target = max(budget_min, 0.75 * budget_max)
+    # "up to $X" is a ceiling people generally want to spend near — target 0.85×max
+    # ($42.50 for a $50 ceiling) so picks cluster in the upper band, not the midpoint.
+    # Clamped to the floor so narrow windows don't target a price below budget_min.
+    budget_target = max(budget_min, 0.85 * budget_max)
     want_type = intent.get("wine_type")
     want_body = intent.get("body")
     want_regions = [_norm(r) for r in (intent.get("regions")

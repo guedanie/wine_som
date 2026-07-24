@@ -66,9 +66,9 @@ def test_price_proximity_scores_midrange_higher():
 
 
 def test_big_budget_pulls_toward_the_top_of_the_window():
-    """A $150 budget should read as appetite to spend: the pull targets
-    0.75×max (~$112), not the window midpoint ($80). The $80 wine is exactly
-    the OLD midpoint target and comes first, so only the new target can pass."""
+    """A $150 budget reads as appetite to spend: the pull targets 0.85×max
+    (~$127.50), not the window midpoint ($80). The $110 splurge is closer to the
+    target than the $80 midpoint, so it comes first."""
     old_target = _wine("Midpoint Red", price=80.0)
     splurge = _wine("Splurge Red", price=110.0)
     result = score_candidates(_intent(budget_min=10.0, budget_max=150.0), [old_target, splurge])
@@ -87,12 +87,12 @@ def test_style_match_still_beats_price_target():
 
 
 def test_price_target_clamps_into_narrow_window():
-    """0.75×max can fall below budget_min on narrow windows (e.g. $10–$12 →
-    $9); the target clamps to the floor so in-window wines aren't all
+    """0.85×max can fall below budget_min on narrow windows (e.g. $10–$11 →
+    $9.35); the target clamps to the floor so in-window wines aren't all
     penalized toward an unreachable price."""
     low = _wine("Ten Dollar Red", price=10.0)
-    high = _wine("Twelve Dollar Red", price=12.0)
-    result = score_candidates(_intent(budget_min=10.0, budget_max=12.0), [high, low])
+    high = _wine("Eleven Dollar Red", price=11.0)
+    result = score_candidates(_intent(budget_min=10.0, budget_max=11.0), [high, low])
     assert result[0]["name"] == "Ten Dollar Red"
 
 
@@ -441,3 +441,23 @@ def test_region_boost_credits_any_named_place():
     r2 = score_candidates(intent, [mendoza, other])
     s2 = {w["name"]: w["_score"] for w in r2}
     assert s2["Malbec"] > s2["Rioja Red"]   # named place beats an unnamed one
+
+
+def test_budget_prefers_near_ceiling_over_cheap_with_modest_rating_edge():
+    near = _wine("Near Ceiling", price=45.0)
+    cheap = _wine("Cheap Rated", price=16.0)
+    cheap["vivino_rating"] = 4.1
+    cheap["vivino_ratings_count"] = 71000
+    result = score_candidates(
+        _intent(wine_type="red", budget_min=10.0, budget_max=50.0), [cheap, near])
+    assert result[0]["name"] == "Near Ceiling"
+
+
+def test_standout_cheap_wine_still_wins_soft_budget():
+    splurge = _wine("Mediocre Splurge", price=48.0)
+    value = _wine("Standout Value", price=20.0)
+    value["vivino_rating"] = 4.7
+    value["vivino_ratings_count"] = 50000
+    result = score_candidates(
+        _intent(wine_type="red", budget_min=10.0, budget_max=50.0), [splurge, value])
+    assert result[0]["name"] == "Standout Value"
