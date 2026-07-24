@@ -24,13 +24,14 @@
   empties the pool (e.g. a missed scrape week), it refetches unfiltered and logs
   a warning — stale bottles beat a blank app. Fresh scrapes re-include a
   retailer automatically.
-- **Budget = hard window + soft pull toward 0.75×max** — the inventory fetch is a
+- **Budget = hard window + soft pull toward 0.85×max** — the inventory fetch is a
   hard `[budget_min, budget_max]` filter (frontend sends a fixed $10 floor + the
-  slider as ceiling). Inside the window the scorer adds up to `_W_BUDGET=1.0` for
-  proximity to `max(budget_min, 0.75×budget_max)` — a $150 budget reads as appetite
-  to spend (~$112 target), not "everything under $150 is equal" — while staying a
-  tiebreaker (style/type/personalization weights are 2–3×), so a great-value bottle
-  still beats a mediocre expensive one.
+  "up to $X" slider as ceiling). Inside the window the scorer adds up to
+  `_W_BUDGET=1.5` for proximity to `max(budget_min, 0.85×budget_max)` — "up to $X" is
+  a ceiling people generally want to spend near, so picks cluster in the upper band
+  ($42.50 target for a $50 ceiling; validated at 78209: top-8 red picks median ~$37,
+  vs the old ~$16–20). Still soft — `_W_BUDGET (1.5) < _W_GRAPE (2.0) < _W_TYPE (3.0)`,
+  so a much-higher-rated value wine still beats a mediocre expensive one (2026-07-23).
 - **Vivino rating boost** — `_W_RATING=1.5` max, boost-only above a 3.5 baseline,
   ignored when `vivino_ratings_count < 25` (`_MIN_RATINGS`). Never penalizes unrated
   wines — obscure natural wines aren't punished for having no Vivino presence.
