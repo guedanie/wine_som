@@ -136,3 +136,26 @@ def test_merge_no_parsed_leaves_wine_name_none():
     explicit = intent_from_request(wine_type=None, style_preferences=[], avoid=[],
                                    budget_min=10.0, budget_max=50.0)
     assert merge_intent(None, explicit)["wine_name"] is None
+
+
+def test_merge_captures_regions_list():
+    explicit = intent_from_request(wine_type=None, style_preferences=[], avoid=[],
+                                   budget_min=10.0, budget_max=50.0)
+    merged = merge_intent({"regions": ["California", "Mendoza"], "region": "California",
+                           "flavors": [], "grapes": [], "avoid": []}, explicit)
+    assert merged["regions"] == ["California", "Mendoza"]
+    assert merged["region"] == "California"
+
+
+def test_merge_regions_backfills_from_scalar_region():
+    explicit = intent_from_request(wine_type=None, style_preferences=[], avoid=[],
+                                   budget_min=10.0, budget_max=50.0)
+    merged = merge_intent({"region": "Rioja", "flavors": [], "grapes": [], "avoid": []}, explicit)
+    assert merged["regions"] == ["Rioja"]
+    assert merged["region"] == "Rioja"
+
+
+def test_intent_from_request_regions_empty():
+    out = intent_from_request(wine_type=None, style_preferences=[], avoid=[],
+                              budget_min=10.0, budget_max=50.0)
+    assert out["regions"] == []

@@ -27,6 +27,7 @@ _TOOL = {
             "flavors": {"type": "array", "items": {"type": "string"}},
             "grapes": {"type": "array", "items": {"type": "string"}},
             "region": {"type": ["string", "null"]},
+            "regions": {"type": "array", "items": {"type": "string"}},
             "wine_name": {"type": ["string", "null"]},
             "max_price": {"type": ["number", "null"]},
             "avoid": {"type": "array", "items": {"type": "string"}},
@@ -48,7 +49,10 @@ def parse_message(message: str) -> Optional[Dict[str, Any]]:
                 "Use null/empty when a field is not implied. Do not invent grapes or regions. "
                 "`wine_name`: set ONLY when the user names a specific bottle or producer to look up "
                 "(e.g. 'Caymus Special Selection', 'Opus One', 'do you have Silver Oak?'); "
-                "leave null for generic style requests."
+                "leave null for generic style requests. "
+                "`regions`: list EVERY wine region or country the user names, in the order "
+                "mentioned (e.g. 'California vs Mendoza' -> ['California','Mendoza']); keep "
+                "`region` as the single primary place."
             ),
             messages=[{"role": "user", "content": message}],
             tools=[_TOOL],
@@ -73,6 +77,7 @@ def intent_from_request(wine_type: Optional[str], style_preferences: List[str],
         "flavors": list(style_preferences or []),
         "grapes": list(grapes or []),
         "region": None,
+        "regions": [],
         "wine_name": None,
         "avoid": list(avoid or []),
         "budget_min": budget_min,
@@ -93,6 +98,11 @@ def merge_intent(parsed: Optional[Dict[str, Any]], explicit: Dict[str, Any]) -> 
         out["wine_type"] = parsed.get("wine_type")
     out["body"] = out.get("body") or parsed.get("body")
     out["region"] = out.get("region") or parsed.get("region")
+    out["regions"] = list(parsed.get("regions") or [])
+    if not out["regions"] and out.get("region"):
+        out["regions"] = [out["region"]]
+    if not out.get("region") and out["regions"]:
+        out["region"] = out["regions"][0]
     out["wine_name"] = out.get("wine_name") or parsed.get("wine_name")
     if not out.get("grapes"):
         out["grapes"] = list(parsed.get("grapes") or [])
