@@ -344,7 +344,7 @@ export default function ChatRecommend() {
     return (
       <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Chat scroll — Option C: each wine is a conversational message */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 16px 8px', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', padding: '16px 16px 8px', WebkitOverflowScrolling: 'touch' }}>
           {messageList}
           {awaitingPicks && !loading && (
             <div style={{ display: 'flex', gap: 11, alignItems: 'center', marginBottom: 14, paddingLeft: 43 }}>
@@ -414,7 +414,7 @@ export default function ChatRecommend() {
           <div style={{ fontFamily: 'var(--font-serif)', fontSize: 24, color: 'var(--ink)', marginTop: 4 }}>Tonight, near {prefs.zip}</div>
         </div>
 
-        <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px' }}>
+        <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '20px 24px' }}>
           {messages.map((m, i) =>
             m.role === 'user'
               ? <UserBubble key={m.id ?? i}>{m.text}</UserBubble>

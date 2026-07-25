@@ -258,7 +258,7 @@ export default function SommOverlay({ wine }) {
         </div>
 
         {/* Chat scroll */}
-        <div ref={scrollRef} style={{ flex: 1, overflow: 'auto', padding: '16px 18px' }}>
+        <div ref={scrollRef} style={{ flex: 1, minHeight: 0, overflow: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', padding: '16px 18px' }}>
           {messages.map((m, i) =>
             m.role === 'user'
               ? <UserBubble key={m.id ?? i}>{m.text}</UserBubble>
@@ -299,7 +299,7 @@ export default function SommOverlay({ wine }) {
         )}
 
         {/* Composer */}
-        <div style={{ borderTop: '1px solid var(--border)', padding: '12px 18px 16px' }}>
+        <div style={{ borderTop: '1px solid var(--border)', padding: '12px 18px calc(16px + env(safe-area-inset-bottom, 0px))' }}>
           <div style={{ display: 'flex', border: '1.5px solid var(--ink)', background: 'var(--cream-raised)' }}>
             <input
               value={input}
