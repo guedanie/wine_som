@@ -357,9 +357,14 @@ def _build_user_message(
     req_retailer = intent.get("requested_retailer")
     if req_retailer:
         if intent.get("retailer_has_fit"):
+            # Naming a retailer that HAS fits is unambiguously a request for different
+            # wines — say so explicitly rather than leaving the follow-up directive to
+            # infer it ("anything from heb?" was being read as a question about the
+            # wines already on screen, so no new cards appeared).
             retailer_directive = (
                 f"\n\nThe user asked for {req_retailer}; every listing below is from "
-                f"{req_retailer} — recommend from these.")
+                f"{req_retailer} — recommend from these. This IS a request for different wines: "
+                f"return picks from {req_retailer}; do NOT answer conversationally with picks: [].")
         else:
             retailer_directive = (
                 f"\n\nThe user asked for {req_retailer}, but {req_retailer} doesn't stock a wine "

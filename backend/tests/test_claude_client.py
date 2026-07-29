@@ -478,3 +478,19 @@ def test_retailer_directive_no_fit_is_honest():
 def test_no_retailer_directive_when_unset():
     msg = _build_user_message([{"wine_id": "1", "name": "X"}], _intent())
     assert "from these" not in msg.lower() and "doesn't stock" not in msg.lower()
+
+
+def test_retailer_has_fit_directive_demands_fresh_picks():
+    """A named retailer WITH fits is unambiguously a request for different wines —
+    Claude must return picks, not answer conversationally with picks: []."""
+    msg = _build_user_message([{"wine_id": "1", "name": "X"}],
+                              _intent(requested_retailer="H-E-B", retailer_has_fit=True))
+    low = msg.lower()
+    assert "request for different wines" in low
+    assert "picks: []" in low or "do not" in low
+
+
+def test_retailer_no_fit_directive_does_not_demand_picks():
+    msg = _build_user_message([{"wine_id": "1", "name": "X"}],
+                              _intent(requested_retailer="H-E-B", retailer_has_fit=False))
+    assert "request for different wines" not in msg.lower()
