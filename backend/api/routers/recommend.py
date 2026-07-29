@@ -14,7 +14,8 @@ from recommendation.scorer import score_candidates
 from recommendation.claude_client import stream_recommendations
 from recommendation.intent import parse_message, merge_intent, intent_from_request
 from recommendation.candidate_filters import (apply_type_gate, deep_fetch_reason,
-                                              detect_store, ensure_region_representation,
+                                              detect_retailer, detect_store,
+                                              ensure_region_representation,
                                               merge_candidates, pin_named_matches,
                                               rank_name_matches, requested_types_from,
                                               significant_name_tokens)
@@ -78,26 +79,6 @@ def _select_diverse_top(scored: List[Dict[str, Any]], max_candidates: int,
     top.sort(key=lambda w: w.get("_score", 0), reverse=True)
     return top
 
-_RETAILER_ALIASES = {
-    "heb": "H-E-B",
-    "h-e-b": "H-E-B",
-    "h.e.b": "H-E-B",
-    "specs": "Spec's",
-    "spec's": "Spec's",
-    "geraldines": "Geraldine's",
-    "geraldine's": "Geraldine's",
-    "geraldine": "Geraldine's",
-}
-
-
-def _detect_retailer(message: str) -> Optional[str]:
-    if not message:
-        return None
-    lower = message.lower()
-    for alias, name in _RETAILER_ALIASES.items():
-        if alias in lower:
-            return name
-    return None
 
 
 INVENTORY_SELECT = (
@@ -358,6 +339,7 @@ async def recommend(req: RecommendRequest):
     resolved["comparison_regions"] = _cmp if len(_cmp) >= 2 else None
 
     detected_store = detect_store(req.message, stores_meta.data or [])
+    detected_retailer = detect_retailer(req.message, list(retailer_to_stores))
 
     def _targeted_rows() -> list:
         regions = resolved.get("regions") or (
@@ -391,6 +373,34 @@ async def recommend(req: RecommendRequest):
         candidates = merge_candidates(candidates, targeted)
         logger.info("TARGETED FETCH | region=%r store=%r → +%d rows",
                     resolved.get("region"), detected_store and detected_store["name"], len(targeted))
+
+    def _retailer_rows(store_ids: list) -> list:
+        """Inventory scoped to a NAMED retailer's nearby stores. Without this, a
+        retailer-scoped ask ("anything from HEB?") only filtered the generic pool and
+        wrongly reported "nothing from H-E-B" when the pool happened to lack it."""
+        def _q(since: Optional[str]) -> list:
+            q = (supabase.table("retail_inventory").select(INVENTORY_SELECT)
+                 .in_("store_ref", store_ids).eq("in_stock", True)
+                 .gte("price", req.budget_min).lte("price", req.budget_max))
+            regions = resolved.get("regions") or (
+                [resolved["region"]] if resolved.get("region") else [])
+            conds = []
+            for p in regions:
+                conds += [f"region.ilike.%{p}%", f"country.ilike.%{p}%"]
+            if conds:
+                q = q.or_(",".join(conds), reference_table="wines")
+            if since:
+                q = q.gte("last_scraped_at", since)
+            return q.limit(300).execute().data or []
+
+        return _q(stale_cutoff) or _q(None)
+
+    if detected_retailer and retailer_to_stores.get(detected_retailer):
+        rlr = [c for c in (_row_to_candidate(r)
+                           for r in _retailer_rows(retailer_to_stores[detected_retailer])) if c]
+        if rlr:
+            candidates = merge_candidates(candidates, rlr)
+            logger.info("RETAILER FETCH | %r → +%d rows", detected_retailer, len(rlr))
 
     def _named_fetch(wine_name: str) -> list:
         """Full nearby-store inventory whose wine name matches the named bottle —
@@ -435,12 +445,13 @@ async def recommend(req: RecommendRequest):
         rows = _q(stale_cutoff) or _q(None)
         return [c for c in (_row_to_candidate(r) for r in rows) if c]
 
-    preferred_retailer = _detect_retailer(req.message)
-    if preferred_retailer:
-        retailer_pool = [c for c in candidates if preferred_retailer in (c.get("retailer") or "")]
+    if detected_retailer:
+        retailer_pool = [c for c in candidates if detected_retailer in (c.get("retailer") or "")]
+        resolved["requested_retailer"] = detected_retailer
+        resolved["retailer_has_fit"] = bool(retailer_pool)
         if retailer_pool:
             candidates = retailer_pool
-            logger.info("RETAILER FILTER | %r → %d candidates", preferred_retailer, len(candidates))
+            logger.info("RETAILER FILTER | %r → %d candidates", detected_retailer, len(candidates))
 
     chip_types = req.wine_types or ([req.wine_type] if req.wine_type else [])
     req_types = requested_types_from(chip_types, resolved.get("wine_type"))

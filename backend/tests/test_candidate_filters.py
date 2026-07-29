@@ -288,3 +288,33 @@ def test_representation_respects_cap_keeps_pinned():
     out = ensure_region_representation(top, scored, ["California", "Mendoza"], 12)
     assert len(out) == 12
     assert any(c["wine_id"] == "M" for c in out)
+
+
+from recommendation.candidate_filters import detect_retailer
+
+_NEARBY_RETAILERS = ["H-E-B", "Central Market", "Twin Liquors", "Spec's", "Geraldine's Natural Wines"]
+
+
+def test_detect_retailer_heb_all_variants():
+    for m in ["anything from heb?", "what about HEB", "got any h-e-b picks",
+              "show me h.e.b", "HEB please"]:
+        assert detect_retailer(m, _NEARBY_RETAILERS) == "H-E-B", m
+
+
+def test_detect_retailer_multiword_and_shorthand():
+    assert detect_retailer("anything at central market?", _NEARBY_RETAILERS) == "Central Market"
+    assert detect_retailer("cm options?", _NEARBY_RETAILERS) == "Central Market"
+    assert detect_retailer("twin liquors?", _NEARBY_RETAILERS) == "Twin Liquors"
+    assert detect_retailer("from twin", _NEARBY_RETAILERS) == "Twin Liquors"
+
+
+def test_detect_retailer_typo_tolerant():
+    assert detect_retailer("anything at centrl market?", _NEARBY_RETAILERS) == "Central Market"
+
+
+def test_detect_retailer_none_when_unnamed():
+    assert detect_retailer("something light and elegant under $40", _NEARBY_RETAILERS) is None
+
+
+def test_detect_retailer_only_returns_nearby():
+    assert detect_retailer("anything from kroger?", _NEARBY_RETAILERS) is None

@@ -234,3 +234,56 @@ def ensure_region_representation(top: List[Dict[str, Any]], scored: List[Dict[st
     others = [c for c in top if key(c) not in pinned_ids]
     others.sort(key=lambda c: c.get("_score", 0), reverse=True)
     return (pinned + others)[:max_candidates]
+
+
+# Retailer shorthands → canonical name. Keyed on the fully-normalized token
+# (lowercase, punctuation stripped) so 'heb'/'HEB'/'h-e-b'/'h.e.b' all become 'heb'.
+# Only applied when the canonical target is actually nearby. The alias map is
+# REQUIRED for H-E-B: its name tokenizes to h/e/b, which no fuzzy match can catch.
+_RETAILER_ALIASES = {
+    "heb": "H-E-B", "specs": "Spec's", "spec": "Spec's",
+    "cm": "Central Market", "twin": "Twin Liquors", "ht": "Harris Teeter",
+    "geraldines": "Geraldine's", "geraldine": "Geraldine's", "pogos": "Pogo's",
+}
+# Generic words dropped from a retailer NAME's distinctive tokens.
+_RETAILER_GENERIC = {"the", "wine", "wines", "market", "shop", "store", "liquors",
+                     "liquor", "selections", "natural", "co", "company", "and"}
+
+
+def _norm_retailer(s: Optional[str]) -> str:
+    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+
+def _retailer_name_tokens(name: str) -> List[str]:
+    """Distinctive normalized tokens of a retailer name (generic words dropped)."""
+    raw = re.sub(r"[^a-z0-9 ]", " ", (name or "").lower()).split()
+    return [_norm_retailer(t) for t in raw if t not in _RETAILER_GENERIC and _norm_retailer(t)]
+
+
+def detect_retailer(message: str, nearby_retailers: List[str]) -> Optional[str]:
+    """Return the canonical nearby retailer named in the message, or None. Matches
+    case/punctuation-insensitively (heb/HEB/h-e-b/h.e.b → H-E-B) via an alias map,
+    then falls back to fuzzy token match against the nearby retailer names. Only ever
+    returns a retailer present in `nearby_retailers`."""
+    if not message or not nearby_retailers:
+        return None
+    nearby_set = set(nearby_retailers)
+    msg_tokens = [t for t in (_norm_retailer(w) for w in message.split()) if t]
+    if not msg_tokens:
+        return None
+    # 1) alias hit (whole-token match; only if the target is nearby)
+    for t in msg_tokens:
+        target = _RETAILER_ALIASES.get(t)
+        if target and target in nearby_set:
+            return target
+    # 2) fuzzy match distinctive tokens of each nearby retailer name
+    best, best_score = None, 0
+    for r in nearby_retailers:
+        name_toks = _retailer_name_tokens(r)
+        if not name_toks:
+            continue
+        score = sum(1 for nt in name_toks
+                    if difflib.get_close_matches(nt, msg_tokens, n=1, cutoff=0.8))
+        if score > best_score:
+            best, best_score = r, score
+    return best if best_score >= 1 else None
