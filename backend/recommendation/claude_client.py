@@ -353,6 +353,19 @@ def _build_user_message(
             "they can taste the difference side by side, drawing from the listings."
         )
 
+    retailer_directive = ""
+    req_retailer = intent.get("requested_retailer")
+    if req_retailer:
+        if intent.get("retailer_has_fit"):
+            retailer_directive = (
+                f"\n\nThe user asked for {req_retailer}; every listing below is from "
+                f"{req_retailer} — recommend from these.")
+        else:
+            retailer_directive = (
+                f"\n\nThe user asked for {req_retailer}, but {req_retailer} doesn't stock a wine "
+                f"matching their profile. Say that plainly, then offer the closest fits from other "
+                f"nearby shops in the listings.")
+
     return (
         f"{history_preamble}"
         f"{message_line}"
@@ -369,6 +382,7 @@ def _build_user_message(
         f"{drop_note}"
         f"{named_directive}"
         f"{comparison_directive}"
+        f"{retailer_directive}"
         f"{followup_directive}"
     )
 

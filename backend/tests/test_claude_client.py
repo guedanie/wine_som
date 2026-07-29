@@ -461,3 +461,20 @@ def test_comparison_directive_present():
 def test_no_comparison_directive_when_absent():
     msg = _build_user_message([{"wine_id": "1", "name": "X"}], _intent())
     assert "one from each" not in msg.lower()
+
+
+def test_retailer_directive_has_fit():
+    msg = _build_user_message([{"wine_id": "1", "name": "X"}],
+                              _intent(requested_retailer="H-E-B", retailer_has_fit=True))
+    assert "H-E-B" in msg and "from these" in msg.lower()
+
+
+def test_retailer_directive_no_fit_is_honest():
+    msg = _build_user_message([{"wine_id": "1", "name": "X"}],
+                              _intent(requested_retailer="H-E-B", retailer_has_fit=False))
+    assert "doesn't stock" in msg.lower() or "does not stock" in msg.lower()
+
+
+def test_no_retailer_directive_when_unset():
+    msg = _build_user_message([{"wine_id": "1", "name": "X"}], _intent())
+    assert "from these" not in msg.lower() and "doesn't stock" not in msg.lower()
