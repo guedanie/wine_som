@@ -130,3 +130,84 @@ def format_fact_block(facts: List[Dict[str, Any]]) -> str:
     return ("\n\n[VERIFIED AVAILABILITY — these are counted facts about full nearby "
             "inventory, not the listings below. They override any impression the listings "
             "give you.]\n" + "\n".join(lines))
+
+
+def _axis_or_clause(axis: Dict[str, Any]) -> Optional[str]:
+    """The postgrest `or_` predicate for an axis, deliberately BROAD (over-matching is
+    safe; under-matching causes false absence). None => no wines-level filter."""
+    v = (axis.get("value") or "").replace(",", " ").strip()
+    if not v:
+        return None
+    kind = axis.get("kind")
+    if kind == "scope":
+        return None                      # store_ids alone scope this axis
+    if kind == "type":
+        # intent enum says 'rose'; the column stores 'rosé' (1,017 rows vs 0) — match both
+        vals = {v, v.replace("rose", "rosé")} if v.startswith("rose") else {v}
+        return ",".join(f"wine_type.eq.{t}" for t in sorted(vals))
+    if kind == "grape":
+        return (f"varietal.ilike.%{v}%,name.ilike.%{v}%,"
+                f'grapes.cs.["{v.title()}"],grapes.cs.["{v}"]')
+    # place / name: the full union, INCLUDING sub_region (never queried elsewhere today)
+    return (f"region.ilike.%{v}%,sub_region.ilike.%{v}%,country.ilike.%{v}%,"
+            f"varietal.ilike.%{v}%,name.ilike.%{v}%")
+
+
+def fetch_axis_counts(supabase, axes: List[Dict[str, Any]], nearby_store_ids: List[str],
+                      budget_max: float) -> Dict[str, Dict[str, Any]]:
+    """Count each axis against FULL nearby inventory — no limit, no staleness, no
+    enrichment gate, no type gate. Returns {axis_key: {total, in_budget, min_price,
+    max_price}}. Fails open to {} on any error (never breaks a recommendation)."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def _one(axis: Dict[str, Any]) -> Any:
+        store_ids = axis.get("store_ids") or nearby_store_ids
+        clause = _axis_or_clause(axis)
+
+        def _q(with_budget: bool):
+            # `wines!inner(id)` is required for the `reference_table="wines"` or_ filter
+            # (postgrest PGRST108: the embedded resource must appear in the select).
+            q = (supabase.table("retail_inventory")
+                 .select("price, wines!inner(id)", count="exact")
+                 .in_("store_ref", store_ids).eq("in_stock", True))
+            if clause:
+                q = q.or_(clause, reference_table="wines")
+            if with_budget:
+                q = q.lte("price", budget_max)
+            return q.limit(1).execute()
+
+        total = _q(False).count or 0
+        in_budget = (_q(True).count or 0) if total else 0
+        out = {"total": total, "in_budget": in_budget,
+               "min_price": None, "max_price": None}
+        if total and not in_budget:      # only then do we need the price range
+            def _edge(desc: bool):
+                q = (supabase.table("retail_inventory").select("price, wines!inner(id)")
+                     .in_("store_ref", store_ids).eq("in_stock", True))
+                if clause:
+                    q = q.or_(clause, reference_table="wines")
+                return q.order("price", desc=desc).limit(1).execute().data or []
+            lo, hi = _edge(False), _edge(True)
+            if lo:
+                out["min_price"] = lo[0]["price"]
+            if hi:
+                out["max_price"] = hi[0]["price"]
+        return out
+
+    if not axes:
+        return {}
+    try:
+        with ThreadPoolExecutor(max_workers=min(6, len(axes))) as ex:
+            results = list(ex.map(_one, axes))
+        return {axis_key(a): r for a, r in zip(axes, results)}
+    except Exception:
+        return {}
+
+
+def axis_key(axis: Dict[str, Any]) -> str:
+    return f"{axis.get('kind')}:{axis.get('value')}:{axis.get('scope') or ''}"
+
+
+def axis_label(axis: Dict[str, Any]) -> str:
+    base = axis.get("value")
+    return f"{base} at {axis['scope']}" if axis.get("scope") else str(base)
