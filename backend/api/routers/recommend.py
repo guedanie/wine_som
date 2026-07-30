@@ -1,9 +1,11 @@
 import hashlib
 import json
+import os
 import re
 import uuid
 import logging
 import random
+import urllib.request
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends
@@ -39,6 +41,37 @@ _FETCH_PER_RETAILER = 500
 _STALE_INVENTORY_DAYS = 10
 _RETAILER_CAP = 5    # max slots one retailer can take in the Claude candidate list
 _VARIETAL_CAP = 4    # max slots one grape can take — spreads grocery-heavy markets
+
+_ABSENCE_PAT = re.compile(
+    r"\b(no|none|nothing|not any|isn'?t any|aren'?t any|don'?t (?:have|stock|carry)|"
+    r"doesn'?t (?:have|stock|carry)|not available|not in stock|unavailable|"
+    r"couldn'?t find|could not find|didn'?t turn up|nothing turned up)\b", re.I)
+
+
+def _false_absence_suspects(narrative: str,
+                            facts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Facts that say PRESENT_* while the narrative used absence language. A non-empty
+    result means Somm may have just told the user something isn't available when it is.
+
+    Pure (no I/O) so it unit-tests trivially."""
+    if not narrative or not facts:
+        return []
+    if not _ABSENCE_PAT.search(narrative):
+        return []
+    return [f for f in facts if str(f.get("state", "")).startswith("PRESENT_")]
+
+
+def _notify_slack(text: str) -> None:
+    url = os.environ.get("SLACK_WEBHOOK_URL")
+    if not url:
+        return
+    try:
+        req = urllib.request.Request(
+            url, data=json.dumps({"text": text}).encode(),
+            headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=10)
+    except Exception:
+        pass
 
 
 def _varietal_key(w: Dict[str, Any]) -> str:
@@ -582,6 +615,23 @@ async def recommend(req: RecommendRequest):
             elif event_type == "error":
                 yield "data: " + json.dumps({"type": "error", "message": data}) + "\n\n"
         yield "data: [DONE]\n\n"
+
+        # False-absence tripwire: did the narrative deny something the oracle counted?
+        # Post-stream and self-contained — it can never break or delay a response.
+        try:
+            narrative = "".join(_result["narrative"])
+            suspects = _false_absence_suspects(narrative, resolved.get("availability_facts") or [])
+            if suspects:
+                logger.warning("FALSE_ABSENCE_SUSPECT | zip=%s msg=%r facts=%s",
+                               req.zip_code, req.message[:120],
+                               [(s["label"], s["state"]) for s in suspects])
+                _notify_slack(
+                    f":rotating_light: FALSE_ABSENCE_SUSPECT zip={req.zip_code}\n"
+                    f"ask: {req.message[:200]}\n"
+                    f"contradicted: {[(s['label'], s['state']) for s in suspects]}\n"
+                    f"narrative: {narrative[:400]}")
+        except Exception:
+            pass
 
         # Session persistence after stream completes
         try:
