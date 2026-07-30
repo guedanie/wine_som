@@ -777,3 +777,65 @@ def test_breadth_fetch_no_filter_when_no_type_requested():
             raise AssertionError("must not filter when no type requested")
 
     assert rec._apply_type_breadth_filter(_Q(), set()) is not None
+
+
+# --- deterministic availability SSE frame ---
+
+def _AL_axis(value):
+    return {"kind": "place", "value": value, "scope": None, "store_ids": None}
+
+
+def _AL_counts(value, total, in_budget, mn=None, mx=None):
+    from recommendation.availability import axis_key
+    return {axis_key(_AL_axis(value)): {"total": total, "in_budget": in_budget,
+                                        "min_price": mn, "max_price": mx}}
+
+
+async def _AL_post(client):
+    return await client.post("/api/recommend", json={
+        "zip_code": "78209", "budget_min": 15.0, "budget_max": 35.0,
+        "style_preferences": [], "avoid": [],
+    })
+
+
+@pytest.mark.asyncio
+async def test_availability_frame_emitted_when_lines_exist():
+    """The counted truth must reach the client even if the narrative hedges."""
+    # Rioja is counted nearby but nothing in the shortlist matches it ->
+    # PRESENT_NOT_SHORTLISTED -> a line.
+    with patch("api.routers.recommend.stream_recommendations", side_effect=_make_stream_mock()), \
+         patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([WINE_ROW])), \
+         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]), \
+         patch("api.routers.recommend.axes_from_intent", return_value=[_AL_axis("Rioja")]), \
+         patch("api.routers.recommend.fetch_axis_counts",
+               return_value=_AL_counts("Rioja", 401, 394, 4.18, 72.62)):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await _AL_post(client)
+    assert response.status_code == 200
+    events = _sse_events(response.text)
+    frames = [e for e in events if e.get("type") == "availability"]
+    assert len(frames) == 1
+    lines = frames[0]["lines"]
+    assert lines and "394" in lines[0] and "Rioja" in lines[0]
+    # the footnote follows the picks, never precedes them
+    types = [e["type"] for e in events]
+    assert types.index("availability") > types.index("picks")
+
+
+@pytest.mark.asyncio
+async def test_no_availability_frame_when_nothing_informative():
+    """Mendoza IS the shortlist (WINE_ROW) -> PRESENT_SHORTLISTED -> silent."""
+    with patch("api.routers.recommend.stream_recommendations", side_effect=_make_stream_mock()), \
+         patch("api.routers.recommend.get_supabase_client", return_value=_make_db_mock([WINE_ROW])), \
+         patch("api.routers.recommend.get_service_client", return_value=_make_db_mock([])), \
+         patch("api.routers.recommend.find_nearby_store_ids", return_value=["store-uuid-1"]), \
+         patch("api.routers.recommend.axes_from_intent", return_value=[_AL_axis("Mendoza")]), \
+         patch("api.routers.recommend.fetch_axis_counts",
+               return_value=_AL_counts("Mendoza", 401, 394, 4.18, 72.62)):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await _AL_post(client)
+    assert response.status_code == 200
+    events = _sse_events(response.text)
+    assert "picks" in {e["type"] for e in events}
+    assert not [e for e in events if e.get("type") == "availability"]

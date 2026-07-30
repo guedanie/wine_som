@@ -18,7 +18,7 @@ from recommendation.intent import parse_message, merge_intent, intent_from_reque
 from recommendation.availability import (axes_from_intent, catalog_terms,
                                          count_shortlisted, derive_state,
                                          fetch_axis_counts, terms_in_message,
-                                         axis_key, axis_label)
+                                         axis_key, axis_label, availability_lines)
 from recommendation.candidate_filters import (apply_type_gate, deep_fetch_reason,
                                               detect_retailer, detect_store,
                                               ensure_region_representation,
@@ -612,6 +612,7 @@ async def recommend(req: RecommendRequest):
                 "state": derive_state(c["total"], c["in_budget"], n_short),
                 "total": c["total"], "in_budget": c["in_budget"],
                 "min_price": c.get("min_price"), "max_price": c.get("max_price"),
+                "axis": a,
             })
         resolved["availability_facts"] = facts
         if facts:
@@ -651,6 +652,17 @@ async def recommend(req: RecommendRequest):
                     enriched_picks = _reconcile_picks_to_narrative(enriched_all, "".join(_result["narrative"]))
                     _result["picks"] = enriched_picks
                     yield "data: " + json.dumps({"type": "picks", "picks": enriched_picks, "session_id": session_id}) + "\n\n"
+                    # The counted truth, rendered by us — reaches the user even when the
+                    # narrative hedges or agrees with a false premise. Wrapped: a render
+                    # failure here must never break the stream.
+                    try:
+                        _lines = availability_lines(
+                            resolved.get("availability_facts") or [], top, req.budget_max)
+                        if _lines:
+                            yield "data: " + json.dumps(
+                                {"type": "availability", "lines": _lines}) + "\n\n"
+                    except Exception:
+                        logger.exception("AVAILABILITY | line render failed")
             elif event_type == "suggestions":
                 yield "data: " + json.dumps({"type": "suggestions", "suggestions": data}) + "\n\n"
             elif event_type == "error":
