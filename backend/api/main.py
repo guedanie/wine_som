@@ -37,4 +37,9 @@ app.include_router(deals.router)
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "service": "terroir-api"}
+    """Includes the deployed commit so a release can be verified from outside — without
+    it, "is this behavior old code or a bad fix?" is unanswerable (Railway sets
+    RAILWAY_GIT_COMMIT_SHA on every build)."""
+    sha = (os.environ.get("RAILWAY_GIT_COMMIT_SHA")
+           or os.environ.get("GIT_COMMIT_SHA") or "unknown")
+    return {"status": "ok", "service": "terroir-api", "commit": sha[:12]}
