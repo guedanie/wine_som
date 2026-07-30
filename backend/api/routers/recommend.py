@@ -48,17 +48,52 @@ _ABSENCE_PAT = re.compile(
     r"couldn'?t find|could not find|didn'?t turn up|nothing turned up)\b", re.I)
 
 
-def _false_absence_suspects(narrative: str,
-                            facts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Facts that say PRESENT_* while the narrative used absence language. A non-empty
-    result means Somm may have just told the user something isn't available when it is.
+_ABSENCE_WINDOW = 90      # chars either side; the absence phrase must be ABOUT the axis
+
+# "no <wine descriptor>" is tasting language, not an availability claim. Derived from
+# the real firings across 290 persisted narratives ("no apologies", "no decant needed",
+# "a no-fuss weeknight open", "almost no tannin", "no sweetness", "no irrigation").
+_BENIGN_ABSENCE = re.compile(
+    r"\bno[\s-](?:apolog|decant|fuss|nonsense|pretense|pretence|shortage|irrigation|"
+    r"sweetness|tannin|oak|makeup|fining|filtration|added|sulfur|rush|hurry|"
+    r"malolactic|malo|new oak|residual)", re.I)
+
+
+def _false_absence_suspects(narrative: str, facts: List[Dict[str, Any]],
+                            window: int = _ABSENCE_WINDOW) -> List[Dict[str, Any]]:
+    """Facts that say PRESENT_* while the narrative used absence language ABOUT THAT AXIS.
+    A non-empty result means Somm may have just told the user something isn't available
+    when it is.
+
+    The proximity requirement is load-bearing: matching absence language anywhere in the
+    narrative fired on 27% of 290 real narratives, nearly all benign ("no apologies",
+    "no decant needed", a wine named "Do Nothing"). An alert that noisy gets ignored, so
+    the phrase must occur within `window` chars of a mention of the axis it would
+    contradict.
 
     Pure (no I/O) so it unit-tests trivially."""
     if not narrative or not facts:
         return []
-    if not _ABSENCE_PAT.search(narrative):
+    low = narrative.lower()
+    spans = [(m.start(), m.end()) for m in _ABSENCE_PAT.finditer(low)
+             if not _BENIGN_ABSENCE.match(low, m.start())]
+    if not spans:
         return []
-    return [f for f in facts if str(f.get("state", "")).startswith("PRESENT_")]
+    out: List[Dict[str, Any]] = []
+    for f in facts:
+        if not str(f.get("state", "")).startswith("PRESENT_"):
+            continue
+        # "Barolo at Geraldine's" -> match on either the value or the scope
+        label = str(f.get("label") or "").lower()
+        needles = [p.strip() for p in label.split(" at ") if p.strip()]
+        if not needles:
+            continue
+        for start, end in spans:
+            ctx = low[max(0, start - window):end + window]
+            if any(n in ctx for n in needles):
+                out.append(f)
+                break
+    return out
 
 
 def _notify_slack(text: str) -> None:
