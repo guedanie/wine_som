@@ -48,12 +48,17 @@ def derive_state(total: int, in_budget: int, shortlisted_n: int,
 
 def axes_from_intent(resolved: Dict[str, Any],
                      scope_label: Optional[str] = None,
-                     scope_store_ids: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+                     scope_store_ids: Optional[List[str]] = None,
+                     fallback_terms: Optional[List[str]] = None) -> List[Dict[str, Any]]:
     """The constraints the user actually named, as queryable axes. When a retailer or
     store is named, each content axis also gets a scoped copy (so "Barolo at Geraldine's"
     yields both the nearby and the Geraldine's fact); a scope named with no content axis
     yields a scope-only axis. Empty when nothing concrete was named — no axes, no
-    queries, no added latency."""
+    queries, no added latency.
+
+    `fallback_terms` (catalog terms found in the raw message) is a deterministic FLOOR:
+    consulted only when the LLM parse produced no content axis, never overriding a
+    successful parse."""
     axes: List[Dict[str, Any]] = []
 
     def add(kind: str, value: str) -> None:
@@ -72,6 +77,14 @@ def axes_from_intent(resolved: Dict[str, Any],
     if resolved.get("wine_name"):
         add("name", resolved["wine_name"])
 
+    # Deterministic floor: when the LLM parse named nothing, fall back to catalog terms
+    # actually present in the message. Negative/rhetorical framings ("nothing from
+    # Mendoza right?") defeat the parser, and an axis-less turn silently bypasses the
+    # oracle entirely — the precondition of the original false-absence incidents.
+    if not axes and fallback_terms:
+        for t in fallback_terms:
+            add("place", t)
+
     if scope_label:
         scoped = [dict(a, scope=scope_label, store_ids=scope_store_ids) for a in axes]
         if scoped:
@@ -79,7 +92,19 @@ def axes_from_intent(resolved: Dict[str, Any],
         else:
             axes = [{"kind": "scope", "value": scope_label, "scope": scope_label,
                      "store_ids": scope_store_ids}]
-    return axes[:_MAX_AXES]
+
+    deduped: List[Dict[str, Any]] = []
+    seen = set()
+    for a in axes:
+        if (a.get("scope") and a.get("kind") != "scope"
+                and _fold(a.get("value")) == _fold(a.get("scope"))):
+            continue                      # "H-E-B at H-E-B" is not a second axis
+        k = (a.get("kind"), _fold(a.get("value")), a.get("scope"))
+        if k in seen:
+            continue
+        seen.add(k)
+        deduped.append(a)
+    return deduped[:_MAX_AXES]
 
 
 def _cand_text(c: Dict[str, Any]) -> str:

@@ -139,3 +139,31 @@ def test_terms_empty_vocab_is_safe():
 def test_stopwords_cover_generic_catalog_values():
     for w in ("red", "white", "wine", "valley", "other", "blend"):
         assert w in _STOPWORD_TERMS
+
+
+def test_fallback_used_only_when_no_content_axis():
+    axes = axes_from_intent({"regions": [], "grapes": [], "wine_type": None,
+                             "wine_name": None}, fallback_terms=["mendoza"])
+    assert [(a["kind"], a["value"]) for a in axes] == [("place", "mendoza")]
+
+
+def test_fallback_ignored_when_parse_succeeded():
+    axes = axes_from_intent({"regions": ["Rioja"], "grapes": [], "wine_type": None,
+                             "wine_name": None}, fallback_terms=["mendoza"])
+    vals = {a["value"] for a in axes}
+    assert "Rioja" in vals and "mendoza" not in vals
+
+
+def test_axes_are_deduped():
+    axes = axes_from_intent({"regions": ["Champagne"], "grapes": [], "wine_type": None,
+                             "wine_name": "Champagne"})
+    keys = [(a["kind"], a["value"].lower(), a["scope"]) for a in axes]
+    assert len(keys) == len(set(keys))
+
+
+def test_scoped_copy_skipped_when_value_equals_scope():
+    axes = axes_from_intent({"regions": [], "grapes": [], "wine_type": None,
+                             "wine_name": "H-E-B"},
+                            scope_label="H-E-B", scope_store_ids=["s1"])
+    assert not any(a["value"].lower() == "h-e-b" and a["scope"] == "H-E-B"
+                   and a["kind"] != "scope" for a in axes)
