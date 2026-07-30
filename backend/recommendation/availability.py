@@ -266,6 +266,7 @@ _STOPWORD_TERMS = {
 }
 
 _CATALOG_TTL_SECONDS = 3600
+_CATALOG_MAX_PAGES = 60      # ~60k wines; bounds a runaway/stubbed pagination
 _catalog_cache = {"terms": None, "at": 0.0}
 
 
@@ -282,7 +283,10 @@ def catalog_terms(supabase, ttl: int = _CATALOG_TTL_SECONDS) -> set:
     terms = set()
     try:
         page = 0
-        while True:
+        # Hard page bound: the loop's exit depends on the DB returning a short/empty
+        # page, so a pathological or stubbed client that always returns rows would spin
+        # forever inside a request. Bound it, and also stop on any short page.
+        while page < _CATALOG_MAX_PAGES:
             rows = (supabase.table("wines")
                     .select("region,sub_region,country,varietal,grapes")
                     .order("id").range(page * 1000, page * 1000 + 999)
@@ -297,6 +301,8 @@ def catalog_terms(supabase, ttl: int = _CATALOG_TTL_SECONDS) -> set:
                     if v and v not in _STOPWORD_TERMS and len(v) > 2:
                         terms.add(v)
             page += 1
+            if len(rows) < 1000:
+                break
     except Exception:
         logger.exception("AVAILABILITY | catalog vocabulary fetch failed — fallback disabled")
         return _catalog_cache["terms"] or set()

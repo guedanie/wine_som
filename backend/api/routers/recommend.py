@@ -15,8 +15,9 @@ from db import get_supabase_client, get_service_client
 from recommendation.scorer import score_candidates
 from recommendation.claude_client import stream_recommendations
 from recommendation.intent import parse_message, merge_intent, intent_from_request
-from recommendation.availability import (axes_from_intent, fetch_axis_counts,
+from recommendation.availability import (axes_from_intent, catalog_terms,
                                          count_shortlisted, derive_state,
+                                         fetch_axis_counts, terms_in_message,
                                          axis_key, axis_label)
 from recommendation.candidate_filters import (apply_type_gate, deep_fetch_reason,
                                               detect_retailer, detect_store,
@@ -418,7 +419,12 @@ async def recommend(req: RecommendRequest):
     _scope_label = (detected_store or {}).get("name") if detected_store else detected_retailer
     _scope_ids = ([detected_store["id"]] if detected_store
                   else retailer_to_stores.get(detected_retailer) if detected_retailer else None)
-    _axes = axes_from_intent(resolved, scope_label=_scope_label, scope_store_ids=_scope_ids)
+    # Deterministic floor for axis extraction: negative/rhetorical framings ("nothing
+    # from Mendoza right?") make the LLM parse return no entity at all, which silently
+    # bypasses the oracle. axes_from_intent ignores these whenever the parse succeeded.
+    _fallback_terms = terms_in_message(req.message, catalog_terms(supabase))
+    _axes = axes_from_intent(resolved, scope_label=_scope_label, scope_store_ids=_scope_ids,
+                             fallback_terms=_fallback_terms)
     _axis_counts = fetch_axis_counts(supabase, _axes, nearby_ids, req.budget_max) if _axes else {}
     if _axes:
         logger.info("AVAILABILITY | axes=%d counted=%d", len(_axes), len(_axis_counts))

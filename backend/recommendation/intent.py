@@ -52,7 +52,13 @@ def parse_message(message: str) -> Optional[Dict[str, Any]]:
                 "leave null for generic style requests. "
                 "`regions`: list EVERY wine region or country the user names, in the order "
                 "mentioned (e.g. 'California vs Mendoza' -> ['California','Mendoza']); keep "
-                "`region` as the single primary place."
+                "`region` as the single primary place. "
+                "Extract the named entity EVEN WHEN the user is asserting or questioning its "
+                "absence — \"nothing from Mendoza right?\", \"surely you have no Barolo\", "
+                "\"I assume there's no rosé\" all still NAME Mendoza / Barolo / rosé, and each "
+                "must be captured in `regions`/`grapes`/`wine_type` as appropriate. "
+                "A shop or retailer name (H-E-B, Spec's, Central Market, Total Wine) is NOT a "
+                "`wine_name` — leave `wine_name` null for \"anything from HEB?\"."
             ),
             messages=[{"role": "user", "content": message}],
             tools=[_TOOL],

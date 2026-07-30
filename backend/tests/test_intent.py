@@ -159,3 +159,14 @@ def test_intent_from_request_regions_empty():
     out = intent_from_request(wine_type=None, style_preferences=[], avoid=[],
                               budget_min=10.0, budget_max=50.0)
     assert out["regions"] == []
+
+
+def test_parse_prompt_instructs_on_negative_framing_and_retailers():
+    """Negative/rhetorical framings defeated extraction in production ("nothing from
+    Mendoza right?" -> region=None, no axis, oracle never ran), and retailers were
+    being stuffed into wine_name."""
+    import inspect
+    from recommendation import intent as mod
+    src = inspect.getsource(mod.parse_message).lower()
+    assert "absence" in src or "asserting" in src or "rhetorical" in src
+    assert "retailer" in src and "wine_name" in src

@@ -196,3 +196,30 @@ def test_one_failing_axis_does_not_void_the_others():
     counts = fetch_axis_counts(_FlakyDB(), axes, ["s1"], 50.0)
     assert axis_key(axes[0]) not in counts
     assert counts[axis_key(axes[1])]["total"] == 7
+
+
+def test_catalog_terms_pagination_is_bounded():
+    """The loop's exit depends on the DB returning a short/empty page. A client that
+    always returns full pages (a stub, or a pathological backend) previously spun
+    forever INSIDE a request — the full suite went from 14s to >300s."""
+    from recommendation.availability import catalog_terms, _CATALOG_MAX_PAGES
+
+    class _EndlessDB:
+        def __init__(self):
+            self.pages = 0
+        def table(self, _n): return self
+        def select(self, *a, **k): return self
+        def order(self, *a, **k): return self
+        def range(self, *a, **k):
+            self.pages += 1
+            return self
+        def execute(self):
+            class R:
+                data = [{"region": "Rioja", "sub_region": None, "country": "Spain",
+                         "varietal": "Tempranillo", "grapes": []}] * 1000
+            return R()
+
+    db = _EndlessDB()
+    terms = catalog_terms(db, ttl=0)
+    assert db.pages <= _CATALOG_MAX_PAGES
+    assert "rioja" in terms
