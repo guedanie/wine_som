@@ -170,3 +170,46 @@ def test_parse_prompt_instructs_on_negative_framing_and_retailers():
     src = inspect.getsource(mod.parse_message).lower()
     assert "absence" in src or "asserting" in src or "rhetorical" in src
     assert "retailer" in src and "wine_name" in src
+
+
+# --- bogus-avoid guard ---
+from recommendation.intent import drop_bogus_avoid
+
+
+def test_drop_bogus_avoid_removes_contradicted_term():
+    """'nothing from Mendoza right?' parsed to avoid=['Mendoza'] AND regions=['Mendoza'];
+    the scorer's hard exclusion then deleted 275 of 300 fetched Mendoza wines, so the
+    narrative truthfully reported 'No Mendoza in sight'. You cannot ask for X and to
+    exclude X."""
+    kept, dropped = drop_bogus_avoid(["Mendoza"], ["Mendoza"], [], None)
+    assert kept == [] and dropped == ["Mendoza"]
+
+
+def test_genuine_preference_avoids_are_preserved():
+    """Measured false-positive guard: a real avoid never populates the positive fields."""
+    for term in ("Chardonnay", "Merlot", "oak", "sweet", "tannic"):
+        kept, dropped = drop_bogus_avoid([term], [], [], None)
+        assert kept == [term] and dropped == [], term
+
+
+def test_drop_bogus_avoid_matches_grape_and_type_fields():
+    assert drop_bogus_avoid(["Nebbiolo"], [], ["Nebbiolo"], None)[0] == []
+    assert drop_bogus_avoid(["rose"], [], [], "rosé")[0] == []
+
+
+def test_drop_bogus_avoid_is_accent_and_case_insensitive():
+    assert drop_bogus_avoid(["rhone"], ["Rhône"], [], None)[0] == []
+
+
+def test_drop_bogus_avoid_noop_cases():
+    assert drop_bogus_avoid([], ["Rioja"], [], None) == ([], [])
+    assert drop_bogus_avoid(["oak"], ["Rioja"], ["Tempranillo"], "red") == (["oak"], [])
+
+
+def test_merge_intent_applies_the_guard():
+    explicit = intent_from_request(wine_type=None, style_preferences=[], avoid=[],
+                                   budget_min=10.0, budget_max=50.0)
+    merged = merge_intent({"regions": ["Mendoza"], "region": "Mendoza", "avoid": ["Mendoza"],
+                           "flavors": [], "grapes": []}, explicit)
+    assert merged["avoid"] == []
+    assert merged["regions"] == ["Mendoza"]

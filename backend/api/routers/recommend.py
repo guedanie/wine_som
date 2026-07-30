@@ -550,6 +550,18 @@ async def recommend(req: RecommendRequest):
     # candidate mix between turns without ever dropping strong matches.
     def _score_and_select(pool: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         scored = score_candidates(resolved, pool)
+        # No silent caps: `avoid` is a HARD exclusion, and a bogus one ("nothing from
+        # Mendoza right?" once parsed Mendoza into avoid) silently deleted 275 of 300
+        # fetched candidates and produced a confident false absence. Make it visible.
+        _avoid = resolved.get("avoid") or []
+        if _avoid and pool:
+            _removed = len(pool) - len(scored)
+            _pct = 100 * _removed // len(pool)
+            logger.info("AVOID FILTER | terms=%s removed=%d/%d (%d%%)",
+                        _avoid, _removed, len(pool), _pct)
+            if _pct >= 50:
+                logger.warning("SUSPECT_AVOID | terms=%s removed %d%% of the pool | msg=%r",
+                               _avoid, _pct, (req.message or "")[:120])
         for w in scored:
             w["_score"] += rng.uniform(-0.4, 0.4)
         scored.sort(key=lambda w: w["_score"], reverse=True)
