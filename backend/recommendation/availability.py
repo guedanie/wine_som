@@ -183,7 +183,10 @@ def fetch_axis_counts(supabase, axes: List[Dict[str, Any]], nearby_store_ids: Li
         in_budget = (_q(True).count or 0) if total else 0
         out = {"total": total, "in_budget": in_budget,
                "min_price": None, "max_price": None}
-        if total and not in_budget:      # only then do we need the price range
+        # Price bounds on EVERY present axis, not just out-of-budget ones: production
+        # verification found min/max null on nearly all PRESENT_NOT_SHORTLISTED facts, so
+        # half the sanctioned script was unrenderable the moment an axis changed state.
+        if total:
             def _edge(desc: bool):
                 q = (supabase.table("retail_inventory").select("price, wines!inner(id)")
                      .in_("store_ref", store_ids).eq("in_stock", True))

@@ -470,3 +470,21 @@ def test_fact_block_rendered_with_licence_rules():
 def test_no_fact_block_when_no_facts():
     msg = _build_user_message([{"wine_id": "1", "name": "X"}], _intent())
     assert "VERIFIED AVAILABILITY" not in msg
+
+
+def test_facts_outrank_listings_precedence_rule():
+    """Production verification caught a false absence where the oracle had the right fact
+    (Brunello: 24 nearby / 4 in budget) but the model trusted its shortlist and wrote 'the
+    listings here run well above $50'. The prompt forbade the sentence but never said the
+    fact OUTRANKS the shortlist when they disagree."""
+    from recommendation.availability import PRESENT_NOT_SHORTLISTED
+    msg = _build_user_message([{"wine_id": "1", "name": "X"}], _intent(
+        availability_facts=[{"label": "Brunello di Montalcino", "state": PRESENT_NOT_SHORTLISTED,
+                             "total": 24, "in_budget": 4}]))
+    low = msg.lower()
+    assert "outrank" in low
+    assert "gap in the list" in low or "shortlist simply missed" in low
+    # hedged forms must be named explicitly, not just the blunt denial
+    assert "the listings run well above" in low or "not seeing any" in low
+    # the mandatory count clause for under-shown axes
+    assert "haven't shortlisted" in low or "more in budget nearby" in low

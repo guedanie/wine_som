@@ -351,9 +351,21 @@ def _build_user_message(
             f"\n\nAVAILABILITY RULES (these override the listings):"
             f"\n1. You may state that something is unavailable ONLY for an axis marked "
             f"{NOT_IN_CATALOG}. For every other state use its script — never call it absent."
-            f"\n2. Any listing satisfying a constraint the user literally named MUST appear in your "
+            f"\n2. THE FACTS OUTRANK THE LISTINGS. When a fact says PRESENT_* but no wine below "
+            f"satisfies it, the wine EXISTS and my shortlist simply missed it — that is a gap in "
+            f"the list, never evidence of absence. You must not describe it as unavailable, out of "
+            f"reach, or missing, and that includes hedged and indirect forms: \"the listings run "
+            f"well above your budget\", \"the most affordable one here\", \"nothing on this list "
+            f"fits\", \"I'm not seeing any\". State the counted number instead."
+            f"\n3. When a PRESENT_* axis has more in-budget bottles nearby than the picks you are "
+            f"showing for it, say so in one clause before pivoting — e.g. \"there are 27 more "
+            f"Chablis in budget nearby I haven't shortlisted\". Required whenever the count exceeds "
+            f"what you show; skip it when the listings already represent the ask."
+            f"\n4. Counts labelled \"at <store/retailer>\" are scoped to THAT store — never restate "
+            f"a store-scoped count as \"nearby\" (and vice versa)."
+            f"\n5. Any listing satisfying a constraint the user literally named MUST appear in your "
             f"picks (the 'never pad' rule applies to unrequested filler, never to a constraint match)."
-            f"\n3. Never contradict a verified fact."
+            f"\n6. Never contradict a verified fact."
         )
 
     return (

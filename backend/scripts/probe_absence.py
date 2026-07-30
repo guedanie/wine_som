@@ -14,6 +14,8 @@ Run from backend/:
 """
 import argparse
 import json
+import time
+import urllib.error
 import urllib.request
 
 from db import get_supabase_client
@@ -26,8 +28,12 @@ from utils.geo import find_nearby_store_ids
 PROD = "https://winesom-production.up.railway.app"
 
 
-def stream_narrative(base, message, zip_code, budget_max, wine_type=None, timeout=180):
-    """POST to /api/recommend and reassemble the streamed narrative + picks."""
+def stream_narrative(base, message, zip_code, budget_max, wine_type=None, timeout=180,
+                     retries=4):
+    """POST to /api/recommend and reassemble the streamed narrative + picks.
+
+    Retries on 429/5xx with exponential backoff — an unhandled 429 cost 9 of 23 probes
+    in the first production sweep, silently shrinking the evidence base."""
     payload = {"zip_code": zip_code, "budget_min": 10.0, "budget_max": float(budget_max),
                "message": message}
     if wine_type:
@@ -36,7 +42,16 @@ def stream_narrative(base, message, zip_code, budget_max, wine_type=None, timeou
         f"{base}/api/recommend", data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json"})
     narrative, picks = [], []
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
+    for attempt in range(retries):
+        try:
+            resp = urllib.request.urlopen(req, timeout=timeout)
+            break
+        except urllib.error.HTTPError as e:
+            if e.code in (429, 500, 502, 503, 504) and attempt < retries - 1:
+                time.sleep(5 * (2 ** attempt))
+                continue
+            raise
+    with resp:
         for raw in resp:
             line = raw.decode("utf-8", "replace").strip()
             if not line.startswith("data:"):
@@ -83,7 +98,12 @@ def local_facts(message, zip_code, budget_max):
         if not c:
             continue
         out.append({"label": axis_label(a),
+                    # shortlisted_n is unknowable from outside (we don't see prod's final
+                    # `top`), so this is the INVENTORY state: PRESENT_SHORTLISTED can never
+                    # appear here and a PRESENT_NOT_SHORTLISTED label must NOT be read as
+                    # "prod mislabeled it". Production computes the real state.
                     "state": derive_state(c["total"], c["in_budget"], 0),
+                    "state_note": "inventory-state only; shortlist membership not observable",
                     "total": c["total"], "in_budget": c["in_budget"],
                     "min_price": c.get("min_price"), "max_price": c.get("max_price")})
     return out
