@@ -46,6 +46,24 @@ def derive_state(total: int, in_budget: int, shortlisted_n: int,
     return PRESENT_NOT_SHORTLISTED
 
 
+
+# Generic category nouns. A real place or grape NAME never contains one ("Côtes du
+# Rhône", "Willamette Valley" are fine), but a DESCRIPTOR does — "a lesser-known
+# region", "an unusual appellation", "small producer". Such a phrase must never become
+# a counted axis: it counts to 0, derives NOT_IN_CATALOG (the one state licensed to
+# assert absence) and Somm reports a figure of speech as "a verified gap in local
+# inventory". The oracle is only as trustworthy as its axes.
+_CATEGORY_NOUNS = {"region", "regions", "appellation", "appellations", "area", "areas",
+                   "producer", "producers", "winery", "wineries", "varietal", "varietals",
+                   "grape", "grapes", "style", "styles"}
+
+
+def is_descriptor(value: Optional[str]) -> bool:
+    """True when the value is a category description rather than a named entity."""
+    toks = re.findall(r"[a-z]+", _fold(value))
+    return any(t in _CATEGORY_NOUNS for t in toks)
+
+
 def axes_from_intent(resolved: Dict[str, Any],
                      scope_label: Optional[str] = None,
                      scope_store_ids: Optional[List[str]] = None,
@@ -63,6 +81,11 @@ def axes_from_intent(resolved: Dict[str, Any],
 
     def add(kind: str, value: str) -> None:
         if not value:
+            return
+        # Bottle NAMES may legitimately contain a category noun ("Trentadue Winery"),
+        # but a place/grape axis containing one is a descriptor, not an entity.
+        if kind in ("place", "grape") and is_descriptor(value):
+            logger.info("AVAILABILITY | dropped descriptor axis %r (not a named entity)", value)
             return
         axes.append({"kind": kind, "value": str(value), "scope": None, "store_ids": None})
 

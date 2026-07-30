@@ -294,3 +294,30 @@ def test_lines_empty_and_capped():
     assert availability_lines([], [], 50.0) == []
     many = [_AL_fact(f"Region{i}", PRESENT_NOT_SHORTLISTED, 50, 40) for i in range(6)]
     assert len(availability_lines(many, [], 50.0)) <= 3
+
+
+def test_descriptor_phrases_never_become_axes():
+    """A figure of speech must not become a counted axis. 'Something from a lesser
+    known region' parsed to region='lesser-known region'; the count was 0, the state
+    became NOT_IN_CATALOG — the ONE state licensed to assert absence — and Somm told
+    the user it was 'a verified gap in local inventory'."""
+    for phrase in ("lesser-known region", "unusual appellation", "an interesting area",
+                   "small producer", "obscure grape", "boutique winery"):
+        axes = axes_from_intent({"regions": [phrase], "grapes": [], "wine_type": None,
+                                 "wine_name": None})
+        assert axes == [], phrase
+
+
+def test_real_places_survive_the_descriptor_guard():
+    for place in ("Côtes du Rhône", "Willamette Valley", "Napa Valley", "Mendoza",
+                  "Brunello di Montalcino", "Rioja"):
+        axes = axes_from_intent({"regions": [place], "grapes": [], "wine_type": None,
+                                 "wine_name": None})
+        assert len(axes) == 1 and axes[0]["value"] == place, place
+
+
+def test_descriptor_guard_does_not_apply_to_bottle_names():
+    """Real wine names legitimately contain 'Winery'/'Producer' (e.g. Trentadue Winery)."""
+    axes = axes_from_intent({"regions": [], "grapes": [], "wine_type": None,
+                             "wine_name": "Trentadue Winery Chocolate Amore"})
+    assert len(axes) == 1 and axes[0]["kind"] == "name"
