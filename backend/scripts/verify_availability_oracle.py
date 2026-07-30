@@ -53,6 +53,30 @@ def main():
         print(f"  {label}: {state} total={c['total']} in_budget={c['in_budget']}")
     assert got and got[0][1].startswith("PRESENT_"), "expected a PRESENT_* Mendoza fact"
 
+    print("— the two red-team false-absence cases now produce a correct line —")
+    from recommendation.availability import availability_lines
+    terms = terms_in_message("nothing from Mendoza right?", catalog_terms(sb))
+    mendoza = facts_for(sb, nearby, {"regions": [], "grapes": [], "wine_type": None,
+                                     "wine_name": None}, fallback_terms=terms)
+    m_facts = [{"label": l, "state": s, "total": c["total"], "in_budget": c["in_budget"],
+                "min_price": c.get("min_price"), "max_price": c.get("max_price"),
+                "axis": {"kind": "place", "value": l, "scope": None}}
+               for l, s, c in mendoza]
+    m_lines = availability_lines(m_facts, [], 50.0)
+    print(f"  mendoza -> {m_lines}")
+    assert m_lines and "in budget" in m_lines[0], "expected a Mendoza availability line"
+
+    bru = facts_for(sb, nearby, {"regions": ["Brunello di Montalcino"], "grapes": [],
+                                 "wine_type": None, "wine_name": None})
+    b_facts = [{"label": l, "state": s, "total": c["total"], "in_budget": c["in_budget"],
+                "min_price": c.get("min_price"), "max_price": c.get("max_price"),
+                "axis": {"kind": "place", "value": l, "scope": None}}
+               for l, s, c in bru]
+    b_lines = availability_lines(b_facts, [], 50.0)
+    print(f"  brunello -> {b_lines}")
+    assert b_lines, "expected a Brunello availability line"
+    assert any("brunello" in l.lower() for l in b_lines), "must name the axis the user asked for"
+
     print("OK — oracle states verified against live inventory")
 
 
