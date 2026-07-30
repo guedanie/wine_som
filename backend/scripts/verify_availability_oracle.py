@@ -9,8 +9,10 @@ from recommendation.availability import (axes_from_intent, fetch_axis_counts, de
 ZIP = "78209"
 
 
-def facts_for(sb, nearby, resolved, scope_label=None, scope_ids=None, budget=50.0):
-    axes = axes_from_intent(resolved, scope_label=scope_label, scope_store_ids=scope_ids)
+def facts_for(sb, nearby, resolved, scope_label=None, scope_ids=None, budget=50.0,
+              fallback_terms=None):
+    axes = axes_from_intent(resolved, scope_label=scope_label, scope_store_ids=scope_ids,
+                            fallback_terms=fallback_terms)
     counts = fetch_axis_counts(sb, axes, nearby, budget)
     out = []
     for a in axes:
@@ -39,6 +41,17 @@ def main():
     absent = facts_for(sb, nearby, {"regions": ["Ktimalandia Nowhere"]})
     print(f"  {absent}")
     assert absent and absent[0][1] == NOT_IN_CATALOG
+
+    print("— negative framing must still emit an axis (the silent fail-open) —")
+    from recommendation.availability import catalog_terms, terms_in_message
+    terms = terms_in_message("nothing from Mendoza right?", catalog_terms(sb))
+    print(f"  fallback terms: {terms}")
+    assert terms, "expected the catalog fallback to find 'mendoza'"
+    got = facts_for(sb, nearby, {"regions": [], "grapes": [], "wine_type": None,
+                                 "wine_name": None}, fallback_terms=terms)
+    for label, state, c in got:
+        print(f"  {label}: {state} total={c['total']} in_budget={c['in_budget']}")
+    assert got and got[0][1].startswith("PRESENT_"), "expected a PRESENT_* Mendoza fact"
 
     print("OK — oracle states verified against live inventory")
 
