@@ -190,6 +190,9 @@ def fetch_axis_counts(supabase, axes: List[Dict[str, Any]], nearby_store_ids: Li
     from concurrent.futures import ThreadPoolExecutor
 
     def _one(axis: Dict[str, Any]) -> Any:
+      # Isolated per axis: one flaky query must not void every OTHER axis's fact —
+      # a single transient error previously collapsed the entire safety net silently.
+      try:
         store_ids = axis.get("store_ids") or nearby_store_ids
         clause = _axis_or_clause(axis)
 
@@ -225,13 +228,16 @@ def fetch_axis_counts(supabase, axes: List[Dict[str, Any]], nearby_store_ids: Li
             if hi:
                 out["max_price"] = hi[0]["price"]
         return out
+      except Exception:
+        logger.exception("AVAILABILITY | axis failed: %s", axis_key(axis))
+        return None
 
     if not axes:
         return {}
     try:
         with ThreadPoolExecutor(max_workers=min(6, len(axes))) as ex:
             results = list(ex.map(_one, axes))
-        return {axis_key(a): r for a, r in zip(axes, results)}
+        return {axis_key(a): r for a, r in zip(axes, results) if r is not None}
     except Exception:
         # Fail open so a broken oracle never breaks a recommendation — but NEVER
         # silently: a query-shape error here (e.g. PGRST108 from an un-embedded

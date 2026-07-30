@@ -103,7 +103,7 @@ def test_format_not_in_catalog_is_the_only_absence():
     assert NOT_IN_CATALOG in block
 
 
-from recommendation.availability import (terms_in_message, _STOPWORD_TERMS,
+from recommendation.availability import (terms_in_message, _STOPWORD_TERMS, axis_key,
                                          fetch_axis_counts)
 
 _AX_TERMS = {"mendoza", "barolo", "montalcino", "brunello di montalcino", "rhone",
@@ -167,3 +167,32 @@ def test_scoped_copy_skipped_when_value_equals_scope():
                             scope_label="H-E-B", scope_store_ids=["s1"])
     assert not any(a["value"].lower() == "h-e-b" and a["scope"] == "H-E-B"
                    and a["kind"] != "scope" for a in axes)
+
+
+def test_one_failing_axis_does_not_void_the_others():
+    """A single transient DB error must not collapse every axis to no-fact — that
+    silently voids the whole safety net (observed in production verification)."""
+    class _FlakyDB:
+        def table(self, _n): return self
+        def select(self, *a, **k): return self
+        def in_(self, *a, **k): return self
+        def eq(self, *a, **k): return self
+        def lte(self, *a, **k): return self
+        def gte(self, *a, **k): return self
+        def order(self, *a, **k): return self
+        def limit(self, *a, **k): return self
+        def or_(self, clause, **k):
+            if "boom" in clause:
+                raise RuntimeError("simulated transient error")
+            return self
+        def execute(self):
+            class R:
+                count = 7
+                data = [{"price": 20.0}]
+            return R()
+
+    axes = [{"kind": "place", "value": "boom", "scope": None, "store_ids": None},
+            {"kind": "place", "value": "rioja", "scope": None, "store_ids": None}]
+    counts = fetch_axis_counts(_FlakyDB(), axes, ["s1"], 50.0)
+    assert axis_key(axes[0]) not in counts
+    assert counts[axis_key(axes[1])]["total"] == 7
