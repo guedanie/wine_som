@@ -13,6 +13,9 @@ from db import get_supabase_client, get_service_client
 from recommendation.scorer import score_candidates
 from recommendation.claude_client import stream_recommendations
 from recommendation.intent import parse_message, merge_intent, intent_from_request
+from recommendation.availability import (axes_from_intent, fetch_axis_counts,
+                                         count_shortlisted, derive_state,
+                                         axis_key, axis_label)
 from recommendation.candidate_filters import (apply_type_gate, deep_fetch_reason,
                                               detect_retailer, detect_store,
                                               ensure_region_representation,
@@ -341,6 +344,17 @@ async def recommend(req: RecommendRequest):
     detected_store = detect_store(req.message, stores_meta.data or [])
     detected_retailer = detect_retailer(req.message, list(retailer_to_stores))
 
+    # Availability oracle: count full nearby inventory for the constraints the user
+    # actually named. Fired here so its latency overlaps the candidate fetch/scoring;
+    # the five states finalize at prompt-build time (they need the final `top`).
+    _scope_label = (detected_store or {}).get("name") if detected_store else detected_retailer
+    _scope_ids = ([detected_store["id"]] if detected_store
+                  else retailer_to_stores.get(detected_retailer) if detected_retailer else None)
+    _axes = axes_from_intent(resolved, scope_label=_scope_label, scope_store_ids=_scope_ids)
+    _axis_counts = fetch_axis_counts(supabase, _axes, nearby_ids, req.budget_max) if _axes else {}
+    if _axes:
+        logger.info("AVAILABILITY | axes=%d counted=%d", len(_axes), len(_axis_counts))
+
     def _targeted_rows() -> list:
         regions = resolved.get("regions") or (
             [resolved["region"]] if resolved.get("region") else [])
@@ -447,8 +461,6 @@ async def recommend(req: RecommendRequest):
 
     if detected_retailer:
         retailer_pool = [c for c in candidates if detected_retailer in (c.get("retailer") or "")]
-        resolved["requested_retailer"] = detected_retailer
-        resolved["retailer_has_fit"] = bool(retailer_pool)
         if retailer_pool:
             candidates = retailer_pool
             logger.info("RETAILER FILTER | %r → %d candidates", detected_retailer, len(candidates))
@@ -490,8 +502,6 @@ async def recommend(req: RecommendRequest):
                 if reason == "named":
                     named = _named_fetch(resolved["wine_name"])
                     pool = merge_candidates(candidates, named)
-                    resolved["named_bottle"] = resolved.get("wine_name")
-                    resolved["named_bottle_found"] = bool(named)
                     top = _score_and_select(pool)
                     top = pin_named_matches(top, named, cap=3)[:_MAX_CANDIDATES]
                 else:  # weak
@@ -514,6 +524,26 @@ async def recommend(req: RecommendRequest):
         )
 
         by_id = {c["wine_id"]: c for c in top}
+
+        # Finalize the availability states now that `top` is final — PRESENT_SHORTLISTED
+        # vs PRESENT_NOT_SHORTLISTED depends on the actual shortlist.
+        facts = []
+        for a in _axes:
+            c = _axis_counts.get(axis_key(a))
+            if not c:
+                continue
+            n_short = count_shortlisted(a, top)
+            facts.append({
+                "label": axis_label(a),
+                "state": derive_state(c["total"], c["in_budget"], n_short),
+                "total": c["total"], "in_budget": c["in_budget"],
+                "min_price": c.get("min_price"), "max_price": c.get("max_price"),
+            })
+        resolved["availability_facts"] = facts
+        if facts:
+            logger.info("AVAILABILITY | %s",
+                        {f["label"]: f["state"] for f in facts})
+
         try:
             gen = stream_recommendations(top, resolved, req.conversation_history, req.conversational)
         except Exception:
