@@ -101,3 +101,41 @@ def test_format_not_in_catalog_is_the_only_absence():
     block = format_fact_block([{"label": "Muscadet", "state": NOT_IN_CATALOG,
                                 "total": 0, "in_budget": 0}])
     assert NOT_IN_CATALOG in block
+
+
+from recommendation.availability import (terms_in_message, _STOPWORD_TERMS,
+                                         fetch_axis_counts)
+
+_AX_TERMS = {"mendoza", "barolo", "montalcino", "brunello di montalcino", "rhone",
+             "chablis", "nebbiolo", "red", "wine", "valley"}
+
+
+def test_terms_longest_match_wins():
+    found = terms_in_message("any brunello di montalcino under $50?", _AX_TERMS)
+    assert "brunello di montalcino" in found
+    assert "montalcino" not in found
+
+
+def test_terms_whole_word_only():
+    assert terms_in_message("a barolotto please", {"barolo"}) == []
+
+
+def test_terms_accent_folded():
+    assert "rhone" in terms_in_message("anything from the Rhône?", _AX_TERMS)
+
+
+def test_terms_stopwords_never_match():
+    assert terms_in_message("just a red wine from the valley", _AX_TERMS) == []
+
+
+def test_terms_negative_framing_still_found():
+    assert "mendoza" in terms_in_message("nothing from Mendoza right?", _AX_TERMS)
+
+
+def test_terms_empty_vocab_is_safe():
+    assert terms_in_message("anything from Mendoza?", set()) == []
+
+
+def test_stopwords_cover_generic_catalog_values():
+    for w in ("red", "white", "wine", "valley", "other", "blend"):
+        assert w in _STOPWORD_TERMS

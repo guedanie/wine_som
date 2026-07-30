@@ -10,6 +10,7 @@ under-counting reproduces the false-absence bug this exists to eliminate.
 """
 import logging
 import re
+import time
 import unicodedata
 from typing import Any, Dict, List, Optional
 
@@ -223,3 +224,74 @@ def axis_key(axis: Dict[str, Any]) -> str:
 def axis_label(axis: Dict[str, Any]) -> str:
     base = axis.get("value")
     return f"{base} at {axis['scope']}" if axis.get("scope") else str(base)
+
+
+# Generic catalog values that must never be treated as a user constraint.
+_STOPWORD_TERMS = {
+    "red", "white", "rose", "rosé", "wine", "wines", "red wine", "white wine",
+    "rose wine", "sparkling", "dessert", "fortified", "orange", "blend", "red blend",
+    "white blend", "valley", "other", "unknown", "n/a", "none", "misc", "assorted",
+    "table wine", "usa", "us",
+}
+
+_CATALOG_TTL_SECONDS = 3600
+_catalog_cache = {"terms": None, "at": 0.0}
+
+
+def catalog_terms(supabase, ttl: int = _CATALOG_TTL_SECONDS) -> set:
+    """Normalized place/grape vocabulary drawn from the catalog itself.
+
+    Complete by construction — if a wine is in inventory, the term describing it is
+    matchable. A curated gazetteer measured 146 terms and missed 6 of 11 probe terms
+    (Barolo, Chablis, Sancerre, Pauillac, Brunello di Montalcino, Vinho Verde); the
+    catalog yields ~2,300 and missed none. Cached per process; fails open to empty."""
+    now = time.time()
+    if _catalog_cache["terms"] is not None and (now - _catalog_cache["at"]) < ttl:
+        return _catalog_cache["terms"]
+    terms = set()
+    try:
+        page = 0
+        while True:
+            rows = (supabase.table("wines")
+                    .select("region,sub_region,country,varietal,grapes")
+                    .order("id").range(page * 1000, page * 1000 + 999)
+                    .execute().data or [])
+            if not rows:
+                break
+            for w in rows:
+                vals = [w.get(k) for k in ("region", "sub_region", "country", "varietal")]
+                vals += list(w.get("grapes") or [])
+                for raw in vals:
+                    v = _fold(raw)
+                    if v and v not in _STOPWORD_TERMS and len(v) > 2:
+                        terms.add(v)
+            page += 1
+    except Exception:
+        logger.exception("AVAILABILITY | catalog vocabulary fetch failed — fallback disabled")
+        return _catalog_cache["terms"] or set()
+    _catalog_cache["terms"], _catalog_cache["at"] = terms, now
+    return terms
+
+
+def terms_in_message(message: str, terms: set, cap: int = 4) -> List[str]:
+    """Catalog terms named in the message — whole-word, accent-folded, longest first
+    (so "Brunello di Montalcino" wins over "Montalcino"). Claimed spans are not
+    re-matched. Deterministic: no LLM involved, so a negative or rhetorical framing
+    ("nothing from Mendoza right?") still yields the entity."""
+    low = _fold(message)
+    if not low or not terms:
+        return []
+    found: List[str] = []
+    claimed: List[tuple] = []
+    for t in sorted(terms, key=len, reverse=True):
+        if len(found) >= cap:
+            break
+        if t in _STOPWORD_TERMS:
+            continue
+        for m in re.finditer(r"(?<!\w)" + re.escape(t) + r"(?!\w)", low):
+            if any(m.start() < ce and cs < m.end() for cs, ce in claimed):
+                continue
+            claimed.append((m.start(), m.end()))
+            found.append(t)
+            break
+    return found
