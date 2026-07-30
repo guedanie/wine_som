@@ -401,6 +401,40 @@ it('shows the themed status line while digging deeper, then clears it on first t
   expect(screen.queryByText('Looking deeper into the cellar…')).not.toBeInTheDocument();
 });
 
+it('renders the deterministic availability strip', async () => {
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'No Mendoza here.' };
+    yield { type: 'picks', picks: [] };
+    yield { type: 'availability', lines: ['394 Mendoza in budget nearby · none in this list'] };
+  });
+  renderScreen();
+  expect(await screen.findByText(/394 Mendoza in budget nearby/i)).toBeInTheDocument();
+});
+
+it('renders the availability strip in the mobile layout too', async () => {
+  window.matchMedia = vi.fn().mockImplementation(q => ({
+    matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
+  }));
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'No Mendoza here.' };
+    yield { type: 'picks', picks: [{ wine_id: 'uuid-1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's", why: 'Great.' }], session_id: 'sess-1' };
+    yield { type: 'availability', lines: ['394 Mendoza in budget nearby · none in this list'] };
+  });
+  renderScreen();
+  expect(await screen.findByText(/394 Mendoza in budget nearby/i)).toBeInTheDocument();
+  window.matchMedia = undefined;
+});
+
+it('renders no availability strip when the event is absent', async () => {
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'Here are some wines.' };
+    yield { type: 'picks', picks: [] };
+  });
+  renderScreen();
+  await screen.findByText(/Here are some wines/i);
+  expect(screen.queryByText(/in budget nearby/i)).not.toBeInTheDocument();
+});
+
 it('restores dynamic follow-up chips (not the defaults) from _restored', async () => {
   renderScreen({
     prefs, apiReq,

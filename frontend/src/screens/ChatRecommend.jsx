@@ -62,6 +62,20 @@ function SommelierBubble({ children, vote, onVote }) {
   );
 }
 
+// The deterministic availability strip: counted truth in system voice, set
+// apart from the sommelier's prose. Eyebrow type only — no emoji, no colors,
+// no box (frontend/CLAUDE.md).
+function AvailabilityStrip({ lines }) {
+  if (!lines?.length) return null;
+  return (
+    <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 3 }}>
+      {lines.map((l, i) => (
+        <span key={i} className="t-eyebrow" style={{ lineHeight: 1.5 }}>{l}</span>
+      ))}
+    </div>
+  );
+}
+
 function UserBubble({ children }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
@@ -225,6 +239,20 @@ export default function ChatRecommend() {
               return msgs;
             });
           }
+        } else if (event.type === 'availability') {
+          // The counted truth, rendered by us — visible even if the narrative
+          // hedges or agrees with a false premise. Attaches to the last
+          // sommelier message exactly like `picks` does.
+          const lines = event.lines || [];
+          if (lines.length) {
+            setMessages(prev => {
+              const msgs = [...prev];
+              for (let k = msgs.length - 1; k >= 0; k--) {
+                if (msgs[k].role === 'sommelier') { msgs[k] = { ...msgs[k], availability: lines }; break; }
+              }
+              return msgs;
+            });
+          }
         } else if (event.type === 'suggestions') {
           setFollowups(event.suggestions);
         } else if (event.type === 'error') {
@@ -325,6 +353,7 @@ export default function ChatRecommend() {
         onVote={m.noFeedback ? undefined : dir => handleMessageVote(m.id, dir)}
       >
         {renderBody(introText, i)}
+        <AvailabilityStrip lines={m.availability} />
       </SommelierBubble>
     );
     if (!hasPicks) return [intro];
@@ -432,6 +461,7 @@ export default function ChatRecommend() {
                       )}
                     </p>
                   ))}
+                  <AvailabilityStrip lines={m.availability} />
                 </SommelierBubble>
           )}
           {loading && (
