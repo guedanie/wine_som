@@ -433,24 +433,6 @@ def _intent(**kw):
     return base
 
 
-def test_named_found_directive_present():
-    msg = _build_user_message([{"wine_id": "1", "name": "Opus One"}],
-                              _intent(named_bottle="Opus One", named_bottle_found=True))
-    assert "Opus One" in msg
-    assert "specifically asked" in msg.lower()
-
-
-def test_named_not_found_hedge_directive():
-    msg = _build_user_message([{"wine_id": "1", "name": "Silver Oak"}],
-                              _intent(named_bottle="Opus One", named_bottle_found=False))
-    assert "could not find" in msg.lower() or "couldn't find" in msg.lower()
-
-
-def test_no_named_bottle_no_directive():
-    msg = _build_user_message([{"wine_id": "1", "name": "Silver Oak"}], _intent())
-    assert "specifically asked" not in msg.lower()
-
-
 def test_comparison_directive_present():
     msg = _build_user_message([{"wine_id": "1", "name": "X"}],
                               _intent(comparison_regions=["California", "Mendoza"]))
@@ -463,34 +445,28 @@ def test_no_comparison_directive_when_absent():
     assert "one from each" not in msg.lower()
 
 
-def test_retailer_directive_has_fit():
-    msg = _build_user_message([{"wine_id": "1", "name": "X"}],
-                              _intent(requested_retailer="H-E-B", retailer_has_fit=True))
-    assert "H-E-B" in msg and "from these" in msg.lower()
+# ── availability oracle: fact block + licence rules ──────────────────
+
+from recommendation.availability import (PRESENT_OUT_OF_BUDGET, PRESENT_SHORTLISTED,
+                                         NOT_IN_CATALOG)
 
 
-def test_retailer_directive_no_fit_is_honest():
-    msg = _build_user_message([{"wine_id": "1", "name": "X"}],
-                              _intent(requested_retailer="H-E-B", retailer_has_fit=False))
-    assert "doesn't stock" in msg.lower() or "does not stock" in msg.lower()
+def test_denial_phrase_is_gone_from_system_prompt():
+    from recommendation.claude_client import _SYSTEM_PROMPT
+    assert "nothing matching that turned up nearby" not in _SYSTEM_PROMPT
 
 
-def test_no_retailer_directive_when_unset():
-    msg = _build_user_message([{"wine_id": "1", "name": "X"}], _intent())
-    assert "from these" not in msg.lower() and "doesn't stock" not in msg.lower()
-
-
-def test_retailer_has_fit_directive_demands_fresh_picks():
-    """A named retailer WITH fits is unambiguously a request for different wines —
-    Claude must return picks, not answer conversationally with picks: []."""
-    msg = _build_user_message([{"wine_id": "1", "name": "X"}],
-                              _intent(requested_retailer="H-E-B", retailer_has_fit=True))
+def test_fact_block_rendered_with_licence_rules():
+    msg = _build_user_message([{"wine_id": "1", "name": "X"}], _intent(
+        availability_facts=[{"label": "Barolo at Geraldine's", "state": PRESENT_OUT_OF_BUDGET,
+                             "total": 3, "in_budget": 0, "min_price": 59, "max_price": 110}]))
+    assert "Barolo at Geraldine's" in msg
+    assert PRESENT_OUT_OF_BUDGET in msg
     low = msg.lower()
-    assert "request for different wines" in low
-    assert "picks: []" in low or "do not" in low
+    assert "not_in_catalog" in low          # the licence rule names the only absence state
+    assert "must appear in your picks" in low or "must appear in" in low
 
 
-def test_retailer_no_fit_directive_does_not_demand_picks():
-    msg = _build_user_message([{"wine_id": "1", "name": "X"}],
-                              _intent(requested_retailer="H-E-B", retailer_has_fit=False))
-    assert "request for different wines" not in msg.lower()
+def test_no_fact_block_when_no_facts():
+    msg = _build_user_message([{"wine_id": "1", "name": "X"}], _intent())
+    assert "VERIFIED AVAILABILITY" not in msg

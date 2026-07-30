@@ -4,6 +4,7 @@ import re
 from typing import List, Dict, Any, Optional, Tuple
 import anthropic
 from config import settings
+from recommendation.availability import format_fact_block, NOT_IN_CATALOG
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +129,12 @@ Each listing shows the retailer after the price (e.g. "@ H-E-B", "@ Spec's", "@ 
 
 - Only recommend wines present in the list.
 - If the user specifies a retailer, only pick wines from that retailer.
-- The wines listed are what surfaced for this search near the user — not the store's entire shelf. If nothing fits, say what you *can* see doesn't match ("nothing matching that turned up nearby") and offer the closest alternative; never claim a wine or style is absent from a store's full inventory.
+- The wines listed are what surfaced for this search near the user — NOT the store's full shelf. \
+You therefore CANNOT tell from this list whether something exists nearby. Never say a wine, style, \
+grape, region or retailer is unavailable, absent, "not in stock", or that "nothing turned up" based \
+on this list. If a VERIFIED AVAILABILITY block is present, only it licenses statements about what \
+does or does not exist. If a listing is a poor fit, say it is a poor fit — that is a different claim \
+from saying it does not exist.
 - Never recommend a wine as "locally available" unless it appears in the provided list.
 - Set wine_id to the exact id shown in [wine_id: ...] for each pick — never guess or invent one.
 
@@ -327,23 +333,6 @@ def _build_user_message(
         if any(w.get("price_drop") for w in candidates) else ""
     )
 
-    # If the user named a specific bottle, tell Claude to either confirm it
-    # (lead with it) or hedge plainly and offer alternatives — deterministic
-    # facts from the intent parse/lookup, not something Claude should guess.
-    named_directive = ""
-    named_bottle = intent.get("named_bottle")
-    if named_bottle:
-        if intent.get("named_bottle_found"):
-            named_directive = (
-                f"\n\nThe user specifically asked for \"{named_bottle}\". It IS available nearby and "
-                "leads the listings — confirm you found it and open with it before any alternatives."
-            )
-        else:
-            named_directive = (
-                f"\n\nThe user specifically asked for \"{named_bottle}\", but I could not find it in "
-                "nearby inventory. Say so plainly, then offer the closest alternatives from the listings."
-            )
-
     comparison_directive = ""
     cmp_regions = intent.get("comparison_regions")
     if cmp_regions and len(cmp_regions) >= 2:
@@ -353,23 +342,19 @@ def _build_user_message(
             "they can taste the difference side by side, drawing from the listings."
         )
 
-    retailer_directive = ""
-    req_retailer = intent.get("requested_retailer")
-    if req_retailer:
-        if intent.get("retailer_has_fit"):
-            # Naming a retailer that HAS fits is unambiguously a request for different
-            # wines — say so explicitly rather than leaving the follow-up directive to
-            # infer it ("anything from heb?" was being read as a question about the
-            # wines already on screen, so no new cards appeared).
-            retailer_directive = (
-                f"\n\nThe user asked for {req_retailer}; every listing below is from "
-                f"{req_retailer} — recommend from these. This IS a request for different wines: "
-                f"return picks from {req_retailer}; do NOT answer conversationally with picks: [].")
-        else:
-            retailer_directive = (
-                f"\n\nThe user asked for {req_retailer}, but {req_retailer} doesn't stock a wine "
-                f"matching their profile. Say that plainly, then offer the closest fits from other "
-                f"nearby shops in the listings.")
+    # The availability oracle's computed facts about FULL nearby inventory — the only
+    # thing that licenses an absence claim (the listings never can).
+    fact_block = format_fact_block(intent.get("availability_facts") or [])
+    availability_rules = ""
+    if fact_block:
+        availability_rules = (
+            f"\n\nAVAILABILITY RULES (these override the listings):"
+            f"\n1. You may state that something is unavailable ONLY for an axis marked "
+            f"{NOT_IN_CATALOG}. For every other state use its script — never call it absent."
+            f"\n2. Any listing satisfying a constraint the user literally named MUST appear in your "
+            f"picks (the 'never pad' rule applies to unrequested filler, never to a constraint match)."
+            f"\n3. Never contradict a verified fact."
+        )
 
     return (
         f"{history_preamble}"
@@ -385,9 +370,9 @@ def _build_user_message(
         f"Set wine_id to the exact id shown in [wine_id: ...] for each pick."
         f"{similarity_note}"
         f"{drop_note}"
-        f"{named_directive}"
         f"{comparison_directive}"
-        f"{retailer_directive}"
+        f"{fact_block}"
+        f"{availability_rules}"
         f"{followup_directive}"
     )
 
