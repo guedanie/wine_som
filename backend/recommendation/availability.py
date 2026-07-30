@@ -332,3 +332,72 @@ def terms_in_message(message: str, terms: set, cap: int = 4) -> List[str]:
             found.append(t)
             break
     return found
+
+
+_MAX_LINES = 3
+
+
+def _money(v: Optional[float]) -> str:
+    return f"${v:,.0f}" if v is not None else ""
+
+
+def availability_lines(facts: List[Dict[str, Any]], top: List[Dict[str, Any]],
+                       budget_max: float) -> List[str]:
+    """Short factual strings the CLIENT renders verbatim — the counted truth, stated by us
+    rather than by the model.
+
+    Two rounds of prompt hardening still left the model able to substitute a broader axis
+    ("Montalcino, 12" for the requested "Brunello di Montalcino, 4") or agree with a false
+    premise ("No Mendoza here" against 394 in budget). Rendering the number ourselves makes
+    those failures visible instead of authoritative.
+
+    Only informative facts produce a line; `PRESENT_SHORTLISTED` is silent because the picks
+    already answer it."""
+    if not facts:
+        return []
+
+    # Narrow beats broad: drop any axis whose value is contained in another axis's value
+    # (Montalcino vs Brunello di Montalcino). Structurally prevents axis substitution.
+    def _val(f):
+        return _fold((f.get("axis") or {}).get("value") or f.get("label"))
+
+    kept = []
+    for f in facts:
+        v = _val(f)
+        if not v:
+            continue
+        if any(v != _val(o) and v in _val(o) for o in facts):
+            continue                      # a more specific axis covers this one
+        kept.append(f)
+
+    lines: List[str] = []
+    for f in kept:
+        if len(lines) >= _MAX_LINES:
+            break
+        state = f.get("state")
+        axis = f.get("axis") or {}
+        name = axis.get("value") or f.get("label")
+        scope = axis.get("scope")
+        where = f"at {scope}" if scope else "nearby"
+        rng = ""
+        if f.get("min_price") is not None and f.get("max_price") is not None:
+            rng = f" ({_money(f['min_price'])}–{_money(f['max_price'])})"
+
+        if state == NOT_IN_CATALOG:
+            lines.append(f"No {name} {where}")
+        elif state == PRESENT_OUT_OF_BUDGET:
+            lines.append(f"{f.get('total')} {name} {where}{rng} · above your "
+                         f"{_money(budget_max)}")
+        elif state == PRESENT_NOT_SHORTLISTED:
+            shown = count_shortlisted(axis, top) if axis else 0
+            in_budget = f.get("in_budget") or 0
+            if in_budget <= shown:
+                continue                  # the shortlist already represents the ask
+            if shown:
+                lines.append(f"{in_budget - shown} more {name} in budget {where}{rng}")
+            else:
+                lines.append(f"{in_budget} {name} in budget {where}{rng} · "
+                             f"none in this list")
+        elif state == UNMEASURED:
+            lines.append(f"Couldn't confirm {name} {where}")
+    return lines

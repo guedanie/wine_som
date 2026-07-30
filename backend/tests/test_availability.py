@@ -223,3 +223,74 @@ def test_catalog_terms_pagination_is_bounded():
     terms = catalog_terms(db, ttl=0)
     assert db.pages <= _CATALOG_MAX_PAGES
     assert "rioja" in terms
+
+
+from recommendation.availability import availability_lines
+
+
+def _AL_fact(label, state, total=10, in_budget=10, mn=None, mx=None, axis=None):
+    return {"label": label, "state": state, "total": total, "in_budget": in_budget,
+            "min_price": mn, "max_price": mx,
+            "axis": axis or {"kind": "place", "value": label, "scope": None}}
+
+
+def test_lines_not_shortlisted_states_count_and_none_shown():
+    lines = availability_lines(
+        [_AL_fact("Mendoza", PRESENT_NOT_SHORTLISTED, 401, 394, 4.18, 72.62)], [], 50.0)
+    assert len(lines) == 1
+    assert "394" in lines[0] and "Mendoza" in lines[0]
+    assert "none in this list" in lines[0].lower()
+
+
+def test_lines_not_shortlisted_silent_when_shortlist_covers_it():
+    top = [{"region": "Rioja"}, {"region": "Rioja"}]
+    f = _AL_fact("Rioja", PRESENT_NOT_SHORTLISTED, 5, 2,
+                 axis={"kind": "place", "value": "Rioja", "scope": None})
+    assert availability_lines([f], top, 50.0) == []      # in_budget (2) <= shown (2)
+
+
+def test_lines_out_of_budget_names_range_and_cap():
+    f = _AL_fact("Barolo at Geraldine's", PRESENT_OUT_OF_BUDGET, 3, 0, 59.0, 110.0,
+                 axis={"kind": "place", "value": "Barolo", "scope": "Geraldine's"})
+    line = availability_lines([f], [], 50.0)[0]
+    assert "3" in line and "59" in line and "110" in line and "50" in line
+    assert "Geraldine's" in line
+
+
+def test_lines_not_in_catalog_is_the_only_absence():
+    line = availability_lines(
+        [_AL_fact("Muscadet", NOT_IN_CATALOG, 0, 0)], [], 50.0)[0]
+    assert "no muscadet" in line.lower()
+
+
+def test_lines_shortlisted_is_silent():
+    assert availability_lines([_AL_fact("Rioja", PRESENT_SHORTLISTED, 9, 9)], [], 50.0) == []
+
+
+def test_lines_narrow_axis_beats_broad():
+    """The Brunello failure: the model cited Montalcino (broader) instead of the axis the
+    user named. The line must render the NARROWEST matching axis only."""
+    facts = [
+        _AL_fact("Montalcino", PRESENT_NOT_SHORTLISTED, 34, 12),
+        _AL_fact("Brunello di Montalcino", PRESENT_NOT_SHORTLISTED, 24, 4),
+        _AL_fact("Brunello", PRESENT_NOT_SHORTLISTED, 25, 4),
+    ]
+    lines = availability_lines(facts, [], 50.0)
+    joined = " | ".join(lines).lower()
+    assert "brunello di montalcino" in joined
+    assert "montalcino," not in joined          # the broad axis is suppressed
+    assert len(lines) == 1
+
+
+def test_lines_reports_remainder_not_total_when_some_shown():
+    top = [{"region": "Chablis"}]
+    f = _AL_fact("Chablis", PRESENT_NOT_SHORTLISTED, 53, 27,
+                 axis={"kind": "place", "value": "Chablis", "scope": None})
+    line = availability_lines([f], top, 40.0)[0]
+    assert "26 more" in line.lower()           # 27 in budget - 1 shown
+
+
+def test_lines_empty_and_capped():
+    assert availability_lines([], [], 50.0) == []
+    many = [_AL_fact(f"Region{i}", PRESENT_NOT_SHORTLISTED, 50, 40) for i in range(6)]
+    assert len(availability_lines(many, [], 50.0)) <= 3
