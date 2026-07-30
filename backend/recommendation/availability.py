@@ -8,9 +8,12 @@ every stage that narrows the shortlist (limits, budget, staleness, enrichment, t
 Bias to OVER-matching: over-counting merely declines to claim absence, while
 under-counting reproduces the false-absence bug this exists to eliminate.
 """
+import logging
 import re
 import unicodedata
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 NOT_IN_CATALOG = "NOT_IN_CATALOG"
 PRESENT_OUT_OF_BUDGET = "PRESENT_OUT_OF_BUDGET"
@@ -201,6 +204,12 @@ def fetch_axis_counts(supabase, axes: List[Dict[str, Any]], nearby_store_ids: Li
             results = list(ex.map(_one, axes))
         return {axis_key(a): r for a, r in zip(axes, results)}
     except Exception:
+        # Fail open so a broken oracle never breaks a recommendation — but NEVER
+        # silently: a query-shape error here (e.g. PGRST108 from an un-embedded
+        # reference_table) would otherwise make the whole safety net a permanent
+        # no-op with no signal, which is the exact failure class the oracle exists
+        # to eliminate.
+        logger.exception("AVAILABILITY | count fetch failed — no facts this turn")
         return {}
 
 
