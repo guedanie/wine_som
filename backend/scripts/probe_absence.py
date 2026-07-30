@@ -19,7 +19,8 @@ import urllib.error
 import urllib.request
 
 from db import get_supabase_client
-from recommendation.availability import (axes_from_intent, fetch_axis_counts, derive_state,
+from recommendation.availability import (axes_from_intent, catalog_terms, derive_state,
+                                         fetch_axis_counts, terms_in_message,
                                          axis_key, axis_label)
 from recommendation.intent import parse_message, merge_intent, intent_from_request
 from recommendation.candidate_filters import detect_retailer, detect_store
@@ -90,7 +91,12 @@ def local_facts(message, zip_code, budget_max):
     scope_label = (store or {}).get("name") if store else retailer
     scope_ids = ([store["id"]] if store else r2s.get(retailer) if retailer else None)
 
-    axes = axes_from_intent(resolved, scope_label=scope_label, scope_store_ids=scope_ids)
+    # Must mirror production exactly: the endpoint passes catalog fallback terms, so a
+    # harness without them computes an EMPTY ground truth for negative framings and
+    # grades the very fail-open it exists to detect as a PASS.
+    fallback = terms_in_message(message, catalog_terms(sb))
+    axes = axes_from_intent(resolved, scope_label=scope_label, scope_store_ids=scope_ids,
+                            fallback_terms=fallback)
     counts = fetch_axis_counts(sb, axes, nearby, float(budget_max))
     out = []
     for a in axes:
