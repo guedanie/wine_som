@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="design_doc_mode" content="canvas" />
+<title>Somm — Aisle Mode</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root{--ink:#1A1A1A;--ink-2:#33312C;--faded:#6B6453;--faded-2:#9A8F78;--bordeaux:#6E1023;--bordeaux-deep:#560B1B;--bordeaux-tint:#F4E6E2;--brass:#B08D57;--brass-deep:#5C4A2E;--sage:#7C8A5A;--paper:#EFE6D4;--cream:#F5EFE6;--cream-raised:#FBF8F2;--white:#FFFFFF;--border:rgba(26,26,26,0.12);--border-strong:var(--ink);--keyline:var(--brass);--focus-ring:rgba(110,16,35,0.35);--font-serif:'DM Serif Display',Georgia,'Times New Roman',serif;--font-sans:'Archivo',system-ui,-apple-system,sans-serif;--font-mono:ui-monospace,'SF Mono',Menlo,monospace;--t-h3:23px;--t-body:15px;--t-small:13px;--t-label:11px;--lh-body:1.6;--track-label:0.22em;--track-coord:0.16em;--r-pill:999px;--shadow-pop:0 12px 40px rgba(0,0,0,0.22);--ease:cubic-bezier(0.2,0.7,0.3,1);--dur:0.18s}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font-sans);background:#E6DECF;color:var(--ink-2)}
+  .zone-title{position:absolute;font-family:var(--font-serif);font-size:30px;color:var(--ink);white-space:nowrap}
+  .zone-sub{position:absolute;font-size:12.5px;color:var(--ink-2);max-width:480px;line-height:1.6}
+  .cap{font-size:11px;color:var(--faded);line-height:1.55}
+  .cap b{color:var(--ink);font-weight:600}
+  .t-eyebrow{font-size:9.5px;letter-spacing:0.24em;text-transform:uppercase;color:var(--faded);font-weight:600}
+  .t-coord{font-family:var(--font-sans);font-size:var(--t-label);letter-spacing:var(--track-coord);color:var(--sage)}
+  .t-tag{font-size:10.5px;letter-spacing:0.05em;color:var(--brass-deep);border:0.75px solid var(--brass);padding:3px 8px;white-space:nowrap}
+  .t-body{font-size:13px;line-height:1.62;color:var(--ink-2)}
+  .serif{font-family:var(--font-serif)}
+  .btn{font-family:var(--font-sans);font-size:var(--t-small);font-weight:600;letter-spacing:0.04em;cursor:pointer;border-radius:0;padding:13px 22px;text-align:center;display:inline-flex;align-items:center;justify-content:center;gap:10px;white-space:nowrap;transition:background var(--dur) var(--ease)}
+  .btn-primary{background:var(--bordeaux);color:var(--cream);border:none}
+  .btn-ghost{background:transparent;color:var(--bordeaux);border:none;box-shadow:inset 0 0 0 1.5px var(--bordeaux)}
+  /* phone */
+  .phone{width:390px;background:var(--cream);box-shadow:0 22px 70px rgba(0,0,0,0.42);overflow:hidden;position:relative;display:flex;flex-direction:column}
+  .topbar{height:52px;background:var(--cream);border-bottom:1.5px solid var(--ink);display:flex;align-items:center;padding:0 15px;gap:9px;flex:none}
+  .topbar-title{font-family:var(--font-serif);font-size:19px;color:var(--ink)}
+  .topbar-loc{margin-left:auto;font-family:var(--font-sans);font-size:10.5px;letter-spacing:0.06em;color:var(--faded);border:1px solid var(--border);border-radius:0;padding:5px 10px;flex-shrink:0;white-space:nowrap}
+  .stamp{width:29px;height:29px;border-radius:50%;background:var(--bordeaux);display:flex;align-items:center;justify-content:center;flex:none}
+  .stamp svg{width:58%;height:58%;display:block}
+  .tabbar{display:flex;background:var(--cream);border-top:1.5px solid var(--ink);flex:none}
+  .tab{flex:1;padding:10px 0 12px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:9px;letter-spacing:0.08em;text-transform:uppercase;color:var(--faded)}
+  .tab.active{color:var(--bordeaux);font-weight:600}
+  /* mode switch variants */
+  .seg{display:flex;border:1.5px solid var(--ink);background:var(--cream)}
+  .seg-btn{flex:1;padding:10px 0;text-align:center;font-size:10.5px;letter-spacing:0.16em;text-transform:uppercase;font-weight:600;color:var(--faded)}
+  .seg-btn.on{background:var(--bordeaux);color:var(--cream)}
+  .tabs{display:flex;background:var(--cream);border-bottom:1.5px solid var(--ink)}
+  .tabs .tb{flex:1;text-align:center;padding:12px 0 10px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;font-weight:600;color:var(--faded)}
+  .tabs .tb.on{color:var(--ink);border-bottom:2.5px solid var(--bordeaux);margin-bottom:-1.5px}
+  .pager{display:flex;align-items:center;justify-content:center;gap:12px;padding:11px 0;background:var(--cream);border-bottom:1px solid var(--border)}
+  .pager-lbl{font-size:10px;letter-spacing:0.18em;text-transform:uppercase;font-weight:600;color:var(--faded-2)}
+  .pager-lbl.on{color:var(--ink)}
+  .pager-rail{display:flex;gap:5px}
+  .pager-dot{width:22px;height:2.5px;background:var(--faded-2)}
+  .pager-dot.on{background:var(--bordeaux)}
+  /* structured controls (considered) */
+  .style-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .style-cell{border:1.5px solid var(--border);background:var(--cream-raised);padding:14px 12px;text-align:left}
+  .style-cell.on{border-color:var(--bordeaux);background:var(--bordeaux-tint)}
+  .style-cell .n{font-family:var(--font-sans);font-size:13px;font-weight:600;color:var(--ink);line-height:1.2}
+  .style-cell.on .n{color:var(--bordeaux)}
+  .style-cell .d{font-size:10.5px;color:var(--faded);margin-top:4px;line-height:1.3}
+  .pill{font-size:13px;padding:9px 16px;border:1.5px solid var(--border);border-radius:999px;color:var(--ink-2);background:none;display:inline-flex;align-items:center;min-height:44px;white-space:nowrap}
+  .pill.on{border-color:var(--bordeaux);background:var(--bordeaux);color:var(--cream)}
+  .rng{width:100%;height:4px;background:var(--paper);border:0.75px solid var(--border);position:relative;margin-top:8px}
+  .rng .fill{position:absolute;left:0;top:-0.75px;bottom:-0.75px;background:var(--brass)}
+  .rng .kn{position:absolute;top:-6px;width:15px;height:15px;border-radius:50%;background:var(--cream);border:1.5px solid var(--bordeaux)}
+  /* chat / aisle */
+  .thread{flex:1;background:var(--paper);padding:16px 15px;display:flex;flex-direction:column;gap:14px;overflow:hidden}
+  .row{display:flex;gap:9px;align-items:flex-start}
+  .bub{background:var(--cream-raised);border:1px solid var(--border);border-radius:4px 14px 14px 14px;padding:13px 15px;max-width:282px}
+  .bub .t-body{font-size:14px;line-height:1.55}
+  .bub-user{background:var(--bordeaux);border:none;border-radius:14px 4px 14px 14px;padding:11px 15px;max-width:78%;color:var(--cream);font-size:14px;line-height:1.5;margin-left:auto}
+  .wine-msg{max-width:296px}
+  .wine-name{font-family:var(--font-serif);font-size:17px;color:var(--bordeaux);line-height:1.1;border-bottom:1.5px solid var(--brass);display:inline-block}
+  .wine-name::after{content:'→';font-family:var(--font-sans);font-size:12px;color:var(--brass);margin-left:3px}
+  .wine-meta{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:6px}
+  .price{font-family:var(--font-serif);font-size:16px;color:var(--ink)}
+  .store-pill{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;letter-spacing:0.04em;color:var(--sage);border:0.75px solid var(--sage);border-radius:999px;padding:2px 9px}
+  .thumbs{display:flex;gap:10px;margin-top:9px;color:var(--faded-2)}
+  .avail{font-family:var(--font-sans);font-size:var(--t-label);font-weight:600;letter-spacing:var(--track-label);text-transform:uppercase;color:var(--faded);line-height:1.5}
+  .ask{flex:none;background:var(--cream);border-top:1px solid var(--border);padding:10px 14px 12px}
+  .ask-in{display:flex;align-items:stretch;border:1.5px solid var(--ink);background:var(--cream-raised)}
+  .ask-in span{flex:1;font-size:15px;color:var(--faded-2);padding:11px 12px}
+  .ask-send{min-width:48px;background:var(--bordeaux);display:flex;align-items:center;justify-content:center;flex:none;color:var(--cream);font-size:18px}
+  .chip{font-size:12px;color:var(--bordeaux);border:none;background:var(--bordeaux-tint);border-radius:999px;padding:7px 13px;white-space:nowrap;min-height:34px;display:inline-flex;align-items:center}
+  .chip-q{font-size:12.5px;color:var(--ink-2);border:1px solid var(--border);background:var(--cream-raised);border-radius:999px;padding:8px 14px;text-align:left;line-height:1.35}
+  .ctx-chip{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:600;letter-spacing:0.04em;color:var(--brass-deep);border:0.75px solid var(--brass);background:var(--cream-raised);border-radius:999px;padding:4px 10px}
+  /* streaming */
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+  .caret{display:inline-block;width:7px;height:14px;background:var(--bordeaux);vertical-align:-2px;animation:blink 0.9s step-end infinite}
+  @keyframes wave-scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  @keyframes glass-shimmer{0%,100%{opacity:0.22}50%{opacity:0.55}}
+  @keyframes skeleton-pulse{0%,100%{opacity:0.45}50%{opacity:0.9}}
+  .chat-text{font-family:var(--font-sans);font-size:13px;color:var(--faded);font-style:italic}
+  @keyframes dot-pulse{0%,80%,100%{opacity:0.25;transform:scaleY(0.6)}40%{opacity:1;transform:scaleY(1)}}
+  .d1{animation:dot-pulse 1.2s ease-in-out infinite 0s}.d2{animation:dot-pulse 1.2s ease-in-out infinite 0.2s}.d3{animation:dot-pulse 1.2s ease-in-out infinite 0.4s}
+  .shim{border:1px dashed var(--faded-2);background:repeating-linear-gradient(135deg,rgba(176,141,87,.07),rgba(176,141,87,.07) 6px,transparent 6px,transparent 12px);padding:11px 13px;border-radius:4px 14px 14px 14px;max-width:296px}
+  /* comparison */
+  .cmp{display:grid;grid-template-columns:1fr 1fr;border:1.5px solid var(--ink);background:var(--cream-raised)}
+  .cmp-col{padding:11px 12px 12px}
+  .cmp-col+.cmp-col{border-left:1px solid var(--border)}
+  .cmp-col.win{background:var(--bordeaux-tint)}
+  .cmp-n{font-family:var(--font-serif);font-size:16px;color:var(--ink);line-height:1.08}
+  .cmp-s{font-size:10px;color:var(--faded);margin-top:3px}
+  .cmp-r{display:flex;justify-content:space-between;gap:6px;font-size:10.5px;padding:5px 0;border-top:1px solid var(--border)}
+  .cmp-r span:first-child{color:var(--faded);letter-spacing:0.04em}
+  .cmp-r span:last-child{color:var(--ink);font-weight:600;text-align:right}
+  .win-flag{font-size:8.5px;letter-spacing:0.16em;text-transform:uppercase;color:var(--bordeaux);font-weight:700}
+  .store-row{display:flex;align-items:center;gap:11px;padding:10px 13px}
+  .store-row+.store-row{border-top:1px solid var(--border)}
+  .sdot{width:20px;height:20px;border-radius:50%;border:1px solid var(--brass);flex:none;background:var(--paper)}
+</style>
+</head>
+<body>
+
+<!-- ═══════ INTRO ═══════ -->
+<div class="zone-title" style="left:60px;top:40px;">Aisle mode — one window, two faces</div>
+<div class="zone-sub" style="left:64px;top:84px;">Considered mode stays the front door and the primary experience: it's for people who don't know what to get. Aisle mode is the same window turned sideways — <b>no sliders, no chips, one question</b> — for people already standing in a store. Three approaches to the switch below; I argue for the third. The considered face shown in each is the real <span style="font-family:var(--font-mono);font-size:11px;">PreferenceCapture</span> screen — style grid, budget ceiling and occasion pills, cropped to fit; wine type, free text and zip continue below the fold.</div>
+
+<!-- ═══════ ZONE 1 — THREE APPROACHES TO THE SWITCH ═══════ -->
+<div class="zone-title" style="left:60px;top:226px;">1 · Three approaches to the switch</div>
+
+<!-- A: segmented control -->
+<div class="phone" style="position:absolute;left:64px;top:268px;height:660px;">
+  <div class="topbar"><div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div><div class="topbar-title">Somm</div><div class="topbar-loc">◎ 78209</div></div>
+  <div style="padding:13px 15px 0;"><div class="seg"><div class="seg-btn on">Plan</div><div class="seg-btn">Ask</div></div></div>
+  <div style="padding:15px;display:flex;flex-direction:column;gap:12px;flex:1;">
+    <div>
+      <span class="t-eyebrow">What you're in the mood for</span>
+      <div class="style-grid" style="margin-top:9px;">
+        <div class="style-cell on"><div class="n">Bold &amp; Tannic</div><div class="d">dark fruit · grip · structure</div></div>
+        <div class="style-cell"><div class="n">Light &amp; Elegant</div><div class="d">red fruit · silk · lift</div></div>
+        <div class="style-cell"><div class="n">Earthy &amp; Savory</div><div class="d">herb · iron · leather</div></div>
+        <div class="style-cell"><div class="n">Bright &amp; Fruity</div><div class="d">juicy · fresh · easy</div></div>
+      </div>
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;"><span class="t-eyebrow">Budget per bottle</span><span style="font-family:var(--font-serif);font-size:24px;color:var(--bordeaux);">up to $60</span></div>
+      <div class="rng"><div class="fill" style="width:24%;"></div><div class="kn" style="left:22%;"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--faded);margin-top:6px;"><span>$15</span><span>$200</span></div>
+    </div>
+    <div>
+      <span class="t-eyebrow">Occasion</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:9px;"><span class="pill on">Tonight</span><span class="pill">This weekend</span><span class="pill">Cellar it</span></div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:auto;">Find my wines →</button>
+  </div>
+  <div class="tabbar"><div class="tab active"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Recommend</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>Discover</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Search</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Saved</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>You</div></div>
+</div>
+<div class="cap" style="position:absolute;left:64px;top:944px;width:390px;"><b>A · Segmented control.</b> Explicit, conventional, instantly legible. But it reads as a <i>setting</i> — two labeled buttons imply two products, and the ink-framed segment competes with the content frame below it. Cheapest to build, weakest at feeling like one experience.</div>
+
+<!-- B: adaptive, ask bar always present -->
+<div class="phone" style="position:absolute;left:494px;top:268px;height:660px;">
+  <div class="topbar"><div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div><div class="topbar-title">Somm</div><div class="topbar-loc">◎ 78209</div></div>
+  <div style="padding:14px 15px 12px;border-bottom:1px solid var(--border);">
+    <div class="ask-in"><span>Ask me anything about wine…</span><div class="ask-send">→</div></div>
+  </div>
+  <div style="padding:15px;flex:1;display:flex;flex-direction:column;gap:12px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <span class="t-eyebrow">Or narrow it down</span>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6B6453" stroke-width="1.6"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;"><span class="t-eyebrow">Budget per bottle</span><span style="font-family:var(--font-serif);font-size:24px;color:var(--bordeaux);">up to $60</span></div>
+      <div class="rng"><div class="fill" style="width:24%;"></div><div class="kn" style="left:22%;"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--faded);margin-top:6px;"><span>$15</span><span>$200</span></div>
+    </div>
+    <div>
+      <span class="t-eyebrow">What you're in the mood for</span>
+      <div class="style-grid" style="margin-top:9px;">
+        <div class="style-cell on"><div class="n">Bold &amp; Tannic</div><div class="d">dark fruit · grip · structure</div></div>
+        <div class="style-cell"><div class="n">Light &amp; Elegant</div><div class="d">red fruit · silk · lift</div></div>
+      </div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:auto;">Find my wines →</button>
+  </div>
+  <div class="tabbar"><div class="tab active"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Recommend</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>Discover</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Search</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Saved</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>You</div></div>
+</div>
+<div class="cap" style="position:absolute;left:494px;top:944px;width:390px;"><b>B · One adaptive surface.</b> No modes at all — an ask bar pinned above collapsible controls. Honest and simple, but it demotes the structured flow that's currently the primary path, and in-aisle the controls are still on screen taking the top third of the thumb zone. Best if you ever decide ask-first should win outright.</div>
+
+<!-- C: swipe between two faces — RECOMMENDED -->
+<div class="phone" style="position:absolute;left:924px;top:268px;height:660px;border:2.5px solid var(--bordeaux);">
+  <div class="topbar"><div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div><div class="topbar-title">Somm</div><div class="topbar-loc">◎ 78209</div></div>
+  <div class="pager"><span class="pager-lbl on">Plan a bottle</span><div class="pager-rail"><div class="pager-dot on"></div><div class="pager-dot"></div></div><span class="pager-lbl">In a store</span></div>
+  <div style="padding:15px;flex:1;display:flex;flex-direction:column;gap:12px;position:relative;">
+    <div>
+      <span class="t-eyebrow">What you're in the mood for</span>
+      <div class="style-grid" style="margin-top:9px;">
+        <div class="style-cell on"><div class="n">Bold &amp; Tannic</div><div class="d">dark fruit · grip · structure</div></div>
+        <div class="style-cell"><div class="n">Light &amp; Elegant</div><div class="d">red fruit · silk · lift</div></div>
+        <div class="style-cell"><div class="n">Earthy &amp; Savory</div><div class="d">herb · iron · leather</div></div>
+        <div class="style-cell"><div class="n">Bright &amp; Fruity</div><div class="d">juicy · fresh · easy</div></div>
+      </div>
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;"><span class="t-eyebrow">Budget per bottle</span><span style="font-family:var(--font-serif);font-size:24px;color:var(--bordeaux);">up to $60</span></div>
+      <div class="rng"><div class="fill" style="width:24%;"></div><div class="kn" style="left:22%;"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--faded);margin-top:6px;"><span>$15</span><span>$200</span></div>
+    </div>
+    <div>
+      <span class="t-eyebrow">Occasion</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:9px;"><span class="pill on">Tonight</span><span class="pill">This weekend</span><span class="pill">Cellar it</span></div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:auto;">Find my wines →</button>
+    <!-- peek of the next face -->
+    <div style="position:absolute;top:0;bottom:0;right:-1px;width:16px;background:linear-gradient(90deg,rgba(230,222,207,0),rgba(26,26,26,0.07));"></div>
+  </div>
+  <div class="tabbar"><div class="tab active"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Recommend</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>Discover</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Search</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Saved</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>You</div></div>
+</div>
+<div class="cap" style="position:absolute;left:924px;top:944px;width:390px;"><b>C · Two faces of one window — recommended.</b> A horizontal swipe with a labelled rail: <i>Plan a bottle</i> ↔ <i>In a store</i>. Spatial, not a setting — you always know where you are because you moved there. Considered stays page one and the default; zip, store and thread carry across. Costs a pager and a gesture affordance; needs the labels to be tappable too, for reachability.</div>
+
+<!-- recommendation note -->
+<div style="position:absolute;left:1354px;top:268px;width:400px;border:1.5px solid var(--ink);background:var(--cream-raised);">
+  <div style="border:0.75px solid var(--brass);margin:6px;padding:16px 17px 18px;">
+    <span class="t-eyebrow">Why C</span>
+    <div class="serif" style="font-size:24px;color:var(--ink);line-height:1.2;margin-top:8px;">Same window, turned sideways.</div>
+    <div class="t-body" style="margin-top:10px;">Your two modes aren't two products — they're two postures toward the same question. A swipe says that; a toggle doesn't. Page one stays the structured flow because that's who most sessions are.</div>
+    <div class="t-body" style="margin-top:9px;">The rail labels double as tap targets, so it's reachable one-handed and discoverable without the gesture. And because it's one window, the session's zip and chosen store travel with you — no re-asking.</div>
+    <div style="border-top:1px solid var(--border);margin-top:13px;padding-top:11px;">
+      <span class="t-eyebrow">The one risk</span>
+      <div class="t-body" style="margin-top:6px;">Swipe-only discovery is invisible. Mitigation: on first launch after this ships, the rail's second label pulses once and a one-line hint sits under it — <i>"In a store? Swipe over and just ask."</i> Shown once, never again.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ ZONE 1B — ITERATING ON C's DISCOVERABILITY ═══════ -->
+<div class="zone-title" style="left:1794px;top:196px;width:900px;">1b · Making C discoverable</div>
+<div class="zone-sub" style="left:1798px;top:240px;width:900px;max-width:900px;">You're right that a bare swipe teaches nothing. But the fix isn't to abandon the spatial model — it's to stop making the <i>gesture</i> the only way to learn it. Three iterations, each borrowing a different amount of A's explicitness. The swipe keeps working in all of them; it just stops being the only door.</div>
+
+<!-- C-i: tab labels -->
+<div class="phone" style="position:absolute;left:1798px;top:316px;height:660px;">
+  <div class="topbar"><div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div><div class="topbar-title">Somm</div><div class="topbar-loc">◎ 78209</div></div>
+  <div style="display:flex;background:var(--cream);border-bottom:1.5px solid var(--ink);">
+    <div style="flex:1;text-align:center;padding:12px 0 10px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;font-weight:600;color:var(--ink);border-bottom:2.5px solid var(--bordeaux);margin-bottom:-1.5px;">Plan a bottle</div>
+    <div style="flex:1;text-align:center;padding:12px 0 10px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;font-weight:600;color:var(--faded);">Ask</div>
+  </div>
+  <div style="padding:15px;flex:1;display:flex;flex-direction:column;gap:12px;">
+    <div>
+      <span class="t-eyebrow">What you're in the mood for</span>
+      <div class="style-grid" style="margin-top:9px;">
+        <div class="style-cell on"><div class="n">Bold &amp; Tannic</div><div class="d">dark fruit · grip · structure</div></div>
+        <div class="style-cell"><div class="n">Light &amp; Elegant</div><div class="d">red fruit · silk · lift</div></div>
+        <div class="style-cell"><div class="n">Earthy &amp; Savory</div><div class="d">herb · iron · leather</div></div>
+        <div class="style-cell"><div class="n">Bright &amp; Fruity</div><div class="d">juicy · fresh · easy</div></div>
+      </div>
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;"><span class="t-eyebrow">Budget per bottle</span><span style="font-family:var(--font-serif);font-size:24px;color:var(--bordeaux);">up to $60</span></div>
+      <div class="rng"><div class="fill" style="width:24%;"></div><div class="kn" style="left:22%;"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--faded);margin-top:6px;"><span>$15</span><span>$200</span></div>
+    </div>
+    <div>
+      <span class="t-eyebrow">Occasion</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:9px;"><span class="pill on">Tonight</span><span class="pill">This weekend</span><span class="pill">Cellar it</span></div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:auto;">Find my wines →</button>
+  </div>
+  <div class="tabbar"><div class="tab active"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Recommend</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>Discover</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Search</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Saved</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>You</div></div>
+</div>
+<div class="cap" style="position:absolute;left:1798px;top:992px;width:390px;"><b>C-i · Tabs, not a toggle.</b> The rail becomes two underlined labels sharing the header's ink rule — reads as "two pages of one thing," where A's boxed segment reads as "a setting with two values." Same legibility as A, keeps the spatial model, and swipe still works. Costs nothing extra to build.</div>
+
+<!-- C-ii: edge peek -->
+<div class="phone" style="position:absolute;left:2228px;top:316px;height:660px;">
+  <div class="topbar"><div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div><div class="topbar-title">Somm</div><div class="topbar-loc">◎ 78209</div></div>
+  <div style="display:flex;background:var(--cream);border-bottom:1.5px solid var(--ink);">
+    <div style="flex:1;text-align:center;padding:12px 0 10px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;font-weight:600;color:var(--ink);border-bottom:2.5px solid var(--bordeaux);margin-bottom:-1.5px;">Plan a bottle</div>
+    <div style="flex:1;text-align:center;padding:12px 0 10px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;font-weight:600;color:var(--faded);">Ask</div>
+  </div>
+  <div style="flex:1;display:flex;position:relative;overflow:hidden;">
+    <div style="flex:1;padding:15px 15px 15px;display:flex;flex-direction:column;gap:12px;">
+      <div>
+      <span class="t-eyebrow">What you're in the mood for</span>
+      <div class="style-grid" style="margin-top:9px;">
+        <div class="style-cell on"><div class="n">Bold &amp; Tannic</div><div class="d">dark fruit · grip · structure</div></div>
+        <div class="style-cell"><div class="n">Light &amp; Elegant</div><div class="d">red fruit · silk · lift</div></div>
+      </div>
+    </div>
+      <div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;"><span class="t-eyebrow">Budget per bottle</span><span style="font-family:var(--font-serif);font-size:24px;color:var(--bordeaux);">up to $60</span></div>
+      <div class="rng"><div class="fill" style="width:24%;"></div><div class="kn" style="left:22%;"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--faded);margin-top:6px;"><span>$15</span><span>$200</span></div>
+    </div>
+      <button class="btn btn-primary" style="margin-top:auto;">Find my wines →</button>
+    </div>
+    <!-- the peeking aisle face -->
+    <div style="width:30px;flex:none;background:var(--paper);border-left:1.5px solid var(--ink);padding-top:16px;position:relative;">
+      <div style="position:absolute;left:7px;top:16px;width:60px;height:44px;background:var(--cream-raised);border:1px solid var(--border);border-radius:4px 14px 14px 4px;"></div>
+      <div style="position:absolute;left:7px;bottom:16px;width:60px;height:34px;background:var(--cream-raised);border:1.5px solid var(--ink);border-radius:999px 0 0 999px;"></div>
+    </div>
+  </div>
+  <div class="tabbar"><div class="tab active"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Recommend</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>Discover</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Search</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Saved</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>You</div></div>
+</div>
+<div class="cap" style="position:absolute;left:2228px;top:992px;width:390px;"><b>C-ii · Edge peek.</b> A 30px sliver of the aisle face intrudes at the right margin — you can literally see a bubble and the ask bar waiting. The most self-teaching option: paged content with a visible next page is a pattern people already read. Cost: 30px of width in the primary flow, which crowds the style grid.</div>
+
+<!-- C-iii: standing invitation -->
+<div class="phone" style="position:absolute;left:2658px;top:316px;height:660px;">
+  <div class="topbar"><div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div><div class="topbar-title">Somm</div><div class="topbar-loc">◎ 78209</div></div>
+  <div style="display:flex;background:var(--cream);border-bottom:1.5px solid var(--ink);">
+    <div style="flex:1;text-align:center;padding:12px 0 10px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;font-weight:600;color:var(--ink);border-bottom:2.5px solid var(--bordeaux);margin-bottom:-1.5px;">Plan a bottle</div>
+    <div style="flex:1;text-align:center;padding:12px 0 10px;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;font-weight:600;color:var(--faded);">Ask</div>
+  </div>
+  <div style="padding:15px;flex:1;display:flex;flex-direction:column;gap:12px;">
+    <div>
+      <span class="t-eyebrow">What you're in the mood for</span>
+      <div class="style-grid" style="margin-top:9px;">
+        <div class="style-cell on"><div class="n">Bold &amp; Tannic</div><div class="d">dark fruit · grip · structure</div></div>
+        <div class="style-cell"><div class="n">Light &amp; Elegant</div><div class="d">red fruit · silk · lift</div></div>
+        <div class="style-cell"><div class="n">Earthy &amp; Savory</div><div class="d">herb · iron · leather</div></div>
+        <div class="style-cell"><div class="n">Bright &amp; Fruity</div><div class="d">juicy · fresh · easy</div></div>
+      </div>
+    </div>
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:2px;"><span class="t-eyebrow">Budget per bottle</span><span style="font-family:var(--font-serif);font-size:24px;color:var(--bordeaux);">up to $60</span></div>
+      <div class="rng"><div class="fill" style="width:24%;"></div><div class="kn" style="left:22%;"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--faded);margin-top:6px;"><span>$15</span><span>$200</span></div>
+    </div>
+    <div>
+      <span class="t-eyebrow">Occasion</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:9px;"><span class="pill on">Tonight</span><span class="pill">This weekend</span><span class="pill">Cellar it</span></div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:auto;">Find my wines →</button>
+  </div>
+  <!-- standing invitation -->
+  <div style="flex:none;background:var(--bordeaux-tint);border-top:0.75px solid var(--brass);padding:12px 15px;display:flex;align-items:center;gap:10px;">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6E1023" stroke-width="1.6" style="flex:none;"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="2.6"/></svg>
+    <div style="flex:1;font-size:12.5px;color:var(--bordeaux);font-weight:600;line-height:1.35;">In a store right now? Just ask me instead.</div>
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6E1023" stroke-width="2" style="flex:none;"><path d="M5 12h13M12 5l7 7-7 7"/></svg>
+  </div>
+  <div class="tabbar"><div class="tab active"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Recommend</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>Discover</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>Search</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>Saved</div><div class="tab"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>You</div></div>
+</div>
+<div class="cap" style="position:absolute;left:2658px;top:992px;width:390px;"><b>C-iii · Standing invitation.</b> A persistent bordeaux-tint strip above the tab bar that names the moment in plain language and taps straight over. Discovered by <i>reading</i>, not gesturing — and it sells the mode rather than just exposing it. Cost: permanent furniture in the primary flow; could dismiss after first use.</div>
+
+<!-- recommendation -->
+<div style="position:absolute;left:3088px;top:316px;width:400px;">
+  <div style="border:1.5px solid var(--ink);background:var(--cream-raised);">
+    <div style="border:0.75px solid var(--brass);margin:6px;padding:16px 17px 18px;">
+      <span class="t-eyebrow">Recommendation</span>
+      <div class="serif" style="font-size:24px;color:var(--ink);line-height:1.2;margin-top:8px;">C-i plus C-iii — two doors.</div>
+      <div class="t-body" style="margin-top:10px;">Tabs make the two faces <b>visible at all times</b> — that alone solves your worry, and it's what you liked about A. The difference from A is purely typographic: labels sharing the header rule instead of a boxed segment, so it reads as two pages rather than a setting.</div>
+      <div class="t-body" style="margin-top:9px;">The two entries then carry <b>different depths of context</b>, which is the real insight. The <b>Ask</b> tab is general — it opens clean and never front-loads a location form, because "is Nebbiolo like Pinot?" doesn't need a zip. The <b>strip</b> is the store-specific door: tapping it means "I'm here, now," so asking which store is welcome rather than friction.</div>
+      <div class="t-body" style="margin-top:9px;">Location is therefore <b>lazy in Ask, eager from the strip</b>. Same face, same thread — just a different amount known on arrival.</div>
+      <div style="border-top:1px solid var(--border);margin-top:13px;padding-top:11px;">
+        <span class="t-eyebrow">On C-ii</span>
+        <div class="t-body" style="margin-top:6px;">The peek is the most elegant teacher but the worst citizen — it taxes 30px from the flow that matters most, permanently, to teach something once. Skip it.</div>
+      </div>
+      <div style="border-top:1px solid var(--border);margin-top:13px;padding-top:11px;">
+        <span class="t-eyebrow">If you'd rather just take A</span>
+        <div class="t-body" style="margin-top:6px;">A with the invitation strip is also a fine ship. You lose the "one window" feeling but keep every practical benefit. The strip is the piece I'd fight for either way.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ ZONE 2 — TWO DOORS, TWO DEPTHS OF CONTEXT ═══════ -->
+<div class="zone-title" style="left:60px;top:1060px;">2 · Two doors into the same thread</div>
+<div class="zone-sub" style="left:64px;top:1104px;">The <b>Ask</b> tab opens clean — no zip, no store, no form. Location is resolved <b>only when an answer actually needs shelves</b>, asked inline mid-conversation. The <b>store strip</b> is the other door: it means "I'm here now," so it asks which store immediately. Same face, same thread — different amount known on arrival.</div>
+
+<!-- Door 1 — Ask: general, no location -->
+<div class="phone" style="position:absolute;left:64px;top:1220px;height:660px;">
+  <div class="topbar"><div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div><div class="topbar-title">Somm</div></div>
+  <div class="tabs"><div class="tb">Plan a bottle</div><div class="tb on">Ask</div></div>
+  <div class="thread">
+    <div class="row">
+      <div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div>
+      <div class="bub"><div class="t-body">Ask me anything about wine — what to drink, what something is, what goes with dinner. No forms.</div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:2px;">
+      <div class="chip-q">"Is Nebbiolo like Pinot Noir?"</div>
+      <div class="chip-q">"This says Côtes du Rhône — is that like a GSM?"</div>
+      <div class="chip-q">"What goes with steak tonight?"</div>
+    </div>
+    <div class="cap" style="margin-top:auto;text-align:center;color:var(--faded-2);">No zip asked. Nothing here needs one yet.</div>
+  </div>
+  <div class="ask"><div class="ask-in"><span>Ask me anything…</span><div class="ask-send">→</div></div></div>
+</div>
+<div class="cap" style="position:absolute;left:64px;top:1896px;width:390px;"><b>Door 1 · the Ask tab.</b> Opens with zero context demanded. Education and pairing answers never need a location, so asking for one up front would be pure friction — and would misrepresent what this face is for.</div>
+
+<!-- Lazy location — asked inline, only when needed -->
+<div class="phone" style="position:absolute;left:494px;top:1220px;height:660px;">
+  <div class="topbar"><div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div><div class="topbar-title">Somm</div></div>
+  <div class="tabs"><div class="tb">Plan a bottle</div><div class="tb on">Ask</div></div>
+  <div class="thread">
+    <div class="bub-user">what goes with steak tonight</div>
+    <div class="row">
+      <div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div>
+      <div class="bub"><div class="t-body">Steak wants tannin — something with grip to cut the fat. I can name bottles you'll actually find tonight if you tell me roughly where you are.</div></div>
+    </div>
+    <div style="margin-left:38px;background:var(--cream);border:1.5px solid var(--ink);padding:13px 14px;">
+      <span class="t-eyebrow">Your zip / city</span>
+      <div style="display:flex;gap:9px;margin-top:9px;">
+        <div style="flex:1;border:1.5px solid var(--ink);background:var(--cream-raised);padding:10px 12px;font-family:var(--font-mono);font-size:15px;letter-spacing:0.14em;color:var(--ink);">78209<span class="caret" style="height:15px;width:7px;"></span></div>
+        <button class="btn btn-primary" style="padding:10px 15px;">Set</button>
+      </div>
+      <div class="cap" style="margin-top:8px;">Asked once — I'll remember it from here on.</div>
+    </div>
+    <div class="row">
+      <div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div>
+      <div style="display:flex;gap:14px;align-items:center;"><svg width="40" height="50" viewBox="8 0 48 76" style="flex:none;"><defs><clipPath id="bc-lazy"><path d="M15 8 Q11.5 31 23 52 Q27.5 57 32 57.5 Q36.5 57 41 52 Q52.5 31 49 8 Z"/></clipPath></defs><g clip-path="url(#bc-lazy)"><rect x="-10" y="36" width="84" height="30" fill="#6E1023" opacity="0.82"/><g style="animation:wave-scroll 1.8s linear infinite;"><path d="M -80 36 Q -72 31 -64 36 Q -56 41 -48 36 Q -40 31 -32 36 Q -24 41 -16 36 Q -8 31 0 36 Q 8 41 16 36 Q 24 31 32 36 Q 40 41 48 36 Q 56 31 64 36 Q 72 41 80 36 Q 88 31 96 36 Q 104 41 112 36 Q 120 31 128 36 Q 136 41 144 36 L 144 50 L -80 50 Z" fill="#6E1023" opacity="0.82"/></g><rect x="20" y="38" width="5" height="14" rx="2.5" fill="rgba(255,255,255,0.28)" style="animation:glass-shimmer 2.6s ease-in-out infinite;"/></g><path d="M15 8 Q11.5 31 23 52 Q27.5 57 32 57.5 Q36.5 57 41 52 Q52.5 31 49 8 Z" fill="none" stroke="#1A1A1A" stroke-width="1.6" stroke-linejoin="round"/><path d="M16.5 9.5 Q13.5 31 24 51 Q28 56 32 56.5 Q36 56 40 51 Q50.5 31 47.5 9.5" fill="none" stroke="#B08D57" stroke-width="0.75" opacity="0.55"/><ellipse cx="32" cy="8" rx="17" ry="3.5" fill="var(--cream)" stroke="#1A1A1A" stroke-width="1.6"/><rect x="30" y="57" width="4" height="13" fill="var(--cream)" stroke="#1A1A1A" stroke-width="1.5"/><rect x="20" y="69" width="24" height="4" rx="1" fill="var(--cream)" stroke="#1A1A1A" stroke-width="1.5"/><circle cx="32" cy="57" r="2.5" fill="#B08D57"/></svg><div><div class="chat-text" style="margin-bottom:6px;">Finding what's on the shelves near you</div><div style="display:flex;align-items:center;gap:4px;"><span class="d1" style="width:5px;height:5px;border-radius:50%;background:var(--brass);"></span><span class="d2" style="width:5px;height:5px;border-radius:50%;background:var(--brass);"></span><span class="d3" style="width:5px;height:5px;border-radius:50%;background:var(--brass);"></span></div></div></div>
+    </div>
+  </div>
+  <div class="ask"><div class="ask-in"><span>Ask me anything…</span><div class="ask-send">→</div></div></div>
+</div>
+<div class="cap" style="position:absolute;left:494px;top:1896px;width:390px;"><b>Lazy location.</b> The zip request arrives <i>inside</i> the conversation, only once an answer needs shelves — and it reads as the somm asking, not a gate. Skipped entirely if considered mode already set a zip.</div>
+
+<!-- Door 2 — store strip: eager store pick -->
+<div class="phone" style="position:absolute;left:924px;top:1220px;height:660px;">
+  <div class="topbar"><div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div><div class="topbar-title">Somm</div><div class="topbar-loc">◎ 78209</div></div>
+  <div class="tabs"><div class="tb">Plan a bottle</div><div class="tb on">Ask</div></div>
+  <div style="flex:1;background:var(--paper);padding:18px 15px;display:flex;flex-direction:column;gap:14px;">
+    <div class="row">
+      <div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div>
+      <div class="bub"><div class="t-body">Which one are you standing in? I'll keep my answers to what's on their shelves.</div></div>
+    </div>
+    <div style="background:var(--cream);border:1.5px solid var(--ink);">
+      <div class="store-row"><div class="sdot" style="background:var(--bordeaux);border-color:var(--bordeaux);"></div><div style="flex:1;"><div style="font-size:13px;font-weight:600;color:var(--ink);">Spec's</div><div style="font-size:10.5px;color:var(--faded);">Alamo Heights · 0.3 mi</div></div><span class="t-tag" style="border-color:var(--bordeaux);color:var(--bordeaux);background:var(--bordeaux-tint);">closest</span></div>
+      <div class="store-row"><div class="sdot"></div><div style="flex:1;"><div style="font-size:13px;font-weight:600;color:var(--ink);">H-E-B Central Market</div><div style="font-size:10.5px;color:var(--faded);">Broadway · 1.4 mi</div></div></div>
+      <div class="store-row"><div class="sdot"></div><div style="flex:1;"><div style="font-size:13px;font-weight:600;color:var(--ink);">Total Wine &amp; More</div><div style="font-size:10.5px;color:var(--faded);">Quarry Market · 2.8 mi</div></div></div>
+      <div class="store-row"><div class="sdot"></div><div style="flex:1;"><div style="font-size:13px;font-weight:600;color:var(--ink);">Twin Liquors</div><div style="font-size:10.5px;color:var(--faded);">Lincoln Heights · 3.1 mi</div></div></div>
+    </div>
+    <button class="btn btn-ghost" style="width:100%;">Somewhere else — just use my zip</button>
+    <div class="cap" style="margin-top:auto;color:var(--faded-2);text-align:center;">Store is a soft filter, not a cage — I'll still name a better bottle down the road if there is one.</div>
+  </div>
+</div>
+<div class="cap" style="position:absolute;left:924px;top:1896px;width:390px;"><b>Door 2 · the store strip.</b> Tapping "In a store right now?" is a declaration, so the store question is welcome rather than friction. Ranked by distance, closest pre-flagged, with a zip-only escape hatch. If no zip exists yet, this asks zip then store, back to back.</div>
+
+<!-- context chips detail -->
+<div style="position:absolute;left:1354px;top:1220px;width:400px;">
+  <div style="border:1.5px solid var(--ink);background:var(--cream-raised);">
+    <div style="border:0.75px solid var(--brass);margin:6px;padding:16px 17px;">
+      <span class="t-eyebrow">Standing context</span>
+      <div class="serif" style="font-size:23px;color:var(--ink);line-height:1.2;margin-top:8px;">Two chips, not a settings page.</div>
+      <div class="cap" style="margin-top:6px;">Shown as pills here because they sit <i>in the thread</i>. The top bar's own readout stays sharp, per <span style="font-family:var(--font-mono);font-size:11px;">MobileChrome</span>.</div>
+      <div class="t-body" style="margin-top:10px;">Once set, location lives as editable pills in the header — visible so the user trusts the answer, tappable so correcting it is instant. Through the Ask door these appear <b>only after</b> a location has been needed.</div>
+      <div style="display:flex;gap:7px;margin-top:14px;flex-wrap:wrap;">
+        <span class="ctx-chip">◎ Spec's · Alamo Heights <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></span>
+        <span class="ctx-chip">78209 <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m6 9 6 6 6-6"/></svg></span>
+      </div>
+      <div style="border-top:1px solid var(--border);margin-top:15px;padding-top:12px;">
+        <span class="t-eyebrow">No budget, on purpose</span>
+        <div class="t-body" style="margin-top:6px;">Aisle mode carries <b>no budget assumption</b> — nothing is "outside your budget" for a bottle already in your hand. If you say "under 20 bucks" it's parsed from the sentence; otherwise price is reported, never judged.</div>
+      </div>
+      <div style="border-top:1px solid var(--border);margin-top:13px;padding-top:12px;">
+        <span class="t-eyebrow">Future affordance</span>
+        <div class="t-body" style="margin-top:6px;">A camera chip sits dormant beside these for photo-identify when it ships. Designed as a seam only — nothing here depends on it.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ ZONE 3 — EMPTY STATE: THREE INVITATIONS ═══════ -->
+<div class="zone-title" style="left:60px;top:2000px;">3 · Empty state — what invites the first question</div>
+<div class="zone-sub" style="left:64px;top:2044px;">The hardest screen: a blank chat teaches nothing. Three ways to invite the first question, all in the somm's voice rather than a feature tour.</div>
+
+<!-- E1: worked examples -->
+<div class="phone" style="position:absolute;left:64px;top:2160px;height:700px;">
+  <div class="topbar"><div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div><div class="topbar-title">Somm</div><span class="topbar-loc">◎ Spec's</span></div>
+  <div class="tabs"><div class="tb">Plan a bottle</div><div class="tb on">Ask</div></div>
+  <div class="thread">
+    <div class="row">
+      <div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div>
+      <div class="bub"><div class="t-body">You're in Spec's on Alamo Heights. Hold up a bottle and ask me anything — or tell me what you're eating tonight.</div></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:2px;">
+      <div class="chip-q">"I'm looking at a Malbec and a Rioja — which should I get?"</div>
+      <div class="chip-q">"Is the Caymus worth $80 or should I get the Decoy?"</div>
+      <div class="chip-q">"What goes with steak tonight?"</div>
+      <div class="chip-q">"This says Côtes du Rhône — is that like a GSM?"</div>
+    </div>
+  </div>
+  <div class="ask"><div class="ask-in"><span>Ask me anything…</span><div class="ask-send">→</div></div></div>
+</div>
+<div class="cap" style="position:absolute;left:64px;top:2876px;width:390px;"><b>E1 · Worked examples — not chosen.</b> Four real questions as tappable pills; teaches the range in one glance but reads listy. Its example-pills idea survives inside E2 as the intent chips.</div>
+
+<!-- E2: single invitation -->
+<div class="phone" style="position:absolute;left:494px;top:2160px;height:700px;">
+  <div class="topbar"><div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div><div class="topbar-title">Somm</div></div>
+  <div class="tabs"><div class="tb">Plan a bottle</div><div class="tb on">Ask</div></div>
+  <div class="thread" style="justify-content:center;align-items:center;text-align:center;padding:24px 26px;">
+    <div class="stamp" style="width:46px;height:46px;"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div>
+    <div class="serif" style="font-size:27px;color:var(--ink);line-height:1.24;margin-top:16px;">What can I help<br>you with?</div>
+    <div class="t-body" style="color:var(--faded);margin-top:10px;">Name a bottle, name two, ask what something is, or just tell me what you're eating. No sliders in here.</div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin-top:18px;">
+      <span class="chip">Compare two</span><span class="chip">Is this good?</span><span class="chip">What is this?</span><span class="chip">Pair with dinner</span>
+    </div>
+  </div>
+  <div class="ask"><div class="ask-in"><span>Ask me anything…</span><div class="ask-send">→</div></div></div>
+</div>
+<div class="cap" style="position:absolute;left:494px;top:2876px;width:390px;"><b>E2 · Chosen.</b> A serif question centered, four intent pills below. Deliberately generic: the Ask door knows no store yet, so the copy can't lean on one. Most on-brand and most confident — teaches less about phrasing than E1, which the pills offset.</div>
+
+<!-- E3: warm continuation -->
+<div class="phone" style="position:absolute;left:924px;top:2160px;height:700px;">
+  <div class="topbar"><div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div><div class="topbar-title">Somm</div><span class="topbar-loc">◎ Spec's</span></div>
+  <div class="tabs"><div class="tb">Plan a bottle</div><div class="tb on">Ask</div></div>
+  <div class="thread">
+    <div class="row">
+      <div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div>
+      <div class="bub"><div class="t-body">Back at Spec's. Last time you were after a bold Paso red — still that, or something new tonight?</div></div>
+    </div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap;">
+      <span class="chip">Same again</span><span class="chip">Something new</span>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:13px;margin-top:4px;">
+      <span class="t-eyebrow">Where you left off</span>
+      <div style="margin-top:9px;display:flex;flex-direction:column;gap:9px;">
+        <div class="bub" style="max-width:100%;padding:9px 12px;">
+          <div style="display:flex;align-items:baseline;gap:8px;"><span class="wine-name" style="font-size:16px;border:none;">Esprit de Tablas</span><span class="price" style="font-size:14px;">$19.99</span></div>
+          <div class="wine-meta" style="margin-top:5px;"><span class="store-pill">◎ H-E-B · 5.1 mi</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="ask"><div class="ask-in"><span>Ask me anything…</span><div class="ask-send">→</div></div></div>
+</div>
+<div class="cap" style="position:absolute;left:924px;top:2876px;width:390px;"><b>E3 · Warm continuation — later layer.</b> The thread persists, so a returning user can open on where they left off. Not a competing empty state: it's E2 with history above it, worth adding once the thread is stored.</div>
+
+<!-- ═══════ ZONE 4 — STREAMING ═══════ -->
+<div class="zone-title" style="left:60px;top:2984px;">4 · Mid-stream — the answer arriving</div>
+<div class="zone-sub" style="left:64px;top:3028px;">Text streams word-by-word (~1s to first text), then picks land one at a time, then the factual availability line. The layout must be composed at every frame: nothing reflows, nothing jumps. Placeholders reserve space so arriving picks don't shove the thread.</div>
+
+<!-- mid-stream -->
+<div class="phone" style="position:absolute;left:64px;top:3144px;height:720px;">
+  <div class="topbar"><div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div><div class="topbar-title">Somm</div><span class="topbar-loc">◎ Spec's</span></div>
+  <div class="tabs"><div class="tb">Plan a bottle</div><div class="tb on">Ask</div></div>
+  <div class="thread">
+    <div class="bub-user">what goes with steak tonight</div>
+    <div class="row">
+      <div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div>
+      <div class="bub"><div class="t-body">Steak wants tannin — something with enough grip to cut the fat. You're in luck, Spec's carries two I'd happily<span class="caret"></span></div></div>
+    </div>
+    <!-- pick 1 arrived -->
+    <div class="wine-msg" style="margin-left:38px;">
+      <div class="t-body" style="font-size:12.5px;line-height:1.6;">Dark cherry and garrigue, real tannic spine. Paso Robles doing the Rhône thing properly.</div>
+      <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:9px;padding-top:8px;border-top:0.75px solid var(--border);"><span class="wine-name">Esprit de Tablas</span><span class="price">$19.99</span><span class="store-pill">◎ Spec's · 0.3 mi</span></div>
+      <div class="thumbs"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 10v11H4V10zM7 10l4-7h2a2 2 0 0 1 2 2v5h4a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 18 21H7"/></svg><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="transform:rotate(180deg);"><path d="M7 10v11H4V10zM7 10l4-7h2a2 2 0 0 1 2 2v5h4a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 18 21H7"/></svg></div>
+    </div>
+    <!-- picks still pouring — shipped awaitingPicks pattern: pulsing eyebrow, indented -->
+    <div style="padding-left:43px;">
+      <span class="avail" style="animation:skeleton-pulse 1.4s ease-in-out infinite;">Pouring your picks…</span>
+    </div>
+  </div>
+  <div class="ask"><div class="ask-in"><span>Ask me anything…</span><div class="ask-send">→</div></div></div>
+</div>
+<div class="cap" style="position:absolute;left:64px;top:3880px;width:390px;"><b>Mid-stream.</b> Narrative still typing (bordeaux caret), pick one complete, and the existing <b>swirling-glass loader</b> holding the second pick's place — same component as the chat loading animation, reused verbatim. The composition already reads as an answer.</div>
+
+<!-- complete -->
+<div class="phone" style="position:absolute;left:494px;top:3144px;height:720px;">
+  <div class="topbar"><div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div><div class="topbar-title">Somm</div><span class="topbar-loc">◎ Spec's</span></div>
+  <div class="tabs"><div class="tb">Plan a bottle</div><div class="tb on">Ask</div></div>
+  <div class="thread">
+    <div class="bub-user">what goes with steak tonight</div>
+    <div class="row">
+      <div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div>
+      <div class="bub"><div class="t-body">Steak wants tannin — something with grip to cut the fat. Spec's has two I'd happily pour tonight.</div></div>
+    </div>
+    <div class="wine-msg" style="margin-left:38px;">
+      <div class="t-body" style="font-size:12.5px;line-height:1.6;">Dark cherry and garrigue, real tannic spine. Paso Robles doing the Rhône thing properly.</div>
+      <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:9px;padding-top:8px;border-top:0.75px solid var(--border);"><span class="wine-name">Esprit de Tablas</span><span class="price">$19.99</span><span class="store-pill">◎ Spec's · 0.3 mi</span></div>
+      <div class="thumbs"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 10v11H4V10zM7 10l4-7h2a2 2 0 0 1 2 2v5h4a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 18 21H7"/></svg><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="transform:rotate(180deg);"><path d="M7 10v11H4V10zM7 10l4-7h2a2 2 0 0 1 2 2v5h4a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 18 21H7"/></svg></div>
+    </div>
+    <div class="wine-msg" style="margin-left:38px;">
+      <div class="t-body" style="font-size:12.5px;line-height:1.6;">Leaner, more savory — red plum and iron. If your steak's got a char on it, this is the smarter call.</div>
+      <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:9px;padding-top:8px;border-top:0.75px solid var(--border);"><span class="wine-name">Fèlsina Chianti Classico</span><span class="price">$32</span><span class="store-pill">◎ Spec's · 0.3 mi</span></div>
+      <div class="thumbs"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 10v11H4V10zM7 10l4-7h2a2 2 0 0 1 2 2v5h4a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 18 21H7"/></svg><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="transform:rotate(180deg);"><path d="M7 10v11H4V10zM7 10l4-7h2a2 2 0 0 1 2 2v5h4a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 18 21H7"/></svg></div>
+    </div>
+    <div class="avail" style="margin-left:38px;border-top:1px solid var(--border);padding-top:9px;">BOTH IN STOCK AT SPEC'S ALAMO HEIGHTS · CHECKED SUNDAY</div>
+  </div>
+  <div class="ask"><div class="ask-in"><span>Ask me anything…</span><div class="ask-send">→</div></div></div>
+</div>
+<div class="cap" style="position:absolute;left:494px;top:3880px;width:390px;"><b>Complete.</b> Existing Option C wine messages unchanged — no card chrome. The store pill always reads <b>store · distance</b>. The factual availability line closes the answer in mono, deliberately unglamorous.</div>
+
+<!-- no-cards: two closers -->
+<div class="phone" style="position:absolute;left:924px;top:3144px;height:720px;">
+  <div class="topbar"><div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div><div class="topbar-title">Somm</div><span class="topbar-loc">◎ Spec's</span></div>
+  <div class="tabs"><div class="tb">Plan a bottle</div><div class="tb on">Ask</div></div>
+  <div class="thread">
+    <div class="bub-user">this says Côtes du Rhône — is that like a GSM?</div>
+    <div class="row">
+      <div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div>
+      <div class="bub"><div class="t-body">It <i>is</i> a GSM, essentially — Grenache, Syrah, Mourvèdre are the backbone of the southern Rhône. "GSM" is just what the New World calls it when they borrow the recipe.<br><br>Côtes du Rhône is the everyday tier: juicy, peppery, built for a Tuesday. Grenache leads, so expect red fruit and warmth over structure.</div></div>
+    </div>
+    <!-- closer option 1 -->
+    <div style="margin-left:38px;">
+      <span class="t-eyebrow" style="color:var(--faded-2);">Closer · option 1 — follow-ups</span>
+      <div style="display:flex;flex-direction:column;gap:7px;margin-top:8px;">
+        <div class="chip-q">"So is a GSM more my thing than a Bordeaux blend?"</div>
+        <div class="chip-q">"What's the step up from Côtes du Rhône?"</div>
+      </div>
+    </div>
+    <!-- closer option 2 -->
+    <div style="margin-left:38px;border-top:1px solid var(--border);padding-top:12px;">
+      <span class="t-eyebrow" style="color:var(--faded-2);">Closer · option 2 — the offer</span>
+      <div class="t-body" style="margin-top:7px;">Want me to find you a good one here?</div>
+      <div style="display:flex;gap:7px;margin-top:9px;"><span class="chip">Yes, find one</span><span class="chip" style="background:transparent;color:var(--faded);">No thanks</span></div>
+    </div>
+  </div>
+</div>
+<div class="cap" style="position:absolute;left:924px;top:3880px;width:390px;"><b>Education answer — no cards.</b> Prose is a complete answer; the closer just keeps the door open. <b>My pick: option 2</b> — one offer in the somm's voice converts an explanation into a purchase without pretending cards were coming. Follow-up chips (option 1) are better on desktop where there's room, and risk feeling like a quiz on a phone.</div>
+
+<!-- ═══════ ZONE 5 — COMPARISON ═══════ -->
+<div class="zone-title" style="left:60px;top:3984px;">5 · Two bottles, one answer</div>
+<div class="zone-sub" style="left:64px;top:4028px;">The signature aisle moment. You chose side-by-side then verdict — so the comparison is a sharp-cornered factual frame (this part is data, not conversation), and the verdict is a bubble in the somm's voice. Two layout options below.</div>
+
+<!-- comparison A: compact table then verdict -->
+<div class="phone" style="position:absolute;left:64px;top:4144px;height:868px;">
+  <div class="topbar"><div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div><div class="topbar-title">Somm</div><span class="topbar-loc">◎ Spec's</span></div>
+  <div class="tabs"><div class="tb">Plan a bottle</div><div class="tb on">Ask</div></div>
+  <div class="thread">
+    <div class="bub-user">I'm looking at a Malbec and a Rioja, which should I get?</div>
+    <div class="row">
+      <div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div>
+      <div class="bub" style="max-width:296px;"><div class="t-body">Both good bottles, genuinely different nights. Here's how they sit:</div></div>
+    </div>
+    <div class="cmp" style="margin-left:38px;">
+      <div class="cmp-col">
+        <div class="cmp-n">Catena Malbec</div>
+        <div class="cmp-s">Mendoza · 2021</div>
+        <div style="margin-top:9px;">
+          <div class="cmp-r"><span>PRICE</span><span>$16</span></div>
+          <div class="cmp-r"><span>BODY</span><span>Full, plush</span></div>
+          <div class="cmp-r"><span>TANNIN</span><span>Soft</span></div>
+          <div class="cmp-r"><span>FOR</span><span>Burgers, ribs</span></div>
+        </div>
+      </div>
+      <div class="cmp-col win">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;"><div class="cmp-n">Muga Reserva</div><span class="win-flag">Mine</span></div>
+        <div class="cmp-s">Rioja · 2019</div>
+        <div style="margin-top:9px;">
+          <div class="cmp-r"><span>PRICE</span><span>$24</span></div>
+          <div class="cmp-r"><span>BODY</span><span>Medium, savory</span></div>
+          <div class="cmp-r"><span>TANNIN</span><span>Firm, fine</span></div>
+          <div class="cmp-r"><span>FOR</span><span>Lamb, aged cheese</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:2px;">
+      <div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div>
+      <div class="bub"><div class="t-body">Take the <b style="color:var(--ink);">Muga</b>. The extra eight dollars buys you a wine with something to say — dried cherry, leather, a finish that lingers. The Catena is the safer, softer pour; grab it instead if you're feeding a crowd who won't fuss.</div></div>
+    </div>
+    <!-- the pick, as a normal wine message -->
+    <div class="wine-msg" style="margin-left:38px;">
+      <div class="t-body" style="font-size:12.5px;line-height:1.6;">Rioja, 2019 — dried cherry and leather over fine, firm tannin. Aged in oak long enough to have manners.</div>
+      <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:9px;padding-top:8px;border-top:0.75px solid var(--border);"><span class="wine-name">Muga Reserva</span><span class="price">$24</span><span class="store-pill">◎ Spec's · 0.3 mi</span></div>
+      <div class="thumbs"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 10v11H4V10zM7 10l4-7h2a2 2 0 0 1 2 2v5h4a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 18 21H7"/></svg><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="transform:rotate(180deg);"><path d="M7 10v11H4V10zM7 10l4-7h2a2 2 0 0 1 2 2v5h4a2 2 0 0 1 2 2.3l-1.2 7A2 2 0 0 1 18 21H7"/></svg></div>
+    </div>
+    <div class="avail" style="margin-left:38px;border-top:1px solid var(--border);padding-top:9px;">BOTH ON SHELF AT SPEC'S ALAMO HEIGHTS · CHECKED SUNDAY</div>
+  </div>
+</div>
+<div class="cap" style="position:absolute;left:64px;top:5028px;width:390px;"><b>C1 · Chosen.</b> Sharp ink frame for the comparison (data), bubble for the judgment (conversation) — the design system's own logic doing the work. Winner column washed bordeaux with a "MINE" flag, then <b>the pick lands as a normal wine message</b> so it's tappable, savable, and thumbable like every other recommendation. Fits at four comparison rows; five would break it.</div>
+
+<!-- comparison B: verdict first -->
+<div class="phone" style="position:absolute;left:494px;top:4144px;height:868px;">
+  <div class="topbar"><div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div><div class="topbar-title">Somm</div><span class="topbar-loc">◎ Spec's</span></div>
+  <div class="tabs"><div class="tb">Plan a bottle</div><div class="tb on">Ask</div></div>
+  <div class="thread">
+    <div class="bub-user">is the Caymus worth $80 or should I get the Decoy?</div>
+    <div class="row">
+      <div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div>
+      <div class="bub"><div class="serif" style="font-size:23px;color:var(--ink);line-height:1.24;">Neither, if I'm honest.</div><div class="t-body" style="margin-top:8px;">Caymus is a good wine carrying eighty dollars of reputation — sweet, oaky, made to impress. Decoy is fine and forgettable. At $80 you can do far better; at $22 there's a bottle two shelves over I'd rather drink.</div></div>
+    </div>
+    <div class="cmp" style="margin-left:38px;">
+      <div class="cmp-col">
+        <div class="cmp-n">Caymus Cab</div>
+        <div class="cmp-s">Napa · 2022</div>
+        <div style="margin-top:9px;"><div class="cmp-r"><span>PRICE</span><span>$84</span></div><div class="cmp-r"><span>STYLE</span><span>Sweet, oaky</span></div><div class="cmp-r"><span>VALUE</span><span style="color:var(--faded);">Paying the name</span></div></div>
+      </div>
+      <div class="cmp-col">
+        <div class="cmp-n">Decoy Cab</div>
+        <div class="cmp-s">Sonoma · 2022</div>
+        <div style="margin-top:9px;"><div class="cmp-r"><span>PRICE</span><span>$22</span></div><div class="cmp-r"><span>STYLE</span><span>Soft, simple</span></div><div class="cmp-r"><span>VALUE</span><span style="color:var(--faded);">Fair, dull</span></div></div>
+      </div>
+    </div>
+    <div style="margin-left:38px;">
+      <span class="t-eyebrow">What I'd hand you instead</span>
+      <div class="wine-msg" style="margin-top:9px;">
+        <div class="t-body" style="font-size:12.5px;line-height:1.6;">Santa Cruz Mountains, restrained and serious — cassis, cedar, actual structure. It'll still be improving in a decade.</div>
+      <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:9px;padding-top:8px;border-top:0.75px solid var(--border);"><span class="wine-name">Ridge Estate Cabernet</span><span class="price">$52</span><span class="store-pill">◎ Spec's · 0.3 mi</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="cap" style="position:absolute;left:494px;top:5028px;width:390px;"><b>C2 · Verdict first, in serif — kept for one case.</b> Not the default. When the honest answer is "neither," the serif opener carries the opinion and the third bottle arrives as a wine message. Same grammar as C1, different opening move.</div>
+
+<!-- ═══════ ZONE 6 — BAD SIGNAL ═══════ -->
+<div class="zone-title" style="left:60px;top:5150px;">6 · Bad signal — the store basement problem</div>
+<div class="zone-sub" style="left:64px;top:5194px;">You left this to me: <b>retry plus never lose the question</b>, and cache the last answers for re-reading. In-store connectivity fails mid-stream more often than before it starts — so the design has to handle a half-arrived answer, not just a dead request.</div>
+
+<!-- offline: preserved question -->
+<div class="phone" style="position:absolute;left:64px;top:5310px;height:620px;">
+  <div class="topbar"><div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div><div class="topbar-title">Somm</div><span class="topbar-loc">No signal</span></div>
+  <div class="tabs"><div class="tb">Plan a bottle</div><div class="tb on">Ask</div></div>
+  <div class="thread">
+    <div class="bub-user">holding a bottle of Whispering Angel, is it any good?</div>
+    <div class="row">
+      <div class="stamp" style="background:var(--paper);border:1px solid var(--border);"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6B6453"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6B6453"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6B6453"/></svg></div>
+      <div class="bub" style="border-style:dashed;">
+        <div class="t-body" style="color:var(--faded);">Lost you for a second — the signal in here is doing me no favors. Your question's saved; tap when you've got a bar or two.</div>
+        <button class="btn btn-ghost" style="width:100%;margin-top:11px;border-radius:999px;padding:9px;">Ask again</button>
+      </div>
+    </div>
+    <div style="border-top:1px solid var(--border);padding-top:12px;">
+      <span class="t-eyebrow">Still readable offline</span>
+      <div class="bub" style="max-width:100%;margin-top:9px;opacity:0.75;">
+        <div style="display:flex;align-items:baseline;gap:8px;"><span class="wine-name" style="font-size:16px;">Esprit de Tablas</span><span class="price" style="font-size:14px;">$19.99</span></div>
+        <div class="wine-meta" style="margin-top:5px;"><span class="store-pill">◎ Spec's · 0.3 mi</span></div>
+      </div>
+      <div class="cap" style="margin-top:9px;">Your last answers are cached — enough to find the shelf without a connection.</div>
+    </div>
+  </div>
+  <div class="ask" style="opacity:0.55;"><div class="ask-in"><span>Waiting for signal…</span><div class="ask-send" style="background:var(--faded-2);"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F5EFE6" stroke-width="2"><path d="M5 12h13M12 5l7 7-7 7"/></svg></div></div></div>
+</div>
+<div class="cap" style="position:absolute;left:64px;top:5946px;width:390px;"><b>Dropped request.</b> The somm apologizes in character — never "Network error." Question preserved verbatim, one retry, and the last answers stay readable so a user mid-aisle can still find the bottle.</div>
+
+<!-- offline: mid-stream truncation -->
+<div class="phone" style="position:absolute;left:494px;top:5310px;height:620px;">
+  <div class="topbar"><div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div><div class="topbar-title">Somm</div><span class="topbar-loc">Weak signal</span></div>
+  <div class="tabs"><div class="tb">Plan a bottle</div><div class="tb on">Ask</div></div>
+  <div class="thread">
+    <div class="bub-user">what goes with steak tonight</div>
+    <div class="row">
+      <div class="stamp"><svg viewBox="0 0 100 100" fill="none"><path d="M50 20 C40 20 32 28 32 38 C32 50 50 74 50 74 C50 74 68 50 68 38 C68 28 60 20 50 20Z" fill="#EFE6D4"/><path d="M42 30 C41 35 42 41 47 42 L50 43 L53 42 C58 41 59 35 58 30 Z" fill="#6E1023"/><rect x="49.2" y="43" width="1.6" height="6" fill="#6E1023"/><rect x="45.5" y="49" width="9" height="1.4" rx="0.7" fill="#6E1023"/></svg></div>
+      <div class="bub"><div class="t-body">Steak wants tannin — something with grip to cut the fat. Spec's has two I'd happily pour tonight.</div></div>
+    </div>
+    <div class="wine-msg" style="margin-left:38px;">
+      <div class="t-body" style="font-size:12.5px;line-height:1.6;">Dark cherry and garrigue, real tannic spine.</div>
+      <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:9px;padding-top:8px;border-top:0.75px solid var(--border);"><span class="wine-name">Esprit de Tablas</span><span class="price">$19.99</span><span class="store-pill">◎ Spec's · 0.3 mi</span></div>
+    </div>
+    <div style="margin-left:38px;border:1px dashed var(--faded-2);padding:11px 13px;border-radius:4px 14px 14px 14px;">
+      <div class="t-body" style="color:var(--faded);">The second one didn't make it through. Want me to try again?</div>
+      <button class="btn btn-ghost" style="width:100%;margin-top:10px;border-radius:999px;padding:8px;">Finish the answer</button>
+    </div>
+  </div>
+  <div class="ask"><div class="ask-in"><span>Ask me anything…</span><div class="ask-send">→</div></div></div>
+</div>
+<div class="cap" style="position:absolute;left:494px;top:5946px;width:390px;"><b>Half-arrived answer.</b> The common in-store failure. What arrived <b>stays</b> — one pick is still useful — and the retry asks only for the remainder rather than re-running the whole question. This also keeps the request count honest against the rate limit.</div>
+
+<!-- notes panel -->
+<div style="position:absolute;left:924px;top:5310px;width:400px;">
+  <div style="border:1.5px solid var(--ink);background:var(--cream-raised);">
+    <div style="border:0.75px solid var(--brass);margin:6px;padding:16px 17px 18px;">
+      <span class="t-eyebrow">Build notes</span>
+      <div class="serif" style="font-size:23px;color:var(--ink);line-height:1.2;margin-top:8px;">What this assumes.</div>
+      <div style="margin-top:12px;display:flex;flex-direction:column;gap:11px;">
+        <div><div class="t-eyebrow" style="letter-spacing:0.14em;">Rate limit</div><div class="t-body" style="margin-top:4px;">Assumes the <b>limit is raised</b> — no throttle UI anywhere. Follow-ups are the point of a thread; a visible counter would poison it. Partial-retry above helps by not re-spending a request on a whole answer.</div></div>
+        <div><div class="t-eyebrow" style="letter-spacing:0.14em;">Two-bottle compare</div><div class="t-body" style="margin-top:4px;">Designed as if it works. Needs the backend to capture <b>two bottle names</b> per query — known work, and the single highest-value fix for this mode.</div></div>
+        <div><div class="t-eyebrow" style="letter-spacing:0.14em;">Grounded in source</div><div class="t-body" style="margin-top:4px;">Tokens and semantic classes come from <b>design-system/colors_and_type.css</b>; chat grammar, mark, tab bar, loader, store pill and the considered-mode controls match <b>frontend/src</b> on <b>main</b> — not redrawn. Two faces live inside the existing <b>Recommend</b> tab (<span style="font-family:var(--font-mono);font-size:11px;">/</span> = Plan, <span style="font-family:var(--font-mono);font-size:11px;">/recommend</span> = Ask).</div></div>
+        <div><div class="t-eyebrow" style="letter-spacing:0.14em;">Store pill</div><div class="t-body" style="margin-top:4px;">Always <b>◎ store · distance</b>, exactly as today. No shelf or aisle data is assumed anywhere in this design.</div></div>
+        <div><div class="t-eyebrow" style="letter-spacing:0.14em;">Budget</div><div class="t-body" style="margin-top:4px;">No default range in this face. Suppress "outside your budget" phrasing entirely unless a budget was stated in the sentence.</div></div>
+        <div><div class="t-eyebrow" style="letter-spacing:0.14em;">Camera</div><div class="t-body" style="margin-top:4px;">Dormant seam beside the context chips. Nothing here depends on it.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
