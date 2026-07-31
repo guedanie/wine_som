@@ -318,3 +318,56 @@ def test_detect_retailer_none_when_unnamed():
 
 def test_detect_retailer_only_returns_nearby():
     assert detect_retailer("anything from kroger?", _NEARBY_RETAILERS) is None
+
+
+# ---- multi-bottle comparison pinning (aisle-mode delta 3) ----
+
+from recommendation.candidate_filters import pin_comparison_matches
+
+def test_deep_fetch_reason_named_via_wine_names_list():
+    intent = {"wine_name": None, "wine_names": ["Caymus Cabernet", "Bonanza Cabernet"],
+              "grapes": [], "region": None, "wine_type": None}
+    assert deep_fetch_reason(intent, []) == "named"
+
+
+def test_pin_comparison_matches_pins_each_bottle_in_named_order():
+    top = [{"wine_id": "x", "name": "Filler Red", "price": 12.0}]
+    caymus = [{"wine_id": "c1", "name": "Caymus Cabernet Sauvignon", "price": 89.0}]
+    bonanza = [{"wine_id": "b1", "name": "Bonanza Cabernet Sauvignon", "price": 21.0}]
+    out = pin_comparison_matches(top, [caymus, bonanza], cap_per_name=2)
+    ids = [w["wine_id"] for w in out]
+    assert ids[:2] == ["c1", "b1"]      # both bottles pinned, first-named first
+    assert "x" in ids                    # scored candidates survive behind them
+
+
+def test_pin_comparison_matches_caps_per_name():
+    top = []
+    a = [{"wine_id": f"a{i}", "name": f"Caymus Bottling {i}", "price": 50.0} for i in range(4)]
+    b = [{"wine_id": "b1", "name": "Bonanza Cabernet", "price": 21.0}]
+    out = pin_comparison_matches(top, [a, b], cap_per_name=2)
+    ids = [w["wine_id"] for w in out]
+    assert ids == ["a0", "a1", "b1"]     # first name capped at 2, second still present
+
+
+# ---- structured store_ref (aisle-mode delta 1) ----
+
+from recommendation.candidate_filters import resolve_requested_store
+
+_STORES = [
+    {"id": "s1", "retailer_name": "H-E-B", "name": "H-E-B Lincoln Heights"},
+    {"id": "s2", "retailer_name": "Spec's", "name": "Spec's Broadway"},
+]
+
+
+def test_resolve_requested_store_by_ref_wins_over_message():
+    st = resolve_requested_store("s2", _STORES, "anything at lincoln heights?")
+    assert st["id"] == "s2"
+
+
+def test_resolve_requested_store_unknown_ref_falls_back_to_detection():
+    st = resolve_requested_store("stale-ref-from-old-zip", _STORES, "anything at lincoln heights?")
+    assert st is not None and st["id"] == "s1"
+
+
+def test_resolve_requested_store_none_when_no_ref_and_no_mention():
+    assert resolve_requested_store(None, _STORES, "a bold red for tonight") is None

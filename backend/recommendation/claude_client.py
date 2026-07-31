@@ -4,6 +4,7 @@ import re
 from typing import List, Dict, Any, Optional, Tuple
 import anthropic
 from config import settings
+from recommendation.budget import budget_is_stated
 from recommendation.availability import format_fact_block, NOT_IN_CATALOG
 
 logger = logging.getLogger(__name__)
@@ -341,6 +342,16 @@ def _build_user_message(
             f"\n\nThe user is comparing wines from {joined} — recommend one from each so "
             "they can taste the difference side by side, drawing from the listings."
         )
+    cmp_wines = intent.get("comparison_wines")
+    if cmp_wines and len(cmp_wines) >= 2:
+        joined_w = " vs ".join(cmp_wines)
+        comparison_directive += (
+            f"\n\nThe user is deciding between specific bottles — {joined_w}. Address BOTH "
+            "by name: compare them directly (price, style, structure) using the listings, "
+            "then give a clear verdict on which to buy and make it your pick. If one of "
+            "them isn't in the listings, say so plainly and judge from what you know — "
+            "never imply it's stocked nearby."
+        )
 
     # The availability oracle's computed facts about FULL nearby inventory — the only
     # thing that licenses an absence claim (the listings never can).
@@ -368,10 +379,17 @@ def _build_user_message(
             f"\n6. Never contradict a verified fact."
         )
 
+    # Aisle mode sends a wide-range sentinel instead of a real budget — the
+    # somm must not invent one ("outside your budget") the user never stated.
+    budget_line = (
+        f"Budget: ${budget_min:.0f}–${budget_max:.0f}. " if budget_is_stated(budget_max)
+        else "No budget was given — never mention budget or price ceilings "
+             "unless the user states one. ")
+
     return (
         f"{history_preamble}"
         f"{message_line}"
-        f"Budget: ${budget_min:.0f}–${budget_max:.0f}. "
+        f"{budget_line}"
         f"Looking for:{type_str} {style_str}. "
         f"Avoiding: {avoid_str}.{_taste_profile_block(intent.get('profile'))}{your_wines}\n\n"
         f"Here are the wines currently available:\n\n{listings}\n\n"

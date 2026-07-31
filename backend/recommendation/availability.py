@@ -14,6 +14,8 @@ import time
 import unicodedata
 from typing import Any, Dict, List, Optional
 
+from recommendation.budget import budget_is_stated
+
 logger = logging.getLogger(__name__)
 
 NOT_IN_CATALOG = "NOT_IN_CATALOG"
@@ -406,6 +408,9 @@ def availability_lines(facts: List[Dict[str, Any]], top: List[Dict[str, Any]],
         if f.get("min_price") is not None and f.get("max_price") is not None:
             rng = f" ({_money(f['min_price'])}–{_money(f['max_price'])})"
 
+        # Aisle mode's wide-range sentinel means no budget was stated — "in
+        # budget" phrasing would assert one the user never gave.
+        ib = " in budget" if budget_is_stated(budget_max) else ""
         if state == NOT_IN_CATALOG:
             lines.append(f"No {name} {where}")
         elif state == PRESENT_OUT_OF_BUDGET:
@@ -417,9 +422,9 @@ def availability_lines(facts: List[Dict[str, Any]], top: List[Dict[str, Any]],
             if in_budget <= shown:
                 continue                  # the shortlist already represents the ask
             if shown:
-                lines.append(f"{in_budget - shown} more {name} in budget {where}{rng}")
+                lines.append(f"{in_budget - shown} more {name}{ib} {where}{rng}")
             else:
-                lines.append(f"{in_budget} {name} in budget {where}{rng} · "
+                lines.append(f"{in_budget} {name}{ib} {where}{rng} · "
                              f"none in this list")
         elif state == UNMEASURED:
             lines.append(f"Couldn't confirm {name} {where}")

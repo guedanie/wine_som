@@ -488,3 +488,25 @@ def test_facts_outrank_listings_precedence_rule():
     assert "the listings run well above" in low or "not seeing any" in low
     # the mandatory count clause for under-shown axes
     assert "haven't shortlisted" in low or "more in budget nearby" in low
+
+
+# ---- comparison_wines directive (aisle-mode delta 3) ----
+
+def test_comparison_wines_directive_in_user_message():
+    from recommendation.claude_client import _build_user_message
+    intent = {"flavors": [], "avoid": [], "grapes": [],
+              "budget_min": 10.0, "budget_max": 50.0,
+              "message": "caymus or bonanza tonight?",
+              "comparison_wines": ["Caymus Cabernet", "Bonanza Cabernet"]}
+    msg = _build_user_message([], intent)
+    assert "Caymus Cabernet vs Bonanza Cabernet" in msg
+    assert "verdict" in msg.lower()
+
+
+def test_no_comparison_wines_directive_for_single_bottle():
+    from recommendation.claude_client import _build_user_message
+    intent = {"flavors": [], "avoid": [], "grapes": [],
+              "budget_min": 10.0, "budget_max": 50.0,
+              "message": "do you have caymus?", "comparison_wines": None}
+    msg = _build_user_message([], intent)
+    assert "verdict" not in msg.lower()

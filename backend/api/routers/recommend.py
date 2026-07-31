@@ -20,9 +20,10 @@ from recommendation.availability import (axes_from_intent, catalog_terms,
                                          fetch_axis_counts, terms_in_message,
                                          axis_key, axis_label, availability_lines)
 from recommendation.candidate_filters import (apply_type_gate, deep_fetch_reason,
-                                              detect_retailer, detect_store,
+                                              detect_retailer, resolve_requested_store,
                                               ensure_region_representation,
-                                              merge_candidates, pin_named_matches,
+                                              merge_candidates, pin_comparison_matches,
+                                              pin_named_matches,
                                               rank_name_matches, requested_types_from,
                                               significant_name_tokens)
 from utils.geo import zip_to_centroid, find_nearby_store_ids, haversine
@@ -409,9 +410,14 @@ async def recommend(req: RecommendRequest):
     resolved["profile"] = (req.taste or {}).get("profile") or None
     _cmp = resolved.get("regions") or []
     resolved["comparison_regions"] = _cmp if len(_cmp) >= 2 else None
+    _cmp_wines = resolved.get("wine_names") or []
+    resolved["comparison_wines"] = _cmp_wines if len(_cmp_wines) >= 2 else None
 
-    detected_store = detect_store(req.message, stores_meta.data or [])
+    detected_store = resolve_requested_store(
+        req.store_ref, stores_meta.data or [], req.message)
     detected_retailer = detect_retailer(req.message, list(retailer_to_stores))
+    if req.store_ref and detected_store and detected_store.get("id") == req.store_ref:
+        logger.info("STORE | structured store_ref honored: %s", detected_store.get("name"))
 
     # Availability oracle: count full nearby inventory for the constraints the user
     # actually named. Fired here so its latency overlaps the candidate fetch/scoring;
@@ -586,10 +592,21 @@ async def recommend(req: RecommendRequest):
                 {"type": "status", "text": "Looking deeper into the cellar…"}) + "\n\n"
             try:
                 if reason == "named":
-                    named = _named_fetch(resolved["wine_name"])
-                    pool = merge_candidates(candidates, named)
+                    # One fetch per named bottle — a comparison ("Caymus or
+                    # Bonanza?") must surface BOTH, so each name's matches are
+                    # pinned separately rather than letting one dominate.
+                    names = [n for n in (resolved.get("wine_names")
+                                         or [resolved.get("wine_name")]) if n][:3]
+                    named_lists = [nl for nl in (_named_fetch(n) for n in names) if nl]
+                    pool = candidates
+                    for nl in named_lists:
+                        pool = merge_candidates(pool, nl)
                     top = _score_and_select(pool)
-                    top = pin_named_matches(top, named, cap=3)[:_MAX_CANDIDATES]
+                    if len(named_lists) > 1:
+                        top = pin_comparison_matches(
+                            top, named_lists, cap_per_name=2)[:_MAX_CANDIDATES]
+                    elif named_lists:
+                        top = pin_named_matches(top, named_lists[0], cap=3)[:_MAX_CANDIDATES]
                 else:  # weak
                     extra = _constraint_fetch()
                     if extra:

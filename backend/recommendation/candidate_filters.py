@@ -55,7 +55,9 @@ def deep_fetch_reason(intent: Dict[str, Any],
     """Return "named" if the user named a specific bottle, else "weak" if the
     user expressed a concrete constraint (grape/region/wine_type) that NONE of the
     selected top candidates satisfies, else None. Named always wins."""
-    if significant_name_tokens(intent.get("wine_name")):
+    names = intent.get("wine_names") or (
+        [intent["wine_name"]] if intent.get("wine_name") else [])
+    if any(significant_name_tokens(n) for n in names):
         return "named"
 
     want_grapes = {str(g).lower() for g in (intent.get("grapes") or [])}
@@ -97,6 +99,18 @@ def pin_named_matches(top: List[Dict[str, Any]],
     pinned_ids = {w.get("wine_id") for w in pinned}
     rest = [w for w in top if w.get("wine_id") not in pinned_ids]
     return pinned + rest
+
+
+def pin_comparison_matches(top: List[Dict[str, Any]],
+                           named_lists: List[List[Dict[str, Any]]],
+                           cap_per_name: int = 2) -> List[Dict[str, Any]]:
+    """Pin each compared bottle's best matches to the front, first-named bottle
+    first — a two-bottle comparison must surface BOTH. Reuses pin_named_matches,
+    applied in reverse so earlier names land ahead of later ones."""
+    out = top
+    for named in reversed([nl for nl in named_lists if nl]):
+        out = pin_named_matches(out, named, cap=cap_per_name)
+    return out
 
 
 def resolve_wine_type(wine: Dict[str, Any]) -> Optional[str]:
@@ -176,6 +190,20 @@ def detect_store(message: str, nearby_stores: List[Dict[str, Any]]) -> Optional[
         if score > best_score:
             best, best_score = st, score
     return best if best_score >= 1 else None
+
+
+def resolve_requested_store(store_ref: Optional[str],
+                            stores: List[Dict[str, Any]],
+                            message: Optional[str]) -> Optional[Dict[str, Any]]:
+    """The session's standing store: a structured store_ref (aisle-mode store
+    picker) wins over free-text detection. A ref that isn't among the NEARBY
+    stores is ignored (a stale pick carried over from another zip) rather than
+    trusted, falling back to detecting a store named in the message."""
+    if store_ref:
+        for st in stores:
+            if st.get("id") == store_ref:
+                return st
+    return detect_store(message or "", stores)
 
 
 def merge_candidates(breadth: List[Dict[str, Any]],

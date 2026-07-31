@@ -35,6 +35,7 @@ _TOOL = {
             "region": {"type": ["string", "null"]},
             "regions": {"type": "array", "items": {"type": "string"}},
             "wine_name": {"type": ["string", "null"]},
+            "wine_names": {"type": "array", "items": {"type": "string"}},
             "max_price": {"type": ["number", "null"]},
             "avoid": {"type": "array", "items": {"type": "string"}},
         },
@@ -56,6 +57,9 @@ def parse_message(message: str) -> Optional[Dict[str, Any]]:
                 "`wine_name`: set ONLY when the user names a specific bottle or producer to look up "
                 "(e.g. 'Caymus Special Selection', 'Opus One', 'do you have Silver Oak?'); "
                 "leave null for generic style requests. "
+                "`wine_names`: EVERY specific bottle or producer named, in the order mentioned "
+                "('Caymus or Bonanza?' -> ['Caymus','Bonanza']; 'which is better, X or Y' names "
+                "BOTH). Keep `wine_name` as the first/primary. Empty for generic requests. "
                 "`regions`: list EVERY wine region or country the user names, in the order "
                 "mentioned (e.g. 'California vs Mendoza' -> ['California','Mendoza']); keep "
                 "`region` as the single primary place. "
@@ -138,6 +142,7 @@ def intent_from_request(wine_type: Optional[str], style_preferences: List[str],
         "region": None,
         "regions": [],
         "wine_name": None,
+        "wine_names": [],
         "avoid": list(avoid or []),
         "budget_min": budget_min,
         "budget_max": budget_max,
@@ -163,6 +168,13 @@ def merge_intent(parsed: Optional[Dict[str, Any]], explicit: Dict[str, Any]) -> 
     if not out.get("region") and out["regions"]:
         out["region"] = out["regions"][0]
     out["wine_name"] = out.get("wine_name") or parsed.get("wine_name")
+    # Multi-bottle comparison ("Caymus or Bonanza?") — list and scalar kept in
+    # sync both ways, mirroring regions/region.
+    out["wine_names"] = [n for n in (parsed.get("wine_names") or []) if n]
+    if not out["wine_names"] and out.get("wine_name"):
+        out["wine_names"] = [out["wine_name"]]
+    if not out.get("wine_name") and out["wine_names"]:
+        out["wine_name"] = out["wine_names"][0]
     if not out.get("grapes"):
         out["grapes"] = list(parsed.get("grapes") or [])
     # list unions

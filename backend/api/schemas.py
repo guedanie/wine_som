@@ -48,6 +48,7 @@ class RecommendRequest(BaseModel):
     wine_types: List[str] = []               # multi-select; takes precedence over wine_type
     grapes: List[str] = []                   # explicit varietal filter from advanced search
     message: str = "Recommend wines based on my preferences"
+    store_ref: Optional[str] = None          # aisle mode: the store the user is standing in (stores.id); wins over free-text store detection
     conversation_history: Optional[List[Dict[str, Any]]] = None
     conversational: bool = False             # when true, follow-ups bias to text-only (no new cards) unless clearly re-asking
     taste: Optional[Dict[str, Any]] = None   # personalization: {liked_wines:[{name,wine_id,varietal,grapes,region,flavors,source}], profile?:{}}

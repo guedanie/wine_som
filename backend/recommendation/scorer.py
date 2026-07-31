@@ -1,6 +1,7 @@
 import re
 import unicodedata
 from typing import List, Dict, Any
+from recommendation.budget import budget_is_stated
 from recommendation.flavor_profiles import flavor_tags_for, infer_body
 from recommendation.structure_profiles import structure_for
 
@@ -208,7 +209,9 @@ def score_candidates(intent: Dict[str, Any], candidates: List[Dict[str, Any]]) -
             score += min(_FLAVOR_CAP, _W_FLAVOR_TAG * (tag_hits + kw_hits))
 
         price = float(wine.get("price") or 0.0)
-        if budget_max > budget_min:
+        # Silent under the aisle-mode wide-range sentinel — an unstated budget
+        # must not steer picks toward 0.85x$10,000.
+        if budget_max > budget_min and budget_is_stated(budget_max):
             distance = abs(price - budget_target) / (budget_max - budget_min)
             score += _W_BUDGET * max(0.0, 1.0 - distance)
 

@@ -213,3 +213,32 @@ def test_merge_intent_applies_the_guard():
                            "flavors": [], "grapes": []}, explicit)
     assert merged["avoid"] == []
     assert merged["regions"] == ["Mendoza"]
+
+
+# ---- wine_names (multi-bottle comparison, aisle-mode delta 3) ----
+
+def test_merge_intent_carries_wine_names_list():
+    parsed = {"wine_name": "Caymus Cabernet", "wine_names": ["Caymus Cabernet", "Bonanza Cabernet"],
+              "flavors": [], "grapes": [], "avoid": []}
+    merged = merge_intent(parsed, _explicit())
+    assert merged["wine_names"] == ["Caymus Cabernet", "Bonanza Cabernet"]
+    assert merged["wine_name"] == "Caymus Cabernet"
+
+
+def test_merge_intent_scalar_wine_name_backfills_list():
+    parsed = {"wine_name": "Opus One", "flavors": [], "grapes": [], "avoid": []}
+    merged = merge_intent(parsed, _explicit())
+    assert merged["wine_names"] == ["Opus One"]
+
+
+def test_merge_intent_wine_names_backfills_scalar():
+    parsed = {"wine_names": ["Caymus Cabernet", "Bonanza Cabernet"],
+              "flavors": [], "grapes": [], "avoid": []}
+    merged = merge_intent(parsed, _explicit())
+    assert merged["wine_name"] == "Caymus Cabernet"
+
+
+def test_intent_from_request_has_empty_wine_names():
+    intent = intent_from_request(wine_type=None, style_preferences=[], avoid=[],
+                                 budget_min=10.0, budget_max=50.0)
+    assert intent["wine_names"] == []
