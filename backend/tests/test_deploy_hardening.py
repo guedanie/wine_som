@@ -66,3 +66,32 @@ async def test_enrich_wrong_token_403():
             resp = await ac.post("/api/enrich/some-wine-id",
                                  headers={"X-Admin-Token": "wrong"})
     assert resp.status_code == 403
+
+
+# ── rate-limit observability: blocks must be measurable ─────────
+
+def test_rate_limiter_alerts_once_per_window():
+    rl = RateLimiter(limit=1, window_seconds=60)
+    assert rl.should_alert("k") is True     # first block this window → alert
+    assert rl.should_alert("k") is False    # repeat blocks stay quiet
+    assert rl.should_alert("k2") is True    # other keys independent
+
+
+@pytest.mark.asyncio
+async def test_blocked_request_logs_and_notifies_slack_once(caplog):
+    import logging
+    import api.routers.recommend as rec
+    rec._recommend_limiter._alerted.clear()
+    with patch.object(rec._recommend_limiter, "allow", return_value=False), \
+         patch("api.ratelimit._notify_slack") as slack, \
+         caplog.at_level(logging.WARNING, logger="api.ratelimit"):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as ac:
+            for _ in range(2):
+                resp = await ac.post("/api/recommend", json={
+                    "zip_code": "78209", "budget_min": 10, "budget_max": 50,
+                    "message": "Recommend wines based on my preferences",
+                })
+    assert resp.status_code == 429
+    blocked_logs = [r for r in caplog.records if "RATE_LIMITED" in r.getMessage()]
+    assert len(blocked_logs) == 2           # every block logged
+    assert slack.call_count == 1            # but Slack pinged once per window
