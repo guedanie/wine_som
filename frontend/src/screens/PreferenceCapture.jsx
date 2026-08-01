@@ -5,6 +5,7 @@ import Btn from '../components/Btn.jsx';
 import { buildApiReq, VARIETAL_OPTS } from '../lib/regions.js';
 import { track } from '../lib/analytics.js';
 import useIsMobile, { loadZip, saveZip } from '../lib/useIsMobile.js';
+import uuid from '../lib/uuid.js';
 
 const STYLE_OPTS = [
   ['Bold & Tannic',   'dark fruit · grip · structure'],
@@ -43,7 +44,10 @@ export default function PreferenceCapture() {
       budget, occasion, styles_count: styles.length,
       wine_types: wineTypes.length, has_free_text: !!freeText?.trim(),
     });
-    navigate('/recommend', { state: { prefs, apiReq } });
+    // reqId distinguishes a fresh submission from a refresh/back on the same
+    // run — ChatRecommend restores the cached session when the reqId matches
+    // instead of re-firing Sonnet (item 38).
+    navigate('/recommend', { state: { prefs, apiReq, reqId: uuid() } });
   };
 
   if (isMobile) {

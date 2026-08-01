@@ -450,3 +450,62 @@ it('restores dynamic follow-up chips (not the defaults) from _restored', async (
   expect(screen.getByText('Is 2018 a good vintage?')).toBeInTheDocument();
   expect(screen.queryByText('Anything from Burgundy?')).not.toBeInTheDocument();
 });
+
+// ---- item 38: browser-back must not reset the session ----
+
+describe('browser-back session preservation', () => {
+  beforeEach(() => {
+    const store = {};
+    vi.stubGlobal('sessionStorage', {
+      getItem: k => (k in store ? store[k] : null),
+      setItem: (k, v) => { store[k] = String(v); },
+      removeItem: k => { delete store[k]; },
+    });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('tapping a pick first patches the /recommend history entry with the session', async () => {
+    streamRecommend.mockImplementation(async function* () {
+      yield { type: 'token', text: 'One pick.' };
+      yield { type: 'picks', picks: [{ wine_id: 'uuid-1', name: 'Esprit de Tablas', price: 55, retailer: "Spec's", why: 'Great.' }], session_id: 'sess-1' };
+    });
+    renderScreen();
+    await waitFor(() => screen.getByText('Esprit de Tablas'));
+    await userEvent.click(screen.getByText('Esprit de Tablas'));
+    // FIRST a replace of the current entry (so browser back restores)…
+    expect(mockNavigate.mock.calls[0]).toEqual(['/recommend', expect.objectContaining({
+      replace: true,
+      state: expect.objectContaining({ _restored: expect.objectContaining({ sessionId: expect.any(String) }) }),
+    })]);
+    // …THEN the push to the dossier.
+    expect(mockNavigate.mock.calls[1][0]).toBe('/wine/uuid-1');
+  });
+
+  it('restores from sessionStorage instead of re-firing when the reqId matches (refresh)', async () => {
+    sessionStorage.setItem('somm_chat_cache', JSON.stringify({
+      reqId: 'r1',
+      chatState: {
+        messages: [{ id: 'm1', role: 'sommelier', text: 'Cached thread.' }],
+        picks: [], followups: ['a', 'b', 'c'], wineVotes: {}, messageVotes: {}, sessionId: 's1',
+      },
+    }));
+    renderScreen({ prefs, apiReq, reqId: 'r1' });
+    await screen.findByText('Cached thread.');
+    await new Promise(r => setTimeout(r, 30));
+    expect(streamRecommend).not.toHaveBeenCalled();
+  });
+
+  it('fires normally on a fresh submission whose reqId does not match the cache', async () => {
+    sessionStorage.setItem('somm_chat_cache', JSON.stringify({
+      reqId: 'old-run',
+      chatState: { messages: [{ id: 'm1', role: 'sommelier', text: 'Stale thread.' }], picks: [] },
+    }));
+    streamRecommend.mockImplementation(async function* () {
+      yield { type: 'token', text: 'Fresh picks.' };
+    });
+    renderScreen({ prefs, apiReq, reqId: 'new-run' });
+    await screen.findByText('Fresh picks.');
+    expect(screen.queryByText('Stale thread.')).toBeNull();
+    expect(streamRecommend).toHaveBeenCalledTimes(1);
+  });
+});

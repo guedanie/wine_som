@@ -89,3 +89,14 @@ it('selected varietals are included in apiReq.grapes', () => {
     }),
   }));
 });
+
+
+// ---- item 38: browser-back must not reset the session ----
+
+it('submitting carries a per-run reqId so a refresh can be told apart from a re-submit', async () => {
+  renderScreen();
+  fireEvent.click(screen.getByRole('button', { name: /find wines/i }));
+  expect(mockNavigate).toHaveBeenCalledWith('/recommend', expect.objectContaining({
+    state: expect.objectContaining({ reqId: expect.any(String) }),
+  }));
+});

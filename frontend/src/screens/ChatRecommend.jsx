@@ -22,6 +22,18 @@ import PriceMarker from '../components/PriceMarker.jsx';
 import useIsMobile from '../lib/useIsMobile.js';
 import uuid from '../lib/uuid.js';
 
+// item 38: the latest chat session, cached so browser back / refresh on the
+// SAME run restores instead of re-firing Sonnet. Keyed by the submission's
+// reqId — a fresh submission has a new reqId and never matches.
+const CHAT_CACHE_KEY = 'somm_chat_cache';
+function loadCachedSession(reqId) {
+  if (!reqId) return null;
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(CHAT_CACHE_KEY));
+    return parsed?.reqId === reqId ? parsed.chatState : null;
+  } catch { return null; }
+}
+
 const DEFAULT_FOLLOWUPS = ["Anything from Burgundy?", "What about under $30?", "Something to cellar"];
 
 function SommelierBubble({ children, vote, onVote }) {
@@ -152,7 +164,10 @@ export default function ChatRecommend() {
   const navigate   = useNavigate();
   const isMobile   = useIsMobile();
   const { user, ready } = useAuth();
-  const { prefs, apiReq, _restored } = state ?? {};
+  const { prefs, apiReq, reqId, _restored: _restoredNav } = state ?? {};
+  // Navigation state wins (in-app back / patched history entry); the
+  // sessionStorage cache covers refresh + PWA restarts on the same run.
+  const _restored = _restoredNav ?? loadCachedSession(reqId);
 
   // Ask face (aisle mode): arriving without a plan-mode brief IS the ask face —
   // it opens clean, no sliders, no redirect. Derived only from route state, so
@@ -212,6 +227,20 @@ export default function ChatRecommend() {
       .catch(() => setNearbyStores([]));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickerOpen]);
+
+  // Persist the evolving session (item 38). Cheap, latest-run-only; the
+  // try/catch covers private mode and jsdom's null sessionStorage.
+  useEffect(() => {
+    if (!messages.length) return;
+    try {
+      sessionStorage.setItem(CHAT_CACHE_KEY, JSON.stringify({
+        reqId: reqId ?? null,
+        chatState: { messages, picks, prefs, apiReq, sessionId, wineVotes, messageVotes,
+                     followups, mode: askMode ? 'ask' : undefined, askZip, storeRef, storeLabel },
+      }));
+    } catch { /* private mode */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, picks, followups, wineVotes, messageVotes]);
 
   if (!prefs && !askMode) return <Navigate to="/" replace />;
 
@@ -482,9 +511,16 @@ export default function ChatRecommend() {
 
   const navToWine = pick => {
     track('pick_opened', { wine_id: pick.wine_id, retailer: pick.retailer, source: 'chat' });
-    navigate('/wine/' + pick.wine_id, {
-      state: { pick, chatState: { messages, picks, prefs, apiReq, sessionId, wineVotes, messageVotes, followups, mode: askMode ? 'ask' : undefined, askZip, storeRef, storeLabel } },
+    const chatState = { messages, picks, prefs, apiReq, sessionId, wineVotes, messageVotes,
+                        followups, mode: askMode ? 'ask' : undefined, askZip, storeRef, storeLabel };
+    // Patch the CURRENT history entry before leaving, so the browser's own
+    // back button (not just the in-app ←) restores the session instead of
+    // re-firing the recommendation (item 38).
+    navigate('/recommend', {
+      replace: true,
+      state: { prefs, apiReq, reqId, mode: askMode ? 'ask' : undefined, _restored: chatState },
     });
+    navigate('/wine/' + pick.wine_id, { state: { pick, chatState } });
   };
 
   // Option C (mobile): the sommelier voice leads. When a message carries picks,
