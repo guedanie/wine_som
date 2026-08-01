@@ -9,6 +9,8 @@ import WineCard from '../components/WineCard.jsx';
 import WineGlassLoader from '../components/WineGlassLoader.jsx';
 import WineCardSkeleton from '../components/WineCardSkeleton.jsx';
 import { streamRecommend, postFeedback } from '../lib/api.js';
+import { buildAskReq, ASK_INTENT_PILLS } from '../lib/askMode.js';
+import { loadZip } from '../lib/useIsMobile.js';
 import { naturalChatMode } from '../lib/flags.js';
 import { track } from '../lib/analytics.js';
 import { useAuth } from '../lib/auth.jsx';
@@ -151,18 +153,26 @@ export default function ChatRecommend() {
   const { user, ready } = useAuth();
   const { prefs, apiReq, _restored } = state ?? {};
 
+  // Ask face (aisle mode): arriving without a plan-mode brief IS the ask face —
+  // it opens clean, no sliders, no redirect. Derived only from route state, so
+  // it's safe to compute before hooks.
+  const askMode = state?.mode === 'ask' || _restored?.mode === 'ask' || (!prefs && !_restored);
+
   // Personalized recommendations: gather the user's liked/owned wines so the
   // scorer can boost + cite ("close to X you saved"). Null when signed out.
   // Fail-soft: a taste hiccup must never block the recommendation itself.
   const tasteFor = () => (user ? buildTasteContext(user.id).catch(() => null) : Promise.resolve(null));
 
+  const [askZip, setAskZip]         = useState(() => _restored?.askZip ?? loadZip());
+  const [storeRef, setStoreRef]     = useState(() => _restored?.storeRef ?? null);
+  const [storeLabel, setStoreLabel] = useState(() => _restored?.storeLabel ?? null);
   const [sessionId]    = useState(() => _restored?.sessionId    ?? uuid());
   const [wineVotes,    setWineVotes]    = useState(() => _restored?.wineVotes    ?? {});
   const [messageVotes, setMessageVotes] = useState(() => _restored?.messageVotes ?? {});
   const [messages,   setMessages]  = useState(() => _restored?.messages ?? []);
   const [picks,      setPicks]     = useState(() => _restored?.picks    ?? []);
   const [followups,  setFollowups] = useState(() => _restored?.followups ?? DEFAULT_FOLLOWUPS);
-  const [loading,    setLoading]   = useState(() => !_restored);
+  const [loading,    setLoading]   = useState(() => !_restored && !askMode);
   const [streaming,  setStreaming] = useState(false);
   const [statusText, setStatusText] = useState(null);
   const [error,      setError]     = useState(null);
@@ -187,7 +197,7 @@ export default function ChatRecommend() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
 
-  if (!prefs) return <Navigate to="/" replace />;
+  if (!prefs && !askMode) return <Navigate to="/" replace />;
 
   async function callRecommend(req) {
     setLoading(true);
@@ -273,7 +283,7 @@ export default function ChatRecommend() {
     const next    = current === direction ? null : direction;
     setWineVotes(prev => ({ ...prev, [wineId]: next }));
     track('feedback_voted', { type: 'wine_card', vote: next });
-    postFeedback({ type: 'wine_card', entity_id: wineId, vote: next, session_id: sessionId, user_id: user?.id ?? null, zip: prefs.zip });
+    postFeedback({ type: 'wine_card', entity_id: wineId, vote: next, session_id: sessionId, user_id: user?.id ?? null, zip: prefs?.zip ?? askZip });
   }
 
   function handleMessageVote(messageId, direction) {
@@ -288,7 +298,7 @@ export default function ChatRecommend() {
         noFeedback: true,
       }]);
     }
-    postFeedback({ type: 'sommelier_message', entity_id: messageId, vote: next, session_id: sessionId, user_id: user?.id ?? null, zip: prefs.zip });
+    postFeedback({ type: 'sommelier_message', entity_id: messageId, vote: next, session_id: sessionId, user_id: user?.id ?? null, zip: prefs?.zip ?? askZip });
   }
 
   const handleFollowup = (text) => {
@@ -297,6 +307,43 @@ export default function ChatRecommend() {
     setMessages(prev => [...prev, { id: uuid(), role: 'user', text }]);
     tasteFor().then(taste => callRecommend({ ...apiReq, message: text, conversation_history: history, conversational: naturalChatMode(), taste }));
   };
+
+  // Ask face send: wide-budget sentinel (no sliders in here), structured
+  // store_ref when a standing store is set.
+  const handleAskSend = (text) => {
+    if (loading || streaming || !text.trim()) return;
+    const history = messages.map(m => ({ role: m.role, content: m.text }));
+    setMessages(prev => [...prev, { id: uuid(), role: 'user', text }]);
+    tasteFor().then(taste => callRecommend(buildAskReq({
+      zip: askZip, message: text, history: history.length ? history : undefined,
+      storeRef, conversational: history.length > 0 && naturalChatMode(), taste,
+    })));
+  };
+
+  const handleSend = askMode ? handleAskSend : handleFollowup;
+
+  // Ask empty state — the single invitation (deliberately generic: this door
+  // knows no store).
+  const askEmptyState = askMode && messages.length === 0 && !loading && (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '48px 24px 24px', gap: 14 }}>
+      <Stamp size={46} reversed />
+      <div style={{ fontFamily: 'var(--font-serif)', fontSize: 26, color: 'var(--ink)' }}>
+        What can I help you with?
+      </div>
+      <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, lineHeight: 1.6, color: 'var(--faded)', maxWidth: 300 }}>
+        Name a bottle, name two, ask what something is, or just tell me what you're eating. No sliders in here.
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginTop: 6 }}>
+        {ASK_INTENT_PILLS.map(p => (
+          <button key={p.label} onClick={() => setInput(p.fill)} style={{
+            cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 12.5,
+            color: 'var(--bordeaux)', background: 'var(--bordeaux-tint)', border: 'none',
+            borderRadius: 999, padding: '8px 15px', minHeight: 36,
+          }}>{p.label}</button>
+        ))}
+      </div>
+    </div>
+  );
 
   // Picks arrive as one event only after the narrative finishes generating.
   // While the narrative streams (or before the first token) and picks are
@@ -307,7 +354,7 @@ export default function ChatRecommend() {
   const navToWine = pick => {
     track('pick_opened', { wine_id: pick.wine_id, retailer: pick.retailer, source: 'chat' });
     navigate('/wine/' + pick.wine_id, {
-      state: { pick, chatState: { messages, picks, prefs, apiReq, sessionId, wineVotes, messageVotes, followups } },
+      state: { pick, chatState: { messages, picks, prefs, apiReq, sessionId, wineVotes, messageVotes, followups, mode: askMode ? 'ask' : undefined, askZip, storeRef, storeLabel } },
     });
   };
 
@@ -374,6 +421,7 @@ export default function ChatRecommend() {
       <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Chat scroll — Option C: each wine is a conversational message */}
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', padding: '16px 16px 8px', WebkitOverflowScrolling: 'touch' }}>
+          {askEmptyState}
           {messageList}
           {awaitingPicks && !loading && (
             <div style={{ display: 'flex', gap: 11, alignItems: 'center', marginBottom: 14, paddingLeft: 43 }}>
@@ -417,12 +465,12 @@ export default function ChatRecommend() {
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && input.trim()) { handleFollowup(input.trim()); setInput(''); } }}
-              placeholder="Ask a follow-up…"
+              onKeyDown={e => { if (e.key === 'Enter' && input.trim()) { handleSend(input.trim()); setInput(''); } }}
+              placeholder={askMode ? 'Ask the sommelier…' : 'Ask a follow-up…'}
               style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: 16, color: 'var(--ink)', padding: '11px 12px', minWidth: 0 }}
             />
             <button
-              onClick={() => { if (input.trim()) { handleFollowup(input.trim()); setInput(''); } }}
+              onClick={() => { if (input.trim()) { handleSend(input.trim()); setInput(''); } }}
               disabled={loading || streaming}
               aria-label="Send"
               style={{ border: 'none', background: 'var(--bordeaux)', color: 'var(--cream)', padding: '0 16px', cursor: (loading || streaming) ? 'default' : 'pointer', opacity: (loading || streaming) ? 0.4 : 1, fontSize: 18, minWidth: 48, borderRadius: 0 }}>
@@ -440,10 +488,13 @@ export default function ChatRecommend() {
       <div style={{ width: '44%', borderRight: '1.5px solid var(--ink)', display: 'flex', flexDirection: 'column', background: 'var(--cream)' }}>
         <div style={{ padding: '20px 24px 14px', borderBottom: '1px solid var(--border)' }}>
           <Eyebrow>The sommelier</Eyebrow>
-          <div style={{ fontFamily: 'var(--font-serif)', fontSize: 24, color: 'var(--ink)', marginTop: 4 }}>Tonight, near {prefs.zip}</div>
+          <div style={{ fontFamily: 'var(--font-serif)', fontSize: 24, color: 'var(--ink)', marginTop: 4 }}>
+            {askMode ? 'Ask me anything' : `Tonight, near ${prefs?.zip}`}
+          </div>
         </div>
 
         <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: '20px 24px' }}>
+          {askEmptyState}
           {messages.map((m, i) =>
             m.role === 'user'
               ? <UserBubble key={m.id ?? i}>{m.text}</UserBubble>
@@ -501,12 +552,12 @@ export default function ChatRecommend() {
             <input
               value={input}
               onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && input.trim()) { handleFollowup(input.trim()); setInput(''); } }}
-              placeholder="Ask a follow-up…"
+              onKeyDown={e => { if (e.key === 'Enter' && input.trim()) { handleSend(input.trim()); setInput(''); } }}
+              placeholder={askMode ? 'Ask the sommelier…' : 'Ask a follow-up…'}
               style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--ink)', padding: '11px 13px' }}
             />
             <button
-              onClick={() => { if (input.trim()) { handleFollowup(input.trim()); setInput(''); } }}
+              onClick={() => { if (input.trim()) { handleSend(input.trim()); setInput(''); } }}
               disabled={loading || streaming}
               style={{ border: 'none', background: 'var(--bordeaux)', color: 'var(--cream)', padding: '0 16px', cursor: (loading || streaming) ? 'default' : 'pointer', opacity: (loading || streaming) ? 0.4 : 1, fontSize: 16, borderRadius: 0 }}>
               →

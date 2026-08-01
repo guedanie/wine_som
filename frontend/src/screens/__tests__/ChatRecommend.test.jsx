@@ -29,7 +29,7 @@ function renderScreen(state = { prefs, apiReq }) {
 
 beforeEach(() => { mockNavigate.mockClear(); streamRecommend.mockClear(); });
 
-it('redirects to / when there is no prefs state', () => {
+it('renders the ask face when there is no prefs state (no redirect — aisle mode)', () => {
   render(
     <MemoryRouter initialEntries={['/recommend']}>
       <Routes>
@@ -38,7 +38,8 @@ it('redirects to / when there is no prefs state', () => {
       </Routes>
     </MemoryRouter>
   );
-  expect(screen.getByText('Home')).toBeInTheDocument();
+  expect(screen.getByText('What can I help you with?')).toBeInTheDocument();
+  expect(screen.queryByText('Home')).toBeNull();
 });
 
 it('shows the wine glass loader while streamRecommend is pending', () => {
