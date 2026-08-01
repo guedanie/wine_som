@@ -224,6 +224,8 @@ def _enrich_picks(raw_picks: List[Dict[str, Any]], by_id: Dict[str, Dict[str, An
             "distance_miles": cand.get("distance_miles"),
             "price_drop": cand.get("price_drop"),
             "why": p.get("why", ""),
+            "body": cand.get("body"),
+            "structure_profile": cand.get("structure_profile") or {},
             "image_url": cand.get("image_url"),
             "vivino_rating": cand.get("vivino_rating"),
             "vivino_ratings_count": cand.get("vivino_ratings_count"),
@@ -680,7 +682,11 @@ async def recommend(req: RecommendRequest):
                 else:
                     enriched_picks = _reconcile_picks_to_narrative(enriched_all, "".join(_result["narrative"]))
                     _result["picks"] = enriched_picks
-                    yield "data: " + json.dumps({"type": "picks", "picks": enriched_picks, "session_id": session_id}) + "\n\n"
+                    yield "data: " + json.dumps({
+                        "type": "picks", "picks": enriched_picks,
+                        "session_id": session_id,
+                        "comparison": resolved.get("comparison_wines"),
+                    }) + "\n\n"
                     # The counted truth, rendered by us — reaches the user even when the
                     # narrative hedges or agrees with a false premise. Wrapped: a render
                     # failure here must never break the stream.

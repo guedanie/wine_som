@@ -839,3 +839,16 @@ async def test_no_availability_frame_when_nothing_informative():
     events = _sse_events(response.text)
     assert "picks" in {e["type"] for e in events}
     assert not [e for e in events if e.get("type") == "availability"]
+
+
+# ---- comparison payload (aisle-mode frontend) ----
+
+def test_enrich_picks_carries_body_and_structure():
+    from api.routers.recommend import _enrich_picks
+    by_id = {"w1": {"wine_id": "w1", "name": "Caymus", "price": 89.0, "retailer": "H-E-B",
+                    "body": "full", "structure_profile": {"body": 5, "tannins": 4, "acidity": 3},
+                    "store_address": None, "distance_miles": 1.2, "price_drop": None,
+                    "image_url": None, "vivino_rating": 4.5, "vivino_ratings_count": 100}}
+    out = _enrich_picks([{"wine_id": "w1", "why": "bold"}], by_id)
+    assert out[0]["body"] == "full"
+    assert out[0]["structure_profile"] == {"body": 5, "tannins": 4, "acidity": 3}
