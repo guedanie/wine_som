@@ -46,12 +46,52 @@ API_BASE = "https://api.kroger.com/v1"
 # BaseScraper auto-geocodes stores from address/zip on seed.
 MARKETS: Dict[str, Dict[str, Any]] = {
     "nashville": {
+        # Metro Nashville + suburban ring (Franklin/Brentwood/Hendersonville/
+        # Mt Juliet/Smyrna). Store IDs from the Kroger Locations API sweep across
+        # 12 area zips (2026-08-01); fuel-center/pharmacy locations excluded (no
+        # wine). Suburbs added so a tester outside the urban core isn't served an
+        # empty app by the 10-mi radius. Expansion is config-only.
         "city": "Nashville", "state": "TN", "retailer": "Kroger",
         "stores": [
-            {"id": "02600511", "name": "Kroger - Melrose",           "address": "2615 8th Ave S",   "zip": "37204"},
-            {"id": "02600542", "name": "Kroger - Briley Pkwy",       "address": "61 E Thompson Ln", "zip": "37211"},
-            {"id": "02600880", "name": "Kroger - East Nashville",    "address": "711 Gallatin Ave", "zip": "37206"},
-            {"id": "02600567", "name": "Kroger - Hillsboro Village", "address": "2201 21st Ave S",   "zip": "37212"},
+            # Urban core
+            {"id": "02600511", "name": "Kroger - Melrose",           "address": "2615 8th Ave S",        "zip": "37204"},
+            {"id": "02600542", "name": "Kroger - Briley Pkwy",       "address": "61 E Thompson Ln",      "zip": "37211"},
+            {"id": "02600880", "name": "Kroger - East Nashville",    "address": "711 Gallatin Ave",      "zip": "37206"},
+            {"id": "02600567", "name": "Kroger - Hillsboro Village", "address": "2201 21st Ave S",       "zip": "37212"},
+            {"id": "02600895", "name": "Kroger - Green Hills",       "address": "2131 Abbott Martin Rd", "zip": "37215"},
+            {"id": "02600502", "name": "Kroger - Monroe",            "address": "800 Monroe St",         "zip": "37208"},
+            {"id": "02600547", "name": "Kroger - Charlotte Pike",    "address": "5705 Charlotte Pike",   "zip": "37209"},
+            {"id": "02600537", "name": "Kroger - Edmondson Pike",    "address": "5713 Edmondson Pike",   "zip": "37211"},
+            {"id": "02600851", "name": "Kroger - Hickory Plaza",     "address": "5771 Nolensville Pike", "zip": "37211"},
+            {"id": "02600845", "name": "Kroger - McGavock Pike",     "address": "143 Mcgavock Pike",     "zip": "37214"},
+            {"id": "02600884", "name": "Kroger - Inglewood",         "address": "3410 Gallatin Pike",    "zip": "37216"},
+            {"id": "02600574", "name": "Kroger - Nashboro Village",  "address": "2284 Murfreesboro Pike","zip": "37217"},
+            {"id": "02600533", "name": "Kroger - Bordeaux",          "address": "3930 Clarksville Pike", "zip": "37218"},
+            {"id": "02600527", "name": "Kroger - Bellevue Hwy 70",   "address": "7087 Highway 70 S",     "zip": "37221"},
+            {"id": "02600550", "name": "Kroger - Bellevue Hwy 100",  "address": "8141 Highway 100",      "zip": "37221"},
+            # Southern suburbs — Franklin / Brentwood
+            {"id": "02600596", "name": "Kroger - Brentwood",         "address": "210 Franklin Rd Ste 100","zip": "37027"},
+            {"id": "02600589", "name": "Kroger - Mill Creek",        "address": "6690 Nolensville Rd",   "zip": "37027"},
+            {"id": "02600526", "name": "Kroger - Cool Springs",      "address": "2020 Mallory Ln",       "zip": "37067"},
+            {"id": "02600592", "name": "Kroger - Alexander Plaza",   "address": "1203 Murfreesboro Rd",  "zip": "37064"},
+            {"id": "02600576", "name": "Kroger - Independence Sq",   "address": "595 Hillsboro Rd Ste 305","zip": "37064"},
+            {"id": "02600570", "name": "Kroger - Parkway Commons",   "address": "3054 Columbia Ave",     "zip": "37064"},
+            {"id": "02600568", "name": "Kroger - Westhaven",         "address": "411 Whitman St",        "zip": "37064"},
+            # Eastern suburbs — Hermitage / Mt Juliet / Smyrna / La Vergne
+            {"id": "02600518", "name": "Kroger - Northlake Village", "address": "5544 Old Hickory Blvd", "zip": "37076"},
+            {"id": "02600866", "name": "Kroger - Shute Lane",        "address": "4400 Lebanon Pike",     "zip": "37076"},
+            {"id": "02600578", "name": "Kroger - Providence Market", "address": "401 S Mount Juliet Rd", "zip": "37122"},
+            {"id": "02600590", "name": "Kroger - Mt Juliet Road",    "address": "4120 N Mount Juliet Rd","zip": "37122"},
+            {"id": "02600553", "name": "Kroger - Innsbrooke",        "address": "463 W Sam Ridley Pkwy", "zip": "37167"},
+            {"id": "02600566", "name": "Kroger - LaVergne",          "address": "5145 Murfreesboro Rd",  "zip": "37086"},
+            {"id": "02600520", "name": "Kroger - Hickory Hollow",    "address": "5319 Mount View Rd",    "zip": "37013"},
+            # Northern suburbs — Madison / Goodlettsville / Hendersonville
+            {"id": "02600514", "name": "Kroger - Old Hickory SC",    "address": "200 Gallatin Pike S",   "zip": "37115"},
+            {"id": "02600541", "name": "Kroger - Goodlettsville",    "address": "123 Northcreek Blvd",   "zip": "37072"},
+            {"id": "02600519", "name": "Kroger - Drakes Creek",      "address": "170 E Main St Ste 300", "zip": "37075"},
+            {"id": "02600619", "name": "Kroger - Hendersonville Main","address": "237 E Main St",         "zip": "37075"},
+            {"id": "02600571", "name": "Kroger - Glenbrook",         "address": "1010 Glenbrook Way",    "zip": "37075"},
+            {"id": "02600588", "name": "Kroger - Thompsons Station", "address": "4726 Traders Way",      "zip": "37179"},
         ],
     },
     "charlotte": {

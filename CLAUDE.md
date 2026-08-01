@@ -102,7 +102,7 @@ Done unless noted. Detailed history: `docs/reference/build-log.md`.
 17. ✅ **Ratings badge** in WineCard + mobile pick messages.
 18. ✅ **Per-pick distance** — `distance_miles` (user-zip centroid → store, haversine) flows recommend endpoint → pick → mobile store pill + desktop WineCard retailer line. Also fixed: Spec's + Twin Liquors scrapers now write `stores.address` (street was parsed then dropped; every other retailer already had it).
 19. **Analytics** — ⚙️ foundation shipped; PostHog live in Vercel.
-20. **Kroger banner expansion** — Memphis/Houston/other NC-VA cities (config-only via `MARKETS`).
+20. ⚙️ **Kroger banner expansion** — Memphis/Houston/other NC-VA cities (config-only via `MARKETS`). **Nashville deepened 2026-08-01**: 4→35 stores (urban core + Franklin/Brentwood/Hendersonville/Mt Juliet/Smyrna suburban ring; IDs from a Locations-API sweep of 12 area zips, fuel/pharmacy excluded) — fixes thin tester inventory AND the empty-app problem for suburban zips outside the old 4-store 10-mi radius. Seeded immediately (not just queued for the weekly cron). Frugal MacDoogal (Nashville City Hive) bypass confirmed same day → mini scraper queued (`docs/mini-agent-tasks.md`).
 21. Local MCP server for Claude Desktop (parked — memory `mcp-desktop-parked`).
 22. More Shopify wine shops (zero new code) · enumerate full ~90 Twin Liquors stores.
 23. Blocked probes (headless-browser only): Total Wine, WFM, Publix, Food Lion, Tom Thumb/Albertsons.

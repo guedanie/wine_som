@@ -299,3 +299,37 @@ Douro→California.
 
 Fast suite went 521→537 passing. Commits: 9972bec, a0bfe47, 1023477,
 75fbe3b, 6696800, ee6b3fa.
+
+---
+
+## Task: Frugal MacDoogal scraper (Nashville City Hive) — QUEUED 2026-08-01
+
+**Why:** Nashville testers have thin inventory (5 stores: 4 Kroger + Harvest).
+Frugal MacDoogal is a warehouse-scale Nashville wine/liquor store on City Hive.
+The Twin Liquors anonymous-bypass was confirmed to work against it 2026-08-01
+(see `data/exploration/nashville_findings.md` → City Hive UPDATE): probe
+returned 30 priced products for one term.
+
+**Why the mini:** City Hive Cloudflare-1015s datacenter IPs on sustained sweeps
+(same as Twin Liquors + Vivino). A one-off probe from a datacenter IP worked,
+but a 40+ term × store sweep will throttle. Must run from the residential-IP
+mini, like the Twin Liquors launchd job.
+
+**Build:** clone `scrapers/twin_liquors.py` almost verbatim — same route
+(`api/v1/products/search.json?merchant_id=…&new_style=true&api_key=…&client_origin=…&text=…`),
+same `data.products[]` parse, same 30/term cap → multi-term sweep, same
+`basic_category`→wine_type map, synthetic `cityhive-{product_id}` UPC (boutique
+wines rarely list barcodes). Config (from the storefront HTML, verified):
+- `merchant_id = 6599a3f98893882b7f30798d`
+- `api_key = 7508df878a8c7566a880e4d3f7fa7972` (shared City Hive widget key)
+- `client_origin = app://sites.frugalmab9bcea1a`
+- store address for `stores` row: Frugal MacDoogal, 701 Division St, Nashville TN 37203
+Single store (one merchant_id), so simpler than Twin Liquors' 12-store loop.
+
+**Landmines:** (1) 1015 throttling — reuse Twin Liquors' backoff + `TwinRateLimited`
+pause/resume. (2) verify the storefront config values haven't rotated before the
+run (grep `window.cityHiveWidgetLoaderConfig` from frugalmacdoogal.com). (3)
+Corkdorks is currently down (000) — do NOT attempt it; revisit if the site returns.
+
+**Acceptance:** stores row created, ≥several hundred wines committed with prices,
+inventory visible in a 37203/37210 recommend request.
