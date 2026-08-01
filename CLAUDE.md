@@ -51,7 +51,7 @@ Full component table + file map: **`docs/reference/build-log.md`**.
 - **Enrichment** — layered: retailer data → Vivino (ratings/facts/image) → local LLM (qwen2.5:7b, Haiku-parity) → deterministic grape+region structure table. Details: `docs/reference/enrichment.md`.
 - **Recommendation** — deterministic knowledge-based scorer shortlists; Claude (Sonnet 4.6) picks + narrates, streamed progressively (narrative word-by-word, then cards one at a time). Personalization (saved + cellar + 👍/👎 votes + taste-profile interview) re-ranks and is cited. Details: `docs/reference/recommendation.md`.
 - **Frontend** — React SPA + installable PWA; anonymous-first with optional magic-link accounts (saved bottles, cellar, taste profile). Design system: `frontend/CLAUDE.md`.
-- **Blocked retailers** — Total Wine (Imperva), Whole Foods (Amazon auth), Publix/Costco/Trader Joe's (Akamai), Food Lion (Cloudflare), Tom Thumb/Albertsons (Incapsula), Corkdorks/Frugal MacDoogal (City Hive auth — may be unblockable via the Twin Liquors bypass).
+- **Blocked retailers** — Total Wine (Imperva), Whole Foods (Amazon auth), Publix/Costco/Trader Joe's (Akamai), Food Lion (Cloudflare), Tom Thumb/Albertsons (Incapsula), ~~Corkdorks/Frugal MacDoogal~~ (City Hive — UNBLOCKED 2026-08-01 via the Twin Liquors bypass; both confirmed scrapable, mini scraper queued in `docs/mini-agent-tasks.md`).
 
 ## Reference docs
 These hold the deep detail moved out of this file — **consult the relevant one on demand when a task touches that system; don't read them preemptively.** The inline "Details: …" pointers above tell you which applies.

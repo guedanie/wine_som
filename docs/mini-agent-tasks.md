@@ -302,7 +302,7 @@ Fast suite went 521→537 passing. Commits: 9972bec, a0bfe47, 1023477,
 
 ---
 
-## Task: Frugal MacDoogal scraper (Nashville City Hive) — QUEUED 2026-08-01
+## Task: Nashville City Hive scrapers — Frugal MacDoogal + Corkdorks — QUEUED 2026-08-01
 
 **Why:** Nashville testers have thin inventory (5 stores: 4 Kroger + Harvest).
 Frugal MacDoogal is a warehouse-scale Nashville wine/liquor store on City Hive.
@@ -328,8 +328,26 @@ Single store (one merchant_id), so simpler than Twin Liquors' 12-store loop.
 
 **Landmines:** (1) 1015 throttling — reuse Twin Liquors' backoff + `TwinRateLimited`
 pause/resume. (2) verify the storefront config values haven't rotated before the
-run (grep `window.cityHiveWidgetLoaderConfig` from frugalmacdoogal.com). (3)
-Corkdorks is currently down (000) — do NOT attempt it; revisit if the site returns.
+run (grep `window.cityHiveWidgetLoaderConfig` from frugalmacdoogal.com). (3) Corkdorks was
+re-probed 2026-08-01 and IS scrapable (see below) — build it too.
 
 **Acceptance:** stores row created, ≥several hundred wines committed with prices,
 inventory visible in a 37203/37210 recommend request.
+
+### Corkdorks (same platform, add as a second store — also confirmed 2026-08-01)
+
+The storefront `corkdorks.com` HTTPS is dead, but the City Hive **merchant
+backend is live** — scrape the API, not the website (the 07-05 "blocked" verdict
+and my own first-pass "skip, it's 000" were both wrong; probe the API before
+writing off a City Hive store). Confirmed: 5 terms → 149 unique priced wines.
+- **Corkdorks Midtown**: `merchant_id = 5c2a8cae7309395802faf15d`,
+  store row = "Corkdorks - Midtown", 1610 Church St, Nashville TN 37203,
+  coords 36.1570489 / -86.7943734.
+- Same `api_key = 7508df878a8c7566a880e4d3f7fa7972`, but
+  `client_origin = app://sites.corkdorks` (NOT the frugal one).
+- **Multi-location chain** (`chain 5c54fed1cfac4e1bcadf2525, "Corkdorks (Multi)"`)
+  → find the sibling merchant_id(s) (historically a Green Hills store) from an
+  archived storefront widget config; the anonymous key 400s on chain enumeration.
+- Cleanest build: parameterize the Frugal scraper over a small list of
+  `(merchant_id, client_origin, store_meta)` tuples — Frugal + each Corkdorks
+  store — rather than three near-identical files.

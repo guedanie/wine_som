@@ -55,9 +55,24 @@ route the original probe hit). Values lifted from the storefront HTML
   `J Lohr Seven Oaks $17.99`, …). Warehouse-scale store, likely the biggest single
   Nashville inventory win. Response shape identical to Twin Liquors
   (`data.products[]`, `basic_category`, `merchants[].product_options[].price`).
-- **Corkdorks** (`corkdorks.com`): storefront now returns **000** (connection
-  refused / DNS fail) on bare, `www`, and `shop.` — the site appears down or
-  hard-blocked. Skip until it resolves.
+- **Corkdorks** — **ALSO SCRAPABLE** (initially misjudged). The storefront
+  `corkdorks.com` has a **dead HTTPS server** (port 443 refuses; `corkdork.com`
+  singular is an unrelated parked/lander domain) — but we scrape the City Hive
+  API, not the website, and **the merchant backend is fully live**. Hitting the
+  same `products/search.json` route with the known Midtown merchant ID +
+  the shared widget key returns real priced products (confirmed 2026-08-01: 5
+  terms → 149 unique wines, every term hits the 30-cap → a full sweep yields
+  several hundred+). Merchant blob leaks everything needed for the `stores` row:
+  `Corkdorks Wine Spirits Beer - Midtown`, **1610 Church St, Nashville TN 37203**,
+  coords `36.1570489, -86.7943734`, merchant_id `5c2a8cae7309395802faf15d`,
+  `api_key=7508df878a8c7566a880e4d3f7fa7972`, `client_origin=app://sites.corkdorks`.
+  **Multi-location chain** — the merchant carries `chain: {id:
+  5c54fed1cfac4e1bcadf2525, name: "Corkdorks (Multi)"}`, so there is at least a
+  second store (historically Green Hills). The chain-enumeration routes 400 with
+  the anonymous key; the mini build should discover the sibling merchant_id(s)
+  from an archived storefront or a cached widget config. Lesson: a dead
+  storefront ≠ a dead City Hive backend — probe the API before writing a store
+  off.
 
 **Build path = clone `scrapers/twin_liquors.py`** (same route, same parse, same
 30/term cap → sweep terms, same synthetic `cityhive-{id}` UPC). **Runs on the
