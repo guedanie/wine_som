@@ -35,7 +35,8 @@ test('mobile chrome: TopBar brand + bottom tabs render', () => {
       <App />
     </MemoryRouter>
   );
-  expect(screen.getByText('Wine Atlas')).toBeInTheDocument();     // TopBar sub
+  expect(screen.getByText('PLAN A BOTTLE')).toBeInTheDocument();  // mode tabs (aisle-mode)
+  expect(screen.getByText('ASK')).toBeInTheDocument();
   expect(screen.getByText('Recommend')).toBeInTheDocument();      // tabs
   expect(screen.getByText('Discover')).toBeInTheDocument();
   expect(screen.getByText('Search')).toBeInTheDocument();

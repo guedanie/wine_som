@@ -3,11 +3,37 @@ import Stamp from './Stamp.jsx';
 import { SLUG_TO_REGION } from '../lib/regions.js';
 import { loadZip } from '../lib/useIsMobile.js';
 
+// The two faces of the recommendation window (design handoff: aisle-mode).
+// Underlined labels sharing the header's ink rule — tabs, not a toggle.
+// Inactive is --faded (not --faded-2): the only persistent signal the second
+// face exists, it must pass contrast.
+function ModeTabs({ active, navigate }) {
+  const tab = (label, isActive, onTap) => (
+    <button key={label} onClick={onTap} style={{
+      cursor: 'pointer', background: 'none', border: 'none', padding: '0 2px 6px',
+      fontFamily: 'var(--font-sans)', fontSize: 11, fontWeight: 600,
+      letterSpacing: '0.22em', textTransform: 'uppercase',
+      color: isActive ? 'var(--ink)' : 'var(--faded)',
+      borderBottom: isActive ? '2.5px solid var(--bordeaux)' : '2.5px solid transparent',
+      marginBottom: -2, minHeight: 44, display: 'flex', alignItems: 'flex-end',
+    }}>{label}</button>
+  );
+  return (
+    <div style={{ display: 'flex', gap: 18, alignItems: 'flex-end', height: '100%' }}>
+      {tab('PLAN A BOTTLE', active === 'plan', () => navigate('/'))}
+      {tab('ASK', active === 'ask', () => navigate('/recommend', { state: { mode: 'ask' } }))}
+    </div>
+  );
+}
+
 // ── Top bar (56px) ──────────────────────────────────────────────
 export function TopBar() {
   const { pathname, state } = useLocation();
   const navigate = useNavigate();
   const zip = state?.zip ?? state?.prefs?.zip ?? loadZip();
+
+  const askMode = pathname === '/recommend' && state?.mode === 'ask';
+  const showTabs = pathname === '/' || askMode;
 
   let title = 'Somm';
   let sub = 'Wine Atlas';
@@ -62,16 +88,22 @@ export function TopBar() {
       ) : (
         <Stamp size={26} />
       )}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: 'var(--font-serif)', fontSize: 21, lineHeight: 1, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {title}
+      {showTabs ? (
+        <div style={{ flex: 1, minWidth: 0, alignSelf: 'stretch', display: 'flex' }}>
+          <ModeTabs active={pathname === '/' ? 'plan' : 'ask'} navigate={navigate} />
         </div>
-        {sub && (
-          <div style={{ fontFamily: 'var(--font-sans)', fontSize: 8, letterSpacing: '0.28em', textTransform: 'uppercase', color: 'var(--faded)' }}>
-            {sub}
+      ) : (
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: 'var(--font-serif)', fontSize: 21, lineHeight: 1, color: 'var(--ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {title}
           </div>
-        )}
-      </div>
+          {sub && (
+            <div style={{ fontFamily: 'var(--font-sans)', fontSize: 8, letterSpacing: '0.28em', textTransform: 'uppercase', color: 'var(--faded)' }}>
+              {sub}
+            </div>
+          )}
+        </div>
+      )}
       <div style={{ fontFamily: 'var(--font-sans)', fontSize: 10.5, letterSpacing: '0.06em', color: 'var(--faded)', border: '1px solid var(--border)', padding: '5px 10px', flexShrink: 0 }}>
         ◎ {zip}
       </div>
