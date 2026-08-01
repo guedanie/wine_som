@@ -10,7 +10,7 @@ import WineGlassLoader from '../components/WineGlassLoader.jsx';
 import WineCardSkeleton from '../components/WineCardSkeleton.jsx';
 import { streamRecommend, postFeedback } from '../lib/api.js';
 import { buildAskReq, ASK_INTENT_PILLS } from '../lib/askMode.js';
-import { loadZip } from '../lib/useIsMobile.js';
+import { loadZip, saveZip, hasStoredZip } from '../lib/useIsMobile.js';
 import { naturalChatMode } from '../lib/flags.js';
 import { track } from '../lib/analytics.js';
 import { useAuth } from '../lib/auth.jsx';
@@ -164,6 +164,9 @@ export default function ChatRecommend() {
   const tasteFor = () => (user ? buildTasteContext(user.id).catch(() => null) : Promise.resolve(null));
 
   const [askZip, setAskZip]         = useState(() => _restored?.askZip ?? loadZip());
+  const [zipConfirmed, setZipConfirmed] = useState(() => Boolean(_restored) || hasStoredZip());
+  const [pendingAskText, setPendingAskText] = useState(null);
+  const [zipDraft, setZipDraft]     = useState('');
   const [storeRef, setStoreRef]     = useState(() => _restored?.storeRef ?? null);
   const [storeLabel, setStoreLabel] = useState(() => _restored?.storeLabel ?? null);
   const [sessionId]    = useState(() => _restored?.sessionId    ?? uuid());
@@ -312,6 +315,13 @@ export default function ChatRecommend() {
   // store_ref when a standing store is set.
   const handleAskSend = (text) => {
     if (loading || streaming || !text.trim()) return;
+    // Lazy location: the zip request arrives INSIDE the conversation, once,
+    // only when no zip is actually stored (the loadZip default doesn't count).
+    if (!zipConfirmed) {
+      setMessages(prev => [...prev, { id: uuid(), role: 'user', text }]);
+      setPendingAskText(text);
+      return;
+    }
     const history = messages.map(m => ({ role: m.role, content: m.text }));
     setMessages(prev => [...prev, { id: uuid(), role: 'user', text }]);
     tasteFor().then(taste => callRecommend(buildAskReq({
@@ -321,6 +331,39 @@ export default function ChatRecommend() {
   };
 
   const handleSend = askMode ? handleAskSend : handleFollowup;
+
+  const confirmZip = () => {
+    if (zipDraft.length !== 5) return;
+    saveZip(zipDraft);
+    setAskZip(zipDraft);
+    setZipConfirmed(true);
+    const text = pendingAskText;
+    setPendingAskText(null);
+    const history = messages.slice(0, -1).map(m => ({ role: m.role, content: m.text }));
+    tasteFor().then(taste => callRecommend(buildAskReq({
+      zip: zipDraft, message: text, history: history.length ? history : undefined,
+      storeRef, conversational: false, taste,
+    })));
+  };
+
+  const zipRequestBubble = pendingAskText != null && (
+    <SommelierBubble>
+      <div>I can name bottles you'll actually find tonight if you tell me roughly where you are.</div>
+      <div style={{ marginTop: 10 }}>
+        <span className="t-eyebrow" style={{ display: 'block', marginBottom: 6 }}>YOUR ZIP / CITY</span>
+        <div style={{ display: 'flex', border: '1.5px solid var(--ink)', background: 'var(--cream-raised)' }}>
+          <input value={zipDraft} inputMode="numeric" maxLength={5} aria-label="Your zip"
+            onChange={e => setZipDraft(e.target.value.replace(/\D/g, '').slice(0, 5))}
+            onKeyDown={e => { if (e.key === 'Enter') confirmZip(); }}
+            style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontFamily: 'var(--font-sans)', fontSize: 16, color: 'var(--ink)', padding: '10px 12px', minWidth: 0 }} />
+          <button onClick={confirmZip} style={{ border: 'none', background: 'var(--bordeaux)', color: 'var(--cream)', padding: '0 16px', cursor: 'pointer', fontSize: 14 }}>Set</button>
+        </div>
+        <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--faded)', marginTop: 6 }}>
+          Asked once — I'll remember it from here on.
+        </div>
+      </div>
+    </SommelierBubble>
+  );
 
   // Ask empty state — the single invitation (deliberately generic: this door
   // knows no store).
@@ -423,6 +466,7 @@ export default function ChatRecommend() {
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', padding: '16px 16px 8px', WebkitOverflowScrolling: 'touch' }}>
           {askEmptyState}
           {messageList}
+          {zipRequestBubble}
           {awaitingPicks && !loading && (
             <div style={{ display: 'flex', gap: 11, alignItems: 'center', marginBottom: 14, paddingLeft: 43 }}>
               <span className="t-eyebrow" style={{ animation: 'skeleton-pulse 1.4s ease-in-out infinite' }}>Pouring your picks…</span>
@@ -515,6 +559,7 @@ export default function ChatRecommend() {
                   <AvailabilityStrip lines={m.availability} />
                 </SommelierBubble>
           )}
+          {zipRequestBubble}
           {loading && (
             <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start', marginBottom: 14 }}>
               <Stamp size={32} reversed />

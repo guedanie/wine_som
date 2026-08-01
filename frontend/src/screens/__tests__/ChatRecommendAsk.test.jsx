@@ -82,3 +82,29 @@ it('sending asks with the wide-budget sentinel and stored zip', async () => {
   });
   await screen.findByText('Both are solid.');
 });
+
+describe('lazy zip', () => {
+  beforeEach(() => localStorage.removeItem('somm_zip'));
+
+  it('holds the question and asks for zip when none is stored', async () => {
+    renderAsk();
+    const input = screen.getAllByRole('textbox')[0];
+    await userEvent.type(input, 'a good red for tonight{Enter}');
+    expect(streamRecommend).not.toHaveBeenCalled();
+    expect(screen.getByText(/tell me roughly where you are/)).toBeInTheDocument();
+    expect(screen.getByText(/Asked once — I'll remember it/)).toBeInTheDocument();
+  });
+
+  it('Set saves the zip and fires the held question', async () => {
+    streamRecommend.mockImplementation(async function* () {
+      yield { type: 'token', text: 'Here you go.' };
+    });
+    renderAsk();
+    await userEvent.type(screen.getAllByRole('textbox')[0], 'a good red{Enter}');
+    await userEvent.type(screen.getByLabelText('Your zip'), '78230');
+    await userEvent.click(screen.getByText('Set'));
+    await waitFor(() => expect(streamRecommend).toHaveBeenCalledTimes(1));
+    expect(streamRecommend.mock.calls[0][0]).toMatchObject({ zip_code: '78230', message: 'a good red' });
+    expect(localStorage.getItem('somm_zip')).toBe('78230');
+  });
+});
