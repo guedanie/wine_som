@@ -3,6 +3,7 @@ import { Routes, Route, useLocation } from 'react-router-dom';
 import { trackPageview } from './lib/analytics.js';
 import NavBar from './components/NavBar.jsx';
 import { TopBar, BottomTabs } from './components/MobileChrome.jsx';
+import AisleStrip from './components/AisleStrip.jsx';
 import useIsMobile from './lib/useIsMobile.js';
 import PreferenceCapture from './screens/PreferenceCapture.jsx';
 import ChatRecommend from './screens/ChatRecommend.jsx';
@@ -41,6 +42,7 @@ function AppRoutes() {
 
 export default function App() {
   const isMobile = useIsMobile();
+  const { pathname } = useLocation();
 
   if (isMobile) {
     return (
@@ -52,6 +54,7 @@ export default function App() {
         <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
           <AppRoutes />
         </div>
+        {pathname === '/' && <AisleStrip />}
         <BottomTabs />
       </div>
     );
