@@ -284,7 +284,15 @@ def _build_user_message(
             role = "User" if turn.get("role") == "user" else "Sommelier"
             content = str(turn.get("content") or "").strip()
             if content:
-                lines.append(f"{role}: {content}")
+                line = f"{role}: {content}"
+                # item 41: ground "these two" / "the first one" in data — name
+                # the wines each sommelier turn actually recommended, with ids.
+                picks = turn.get("picks") or []
+                if picks:
+                    named = "; ".join(
+                        f"{p.get('name')} [wine_id: {p.get('wine_id')}]" for p in picks)
+                    line += f"\n[Recommended in that turn: {named}]"
+                lines.append(line)
         if lines:
             history_preamble = "[Previous conversation]\n" + "\n\n".join(lines) + "\n\n"
 

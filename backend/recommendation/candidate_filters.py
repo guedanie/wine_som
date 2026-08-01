@@ -192,6 +192,49 @@ def detect_store(message: str, nearby_stores: List[Dict[str, Any]]) -> Optional[
     return best if best_score >= 1 else None
 
 
+# item 41: a follow-up like "compare these two" names nothing the parser can
+# extract — the referents live in the conversation's own prior picks. These
+# helpers carry them: extract from history, detect the anaphora, pin.
+
+def prior_picks_from_history(history) -> List[Dict[str, Any]]:
+    """Ordered, deduped {wine_id, name} from the picks attached to sommelier
+    turns in conversation_history. Empty when the client sent prose-only."""
+    seen, out = set(), []
+    for turn in history or []:
+        for p in turn.get("picks") or []:
+            wid = p.get("wine_id")
+            if wid and wid not in seen:
+                seen.add(wid)
+                out.append({"wine_id": wid, "name": p.get("name")})
+    return out
+
+
+# Conservative on purpose: a false positive pins wines the user didn't mean
+# (mild — they were just shown), a false negative reproduces bug 41.
+_REFERENTIAL_PAT = re.compile(
+    r"\b(these|those|them|both|either|neither|that one|"
+    r"(the )?(first|second|third|last) one|"
+    r"which (one|of th|of the|do you|would you))\b", re.I)
+
+
+def is_referential(message: Optional[str]) -> bool:
+    """True when the message points back at previously shown wines
+    ("these two", "the first one") rather than naming anything."""
+    return bool(_REFERENTIAL_PAT.search(message or ""))
+
+
+def pin_prior_picks(top: List[Dict[str, Any]], prior_cands: List[Dict[str, Any]],
+                    ordered_ids: List[str], cap: int = 4) -> List[Dict[str, Any]]:
+    """Pin previously recommended wines to the shortlist front, in the order
+    they appeared in the conversation (cheapest row per wine). A comparison
+    must never lose its subjects."""
+    by_id: Dict[Any, List[Dict[str, Any]]] = {}
+    for c in prior_cands:
+        by_id.setdefault(c.get("wine_id"), []).append(c)
+    ordered = [c for wid in ordered_ids for c in by_id.get(wid, [])]
+    return pin_named_matches(top, ordered, cap=cap)
+
+
 def resolve_requested_store(store_ref: Optional[str],
                             stores: List[Dict[str, Any]],
                             message: Optional[str]) -> Optional[Dict[str, Any]]:

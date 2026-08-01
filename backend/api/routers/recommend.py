@@ -20,7 +20,9 @@ from recommendation.availability import (axes_from_intent, catalog_terms,
                                          fetch_axis_counts, terms_in_message,
                                          axis_key, axis_label, availability_lines)
 from recommendation.candidate_filters import (apply_type_gate, deep_fetch_reason,
-                                              detect_retailer, resolve_requested_store,
+                                              detect_retailer, is_referential,
+                                              pin_prior_picks, prior_picks_from_history,
+                                              resolve_requested_store,
                                               ensure_region_representation,
                                               merge_candidates, pin_comparison_matches,
                                               pin_named_matches,
@@ -547,6 +549,34 @@ async def recommend(req: RecommendRequest):
             candidates = retailer_pool
             logger.info("RETAILER FILTER | %r → %d candidates", detected_retailer, len(candidates))
 
+    # item 41: carry the conversation's own referents. "Compare these two"
+    # names nothing the parser can extract — the subjects are the picks from
+    # earlier turns, which the client now sends in conversation_history.
+    # Fetch them BY ID, budget-FREE (they were already shown; the slider must
+    # never hide them), merge always, pin when the message is referential.
+    prior_picks = prior_picks_from_history(req.conversation_history)[-8:]
+    prior_ids = [p["wine_id"] for p in prior_picks]
+    referential = bool(prior_ids) and is_referential(req.message)
+
+    def _prior_rows() -> list:
+        def _q(since: Optional[str]) -> list:
+            q = (supabase.table("retail_inventory").select(INVENTORY_SELECT)
+                 .in_("store_ref", nearby_ids).eq("in_stock", True)
+                 .in_("wine_id", prior_ids))
+            if since:
+                q = q.gte("last_scraped_at", since)
+            return q.limit(60).execute().data or []
+        return _q(stale_cutoff) or _q(None)
+
+    prior_cands: list = []
+    if prior_ids:
+        prior_cands = [c for c in (_row_to_candidate(r) for r in _prior_rows()) if c]
+        if prior_cands:
+            candidates = merge_candidates(candidates, prior_cands)
+            logger.info("PRIOR PICKS | carried %d wine(s), %d row(s) from history%s",
+                        len({c["wine_id"] for c in prior_cands}), len(prior_cands),
+                        " [referential]" if referential else "")
+
     chip_types = req.wine_types or ([req.wine_type] if req.wine_type else [])
     req_types = requested_types_from(chip_types, resolved.get("wine_type"))
     before = len(candidates)
@@ -579,6 +609,10 @@ async def recommend(req: RecommendRequest):
         if detected_store:
             sel.sort(key=lambda w: (w.get("store_ref") == detected_store["id"],
                                     w.get("_score", 0)), reverse=True)
+        # A referential follow-up must keep its subjects in front — a
+        # comparison cannot lose the wines it is about (item 41).
+        if referential and prior_cands:
+            sel = pin_prior_picks(sel, prior_cands, prior_ids, cap=4)[:_MAX_CANDIDATES]
         return sel
 
     top = _score_and_select(candidates)

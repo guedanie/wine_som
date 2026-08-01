@@ -371,3 +371,58 @@ def test_resolve_requested_store_unknown_ref_falls_back_to_detection():
 
 def test_resolve_requested_store_none_when_no_ref_and_no_mention():
     assert resolve_requested_store(None, _STORES, "a bold red for tonight") is None
+
+
+# ---- item 41: referent carry across turns ----
+
+from recommendation.candidate_filters import (is_referential, pin_prior_picks,
+                                              prior_picks_from_history)
+
+
+def test_prior_picks_from_history_ordered_deduped():
+    history = [
+        {"role": "user", "content": "a sauvignon blanc from sancerre?"},
+        {"role": "sommelier", "content": "Two I like.",
+         "picks": [{"wine_id": "w1", "name": "Avaline SB"},
+                   {"wine_id": "w2", "name": "Starborough SB"}]},
+        {"role": "user", "content": "anything cheaper?"},
+        {"role": "sommelier", "content": "One more.",
+         "picks": [{"wine_id": "w2", "name": "Starborough SB"},   # repeat
+                   {"wine_id": "w3", "name": "Kim Crawford SB"}]},
+    ]
+    out = prior_picks_from_history(history)
+    assert [p["wine_id"] for p in out] == ["w1", "w2", "w3"]
+    assert out[0]["name"] == "Avaline SB"
+
+
+def test_prior_picks_from_history_empty_and_prose_only():
+    assert prior_picks_from_history(None) == []
+    assert prior_picks_from_history([{"role": "sommelier", "content": "hi"}]) == []
+
+
+def test_is_referential_positives():
+    for msg in ["Can we compare these two? Which do you recommend?",
+                "which one is better?", "I'll take the first one",
+                "are both of those dry?", "what about that one instead",
+                "which of the two should I grab?"]:
+        assert is_referential(msg), msg
+
+
+def test_is_referential_negatives():
+    for msg in ["a bold red for tonight", "anything from HEB?",
+                "is nebbiolo like pinot noir?", "caymus or bonanza cabernet?",
+                "which malbec pairs with brisket?"]:
+        assert not is_referential(msg), msg
+
+
+def test_pin_prior_picks_pins_in_history_order_cheapest_row():
+    top = [{"wine_id": "x", "name": "Filler", "price": 15.0}]
+    prior = [
+        {"wine_id": "w2", "name": "Starborough SB", "price": 13.0},
+        {"wine_id": "w1", "name": "Avaline SB", "price": 24.0},
+        {"wine_id": "w1", "name": "Avaline SB", "price": 22.0},   # cheaper row same wine
+    ]
+    out = pin_prior_picks(top, prior, ["w1", "w2"], cap=4)
+    assert [w["wine_id"] for w in out[:2]] == ["w1", "w2"]   # history order, not input order
+    assert out[0]["price"] == 22.0                            # cheapest row per wine
+    assert "x" in [w["wine_id"] for w in out]

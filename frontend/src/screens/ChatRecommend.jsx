@@ -374,9 +374,18 @@ export default function ChatRecommend() {
     postFeedback({ type: 'sommelier_message', entity_id: messageId, vote: next, session_id: sessionId, user_id: user?.id ?? null, zip: prefs?.zip ?? askZip });
   }
 
+  // item 41: history must carry the wines each turn actually showed — a
+  // follow-up like "compare these two" is resolvable only from prior picks.
+  const historyFrom = msgs => msgs.map(m => ({
+    role: m.role, content: m.text,
+    ...(m.picks?.length
+      ? { picks: m.picks.map(p => ({ wine_id: p.wine_id, name: p.name })) }
+      : {}),
+  }));
+
   const handleFollowup = (text) => {
     if (loading || streaming || !text.trim()) return;
-    const history = messages.map(m => ({ role: m.role, content: m.text }));
+    const history = historyFrom(messages);
     setMessages(prev => [...prev, { id: uuid(), role: 'user', text }]);
     tasteFor().then(taste => callRecommend({ ...apiReq, message: text, conversation_history: history, conversational: naturalChatMode(), taste }));
   };
@@ -392,7 +401,7 @@ export default function ChatRecommend() {
       setPendingAskText(text);
       return;
     }
-    const history = messages.map(m => ({ role: m.role, content: m.text }));
+    const history = historyFrom(messages);
     setMessages(prev => [...prev, { id: uuid(), role: 'user', text }]);
     tasteFor().then(taste => callRecommend(buildAskReq({
       zip: askZip, message: text, history: history.length ? history : undefined,
@@ -409,7 +418,7 @@ export default function ChatRecommend() {
     setZipConfirmed(true);
     const text = pendingAskText;
     setPendingAskText(null);
-    const history = messages.slice(0, -1).map(m => ({ role: m.role, content: m.text }));
+    const history = historyFrom(messages.slice(0, -1));
     tasteFor().then(taste => callRecommend(buildAskReq({
       zip: zipDraft, message: text, history: history.length ? history : undefined,
       storeRef, conversational: false, taste,

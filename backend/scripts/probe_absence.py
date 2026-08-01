@@ -30,7 +30,7 @@ PROD = "https://winesom-production.up.railway.app"
 
 
 def stream_narrative(base, message, zip_code, budget_max, wine_type=None, timeout=180,
-                     retries=4):
+                     retries=4, history=None):
     """POST to /api/recommend and reassemble the streamed narrative + picks.
 
     Retries on 429/5xx with exponential backoff — an unhandled 429 cost 9 of 23 probes
@@ -39,6 +39,9 @@ def stream_narrative(base, message, zip_code, budget_max, wine_type=None, timeou
                "message": message}
     if wine_type:
         payload["wine_type"] = wine_type
+    if history:
+        payload["conversation_history"] = history
+        payload["conversational"] = True
     req = urllib.request.Request(
         f"{base}/api/recommend", data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json"})
@@ -115,15 +118,50 @@ def local_facts(message, zip_code, budget_max):
     return out
 
 
+def probe_followup(base, message, followup, zip_code, budget_max):
+    """Multi-turn referential probe (item 41): turn 1 produces picks; turn 2 sends a
+    referential follow-up WITH the picks in history (the production payload shape).
+    A false absence here is the turn-2 narrative denying a turn-1 pick — every
+    pick was, by construction, in stock one turn ago."""
+    from api.routers.recommend import _false_absence_suspects
+    narrative1, picks1 = stream_narrative(base, message, zip_code, budget_max)
+    if not picks1:
+        return {"skipped": "turn 1 produced no picks", "narrative1": narrative1}
+    history = [
+        {"role": "user", "content": message},
+        {"role": "sommelier", "content": narrative1,
+         "picks": [{"wine_id": p.get("wine_id"), "name": p.get("name")} for p in picks1]},
+    ]
+    narrative2, picks2 = stream_narrative(base, followup, zip_code, budget_max,
+                                          history=history)
+    pseudo_facts = [{"label": p.get("name") or "", "state": "PRESENT_PRIOR_PICK"}
+                    for p in picks1]
+    suspects = _false_absence_suspects(narrative2, pseudo_facts)
+    return {"turn1_picks": [p.get("name") for p in picks1],
+            "turn2_picks": [p.get("name") for p in picks2],
+            "turn2_narrative": narrative2,
+            "denied_prior_picks": [s["label"] for s in suspects],
+            "verdict": "FAIL — denied a wine it recommended one turn ago"
+                       if suspects else "PASS"}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--message", required=True)
+    ap.add_argument("--followup", default=None,
+                    help="multi-turn referential probe: send this as turn 2 with turn 1's picks in history (item 41)")
     ap.add_argument("--zip", dest="zip_code", default="78209")
     ap.add_argument("--budget", type=float, default=50.0)
     ap.add_argument("--wine-type", default=None)
     ap.add_argument("--base", default=PROD)
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
+
+    if args.followup:
+        result = probe_followup(args.base, args.message, args.followup,
+                                args.zip_code, args.budget)
+        print(json.dumps(result, indent=2))
+        return
 
     narrative, picks = stream_narrative(args.base, args.message, args.zip_code,
                                         args.budget, args.wine_type)

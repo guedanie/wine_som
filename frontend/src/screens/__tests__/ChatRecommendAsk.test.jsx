@@ -214,3 +214,24 @@ describe('failure states', () => {
     expect(screen.getByText('Finish the answer')).toBeInTheDocument();
   });
 });
+
+it('follow-up history carries the prior picks (item 41 — referent carry)', async () => {
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'Two I like.' };
+    yield { type: 'picks', picks: [
+      { wine_id: 'w1', name: 'Avaline Sauvignon Blanc', price: 22, retailer: 'Kroger', why: 'Crisp.' },
+      { wine_id: 'w2', name: 'Starborough Sauvignon Blanc', price: 13, retailer: 'Kroger', why: 'Value.' },
+    ], session_id: 's' };
+  });
+  renderAsk();
+  await userEvent.type(screen.getAllByRole('textbox')[0], 'a sancerre-style sauvignon blanc?{Enter}');
+  await screen.findByText('Avaline Sauvignon Blanc');
+  await userEvent.type(screen.getAllByRole('textbox')[0], 'compare these two?{Enter}');
+  await waitFor(() => expect(streamRecommend).toHaveBeenCalledTimes(2));
+  const history = streamRecommend.mock.calls[1][0].conversation_history;
+  const sommTurn = history.find(t => t.role === 'sommelier');
+  expect(sommTurn.picks).toEqual([
+    { wine_id: 'w1', name: 'Avaline Sauvignon Blanc' },
+    { wine_id: 'w2', name: 'Starborough Sauvignon Blanc' },
+  ]);
+});

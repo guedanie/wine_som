@@ -510,3 +510,21 @@ def test_no_comparison_wines_directive_for_single_bottle():
               "message": "do you have caymus?", "comparison_wines": None}
     msg = _build_user_message([], intent)
     assert "verdict" not in msg.lower()
+
+
+# ---- item 41: prior picks grounded in the history preamble ----
+
+def test_history_preamble_names_prior_picks_with_ids():
+    from recommendation.claude_client import _build_user_message
+    intent = {"flavors": [], "avoid": [], "grapes": [],
+              "budget_min": 10.0, "budget_max": 50.0,
+              "message": "compare these two?"}
+    history = [
+        {"role": "user", "content": "a sancerre-style SB?"},
+        {"role": "sommelier", "content": "Two I like.",
+         "picks": [{"wine_id": "w1", "name": "Avaline Sauvignon Blanc"},
+                   {"wine_id": "w2", "name": "Starborough Sauvignon Blanc"}]},
+    ]
+    msg = _build_user_message([], intent, conversation_history=history)
+    assert "Avaline Sauvignon Blanc [wine_id: w1]" in msg
+    assert "Starborough Sauvignon Blanc [wine_id: w2]" in msg
