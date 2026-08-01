@@ -4,7 +4,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s: %(messag
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.routers import wines, enrichment, recommend, region, feedback, somm, search, deals
+from api.routers import wines, enrichment, recommend, region, feedback, somm, search, deals, stores
 
 app = FastAPI(
     title="Terroir API",
@@ -33,6 +33,7 @@ app.include_router(search.router)
 app.include_router(feedback.router)
 app.include_router(somm.router)
 app.include_router(deals.router)
+app.include_router(stores.router)
 
 
 @app.get("/health")
