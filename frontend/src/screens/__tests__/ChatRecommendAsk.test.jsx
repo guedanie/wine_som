@@ -161,3 +161,29 @@ it('renders the comparison frame when the picks event carries comparison', async
   expect(screen.getAllByText('$89')).toHaveLength(2);
   window.matchMedia = undefined;
 });
+
+describe('no-card closer', () => {
+  it('offers to find a bottle after a no-pick answer; Yes re-asks', async () => {
+    streamRecommend.mockImplementation(async function* () {
+      yield { type: 'token', text: 'Nebbiolo is lighter in color but grippier.' };
+      yield { type: 'picks', picks: [] };
+    });
+    renderAsk();
+    await userEvent.type(screen.getAllByRole('textbox')[0], 'is nebbiolo like pinot?{Enter}');
+    expect(await screen.findByText('Want me to find you a good one here?')).toBeInTheDocument();
+    await userEvent.click(screen.getByText('Yes, find one'));
+    await waitFor(() => expect(streamRecommend).toHaveBeenCalledTimes(2));
+    expect(streamRecommend.mock.calls[1][0].message).toMatch(/find me a good one/);
+  });
+
+  it('no offer when picks arrived', async () => {
+    streamRecommend.mockImplementation(async function* () {
+      yield { type: 'token', text: 'One pick.' };
+      yield { type: 'picks', picks: [{ wine_id: 'a', name: 'Caymus', price: 89, retailer: 'H-E-B', why: 'x' }], session_id: 's' };
+    });
+    renderAsk();
+    await userEvent.type(screen.getAllByRole('textbox')[0], 'a bold red{Enter}');
+    await screen.findByText('Caymus');
+    expect(screen.queryByText('Want me to find you a good one here?')).toBeNull();
+  });
+});

@@ -219,6 +219,8 @@ export default function ChatRecommend() {
     setStreaming(false);
     setError(null);
     let firstToken = true;
+    let turnHadPicks = false;
+    let errored = false;
     try {
       for await (const event of streamRecommend(req)) {
         if (event.type === 'token') {
@@ -238,6 +240,7 @@ export default function ChatRecommend() {
         } else if (event.type === 'status') {
           setStatusText(event.text);
         } else if (event.type === 'pick') {
+          turnHadPicks = true;
           // Progressive card — render as soon as the model finishes this pick.
           // The final 'picks' event replaces the list wholesale, so any pick
           // reconciled away later disappears and nothing duplicates.
@@ -253,6 +256,7 @@ export default function ChatRecommend() {
           });
         } else if (event.type === 'picks') {
           if (event.picks.length > 0) {
+            turnHadPicks = true;
             const enriched = event.picks.map(deriveWineCardMeta);
             const isComparison = (event.comparison?.length ?? 0) >= 2 && enriched.length >= 2;
             track('recommendation_shown', { count: enriched.length });
@@ -282,15 +286,25 @@ export default function ChatRecommend() {
         } else if (event.type === 'suggestions') {
           setFollowups(event.suggestions);
         } else if (event.type === 'error') {
+          errored = true;
           setError(event.message);
         }
       }
     } catch (err) {
+      errored = true;
       setError(err.message);
     } finally {
       setLoading(false);
       setStreaming(false);
       setStatusText(null);
+      // No-card closer (ask face): one offer converts an explanation into a
+      // purchase without pretending cards were coming.
+      if (askMode && !turnHadPicks && !errored) {
+        setMessages(prev => [...prev, {
+          id: uuid(), role: 'sommelier', offer: true, noFeedback: true,
+          text: 'Want me to find you a good one here?',
+        }]);
+      }
     }
   }
 
@@ -486,6 +500,16 @@ export default function ChatRecommend() {
     return [paras[0], ...paras.slice(1).filter(p => !p.trimStart().startsWith('**'))].join('\n\n');
   };
 
+  // No-card closer buttons — shared by the mobile and desktop message renders.
+  const offerButtons = (m) => m.offer && (
+    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+      <button onClick={() => { setMessages(prev => prev.filter(x => x.id !== m.id)); handleAskSend('Yes — find me a good one nearby'); }}
+        style={{ cursor: 'pointer', background: 'var(--bordeaux)', color: 'var(--cream)', border: 'none', fontFamily: 'var(--font-sans)', fontSize: 12.5, padding: '8px 14px' }}>Yes, find one</button>
+      <button onClick={() => setMessages(prev => prev.map(x => x.id === m.id ? { ...x, offer: false, dismissed: true } : x))}
+        style={{ cursor: 'pointer', background: 'none', color: 'var(--bordeaux)', border: '1.5px solid var(--bordeaux)', fontFamily: 'var(--font-sans)', fontSize: 12.5, padding: '8px 14px' }}>No thanks</button>
+    </div>
+  );
+
   const messageList = messages.flatMap((m, i) => {
     if (m.role === 'user') return [<UserBubble key={m.id ?? i}>{m.text}</UserBubble>];
     const hasPicks = m.picks?.length;
@@ -501,6 +525,7 @@ export default function ChatRecommend() {
         onVote={m.noFeedback ? undefined : dir => handleMessageVote(m.id, dir)}
       >
         {renderBody(introText, i)}
+        {offerButtons(m)}
         <AvailabilityStrip lines={m.availability} />
       </SommelierBubble>
     );
@@ -619,6 +644,7 @@ export default function ChatRecommend() {
                         )}
                       </p>
                     ))}
+                    {offerButtons(m)}
                     <AvailabilityStrip lines={m.availability} />
                   </SommelierBubble>
                   {m.comparison && m.picks?.length >= 2 && <CompareFrame picks={m.picks.slice(0, 2)} />}
