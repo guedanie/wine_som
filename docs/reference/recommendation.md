@@ -227,3 +227,25 @@ The oracle computes the truth; two rounds of prompt hardening (red-team PASS 50%
 - **Frontend** `ChatRecommend.jsx` attaches the lines to the last `role === 'sommelier'` message exactly as `picks` does, and `AvailabilityStrip` renders them beneath the paragraph in **both** the mobile (`messageList`) and desktop (chat-panel `messages.map`) layouts — `t-eyebrow` only (uppercase, tracked, `--text-muted`), no emoji/colors/box, so it reads as system voice next to the somm's prose. Naturally cleared on a new query (a new sommelier message carries no `availability`).
 - **Honest limitation.** This guarantees the user *sees* the counted truth; it does not stop the prose from contradicting it. Prevention and detection now run together: the strip shows the number, the tripwire alerts on disagreement. The deeper fix is the constraint-satisfaction tier (audit item #4) — in all three false-absence-adjacent probes, 0 picks satisfied the named axis despite in-budget stock existing.
 - **Acceptance** `scripts/verify_availability_oracle.py` replays both red-team failures against live inventory: `mendoza -> ['394 mendoza in budget nearby ($4–$73) · none in this list']`, `brunello -> ['4 Brunello di Montalcino in budget nearby ($27–$365) · none in this list']`. Tests: `tests/test_availability.py`, `tests/test_recommend_api.py`, `frontend/src/screens/__tests__/ChatRecommend.test.jsx`.
+
+## Aisle mode (Ask face) — 2026-08-01
+
+Design handoff: `frontend/design-system/handoffs/aisle-mode/`. Two faces of the
+recommendation window: `/` (plan) and `/recommend` without prefs state (ask).
+
+- **Ask requests** (`frontend/src/lib/askMode.js` `buildAskReq`): wide-budget
+  sentinel `budget_min: 0, budget_max: 10000` (backend `recommendation/budget.py`
+  treats `>= $1000` as "no budget stated" — scorer budget axis silent, prompt
+  budget-silent, availability lines drop "in budget"), plus structured
+  `store_ref` when the store picker set a standing store.
+- **`GET /api/stores/nearby?zip=`** (`api/routers/stores.py`): the store
+  picker's list — id, retailer, branch name, address, distance; closest first.
+- **Picks SSE event** carries `comparison` (the 2+ compared bottle names, else
+  null) and each pick carries `body` + `structure_profile` (axes 0–10) so the
+  frontend `CompareFrame` renders price/body/tannin rows from data. Winner =
+  picks[0] (the model's verdict pick, per the comparison directive).
+- **Frontend states** all live in `ChatRecommend.jsx` ask mode: empty state,
+  lazy zip bubble (`hasStoredZip` gate — the loadZip '78209' default doesn't
+  count), store picker bubble, context pills, no-card closer offer, failure
+  bubbles with `Ask again` / `Finish the answer` retry (last request kept in a
+  ref; partial answers stay).

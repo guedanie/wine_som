@@ -150,8 +150,8 @@ it('renders the comparison frame when the picks event carries comparison', async
   streamRecommend.mockImplementation(async function* () {
     yield { type: 'token', text: 'Caymus, if I am honest.' };
     yield { type: 'picks', comparison: ['Caymus', 'Bonanza'], picks: [
-      { wine_id: 'a', name: 'Caymus Cabernet', price: 89, retailer: 'H-E-B', why: 'Plush.', structure_profile: { body: 5, tannins: 4 } },
-      { wine_id: 'b', name: 'Bonanza Cabernet', price: 21, retailer: 'H-E-B', why: 'Value.', structure_profile: { body: 4, tannins: 3 } },
+      { wine_id: 'a', name: 'Caymus Cabernet', price: 89, retailer: 'H-E-B', why: 'Plush.', structure_profile: { body: 10, tannins: 8 } },
+      { wine_id: 'b', name: 'Bonanza Cabernet', price: 21, retailer: 'H-E-B', why: 'Value.', structure_profile: { body: 9, tannins: 5 } },
     ], session_id: 's' };
   });
   renderAsk();

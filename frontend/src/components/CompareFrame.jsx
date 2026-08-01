@@ -3,8 +3,9 @@
 // DATA half. Sharp 1.5px ink frame — data is sharp, conversation is soft.
 // The verdict lives in the somm's bubble; the winning column is column 0
 // (the model's first pick) washed bordeaux-tint with a MINE flag.
-const bodyLabel = v => (v == null ? null : v <= 2 ? 'Light' : v === 3 ? 'Medium' : 'Full');
-const tanninLabel = v => (v == null ? null : v <= 2 ? 'Soft' : v === 3 ? 'Medium' : 'Firm');
+// Axes are 0-10, the same scale structureToBars (dossier) divides by 10.
+const bodyLabel = v => (v == null ? null : v <= 3 ? 'Light' : v <= 6 ? 'Medium' : 'Full');
+const tanninLabel = v => (v == null ? null : v <= 3 ? 'Soft' : v <= 6 ? 'Medium' : 'Firm');
 
 export default function CompareFrame({ picks }) {
   if (!picks || picks.length < 2) return null;
