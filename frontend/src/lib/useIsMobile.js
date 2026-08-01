@@ -28,6 +28,10 @@ export default function useIsMobile() {
 export function loadZip() {
   try { return localStorage.getItem('somm_zip') || '78209'; } catch { return '78209'; }
 }
+export function hasStoredZip() {
+  try { return localStorage.getItem('somm_zip') != null; } catch { return false; }
+}
+
 export function saveZip(zip) {
   try { localStorage.setItem('somm_zip', zip); } catch { /* private mode */ }
 }

@@ -30,6 +30,16 @@ export async function* streamRecommend(req) {
 }
 
 
+export async function getNearbyStores(zip) {
+  const res = await fetch(`${BASE}/api/stores/nearby?zip=${encodeURIComponent(zip)}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail ?? `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+
 export async function getDeals(zip, limit = 12) {
   const res = await fetch(`${BASE}/api/deals?zip=${encodeURIComponent(zip)}&limit=${limit}`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
