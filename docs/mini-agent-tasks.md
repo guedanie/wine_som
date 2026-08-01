@@ -302,54 +302,71 @@ Fast suite went 521→537 passing. Commits: 9972bec, a0bfe47, 1023477,
 
 ---
 
-## Task: Nashville City Hive scrapers — Frugal MacDoogal + Corkdorks — QUEUED 2026-08-01
+## Task: Nashville City Hive scraper (Frugal MacDoogal + Corkdorks) — QUEUED 2026-08-01
 
-**Why:** Nashville testers have thin inventory (5 stores: 4 Kroger + Harvest).
-Frugal MacDoogal is a warehouse-scale Nashville wine/liquor store on City Hive.
-The Twin Liquors anonymous-bypass was confirmed to work against it 2026-08-01
-(see `data/exploration/nashville_findings.md` → City Hive UPDATE): probe
-returned 30 priced products for one term.
+**Goal:** one new scraper that adds **3 Nashville stores** — Frugal MacDoogal (1)
++ Corkdorks Midtown & Green Hills (2) — deepening thin tester inventory. All three
+run on City Hive and were **confirmed scrapable 2026-08-01** (probe: each returns
+30 priced products/term; a 5-term sweep on one store already gave 149 unique wines).
 
-**Why the mini:** City Hive Cloudflare-1015s datacenter IPs on sustained sweeps
-(same as Twin Liquors + Vivino). A one-off probe from a datacenter IP worked,
-but a 40+ term × store sweep will throttle. Must run from the residential-IP
-mini, like the Twin Liquors launchd job.
+**Why the mini (not GitHub Actions):** City Hive Cloudflare-1015s datacenter IPs on
+sustained sweeps — same wall as Twin Liquors + Vivino. One-off probes from a
+datacenter IP succeed, but a 40-term × 3-store sweep will throttle. Runs from the
+residential-IP mini via launchd, exactly like the Twin Liquors job.
 
-**Build:** clone `scrapers/twin_liquors.py` almost verbatim — same route
-(`api/v1/products/search.json?merchant_id=…&new_style=true&api_key=…&client_origin=…&text=…`),
-same `data.products[]` parse, same 30/term cap → multi-term sweep, same
-`basic_category`→wine_type map, synthetic `cityhive-{product_id}` UPC (boutique
-wines rarely list barcodes). Config (from the storefront HTML, verified):
-- `merchant_id = 6599a3f98893882b7f30798d`
-- `api_key = 7508df878a8c7566a880e4d3f7fa7972` (shared City Hive widget key)
-- `client_origin = app://sites.frugalmab9bcea1a`
-- store address for `stores` row: Frugal MacDoogal, 701 Division St, Nashville TN 37203
-Single store (one merchant_id), so simpler than Twin Liquors' 12-store loop.
+**The bypass (why these "blocked" stores are now reachable):** City Hive's
+per-merchant `/products` route is login-gated (what the 2026-07-05 probe hit and
+gave up on), but the **top-level search route is anonymous** with an `api_key` +
+`client_origin` lifted from the storefront widget config — the exact Twin Liquors
+trick. Corkdorks' storefront website is *dead* (HTTPS refuses), but we scrape the
+**API, not the website**, and its merchant backend is fully live — so a dead
+storefront is NOT a reason to skip; probe the API.
 
-**Landmines:** (1) 1015 throttling — reuse Twin Liquors' backoff + `TwinRateLimited`
-pause/resume. (2) verify the storefront config values haven't rotated before the
-run (grep `window.cityHiveWidgetLoaderConfig` from frugalmacdoogal.com). (3) Corkdorks was
-re-probed 2026-08-01 and IS scrapable (see below) — build it too.
+**Route (identical to `scrapers/twin_liquors.py`):**
+```
+GET https://api.cityhive.net/api/v1/products/search.json
+    ?merchant_id={MID}&new_style=true&api_key={KEY}&client_origin={CO}&text={term}
+Headers: real User-Agent + Origin/Referer of the store site.
+Response: data.products[] — same shape Twin Liquors parses (name, basic_category[],
+size, images, merchants[].product_options[].price). 30-result hard cap per term.
+```
 
-**Acceptance:** stores row created, ≥several hundred wines committed with prices,
-inventory visible in a 37203/37210 recommend request.
+**Build = clone `scrapers/twin_liquors.py`, parameterized over a STORE LIST**
+(don't write three near-identical files). Each store is a tuple of
+`(merchant_id, client_origin, store_meta)`; loop the existing term-sweep over it.
+`api_key` is shared across all three (`7508df878a8c7566a880e4d3f7fa7972` — the same
+City Hive widget key Twin Liquors uses). Reuse the `basic_category`→wine_type map,
+the 30/term multi-term sweep, and the synthetic `cityhive-{product_id}` UPC
+(boutique wines rarely carry barcodes). Verified store config:
 
-### Corkdorks (same platform, add as a second store — also confirmed 2026-08-01)
+| Store (stores.name) | merchant_id | client_origin | address | zip | lat, lng |
+|---|---|---|---|---|---|
+| Frugal MacDoogal | `6599a3f98893882b7f30798d` | `app://sites.frugalmab9bcea1a` | 701 Division St, Nashville TN | 37203 | (grep from storefront) |
+| Corkdorks - Midtown | `5c2a8cae7309395802faf15d` | `app://sites.corkdorks` | 1610 Church St, Nashville TN | 37203 | 36.1570489, -86.7943734 |
+| Corkdorks - Green Hills | `5b52b2903ff14a3c5d9cdd19` | `app://sites.corkdorks` | 4009 Hillsboro Pike, Nashville TN | 37215 | 36.104219, -86.815897 |
 
-The storefront `corkdorks.com` HTTPS is dead, but the City Hive **merchant
-backend is live** — scrape the API, not the website (the 07-05 "blocked" verdict
-and my own first-pass "skip, it's 000" were both wrong; probe the API before
-writing off a City Hive store). Confirmed: 5 terms → 149 unique priced wines.
-- **Corkdorks Midtown**: `merchant_id = 5c2a8cae7309395802faf15d`,
-  store row = "Corkdorks - Midtown", 1610 Church St, Nashville TN 37203,
-  coords 36.1570489 / -86.7943734.
-- Same `api_key = 7508df878a8c7566a880e4d3f7fa7972`, but
-  `client_origin = app://sites.corkdorks` (NOT the frugal one).
-- **Two branches** (enumerated 2026-08-01 via the parent merchant
-  `5c54fed1cfac4e1bcadf2525`'s `aggregated_merchant_ids`; both confirmed serving
-  priced wine):
-  - **Midtown**: `5c2a8cae7309395802faf15d`, 1610 Church St, Nashville TN 37203, coords 36.1570489/-86.7943734
-  - **Green Hills**: `5b52b2903ff14a3c5d9cdd19`, 4009 Hillsboro Pike, Nashville TN 37215 (affluent, zero coverage today)
-- Cleanest build: parameterize the Frugal scraper over a small list of
-  `(merchant_id, client_origin, store_meta)` tuples — Frugal + each Corkdorks
-  store — rather than three near-identical files.
+(Frugal's coords weren't captured — grep them from `window.cityHiveWidgetLoaderConfig`
+on frugalmacdoogal.com, or from the merchant record's `address.address_properties`,
+when building the stores row.)
+
+**Landmines:**
+1. **1015 throttling** — reuse Twin Liquors' backoff + `TwinRateLimited` pause/resume;
+   sleep between terms/stores. This is the whole reason it's on the mini.
+2. **Config rotation** — before a run, re-grep `window.cityHiveWidgetLoaderConfig`
+   from each storefront and confirm the `api_key`/`client_origin` haven't rotated.
+   Corkdorks' storefront is dead, so pull its config from the **merchant record**
+   (`GET /api/v1/merchants/{mid}.json?api_key=…&client_origin=…`) instead — the field
+   values above already came from there and from the parent merchant's
+   `aggregated_merchant_ids` (parent `5c54fed1cfac4e1bcadf2525`, "Corkdorks (Multi)").
+3. **Non-wine leakage** — City Hive `basic_category` includes spirits/beer; filter to
+   wine categories only, as Twin Liquors does (Frugal + Corkdorks both sell liquor).
+4. **`client_origin` differs per site** — Frugal and Corkdorks are NOT the same; don't
+   reuse one origin for the other (Corkdorks' two branches DO share one origin).
+
+**Deploy:** launchd job + wrapper mirroring `scripts/run_twin_liquors_launchd.sh` +
+`scripts/com.somm.twin-liquors.plist` (edit hardcoded paths to `~/dev/wine_app`);
+schedule alongside the Sunday Twin Liquors run.
+
+**Acceptance:** 3 stores rows created; each commits ≥several hundred priced wines;
+inventory visible in a 37203 (Corkdorks/Frugal) and 37215 (Green Hills) recommend
+request. Update `docs/reference/scrapers.md` + the CLAUDE.md scraper count on landing.
