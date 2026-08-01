@@ -8,6 +8,7 @@ import Stamp from '../components/Stamp.jsx';
 import WineCard from '../components/WineCard.jsx';
 import WineGlassLoader from '../components/WineGlassLoader.jsx';
 import WineCardSkeleton from '../components/WineCardSkeleton.jsx';
+import CompareFrame from '../components/CompareFrame.jsx';
 import { streamRecommend, postFeedback, getNearbyStores } from '../lib/api.js';
 import { buildAskReq, ASK_INTENT_PILLS } from '../lib/askMode.js';
 import { loadZip, saveZip, hasStoredZip } from '../lib/useIsMobile.js';
@@ -253,12 +254,13 @@ export default function ChatRecommend() {
         } else if (event.type === 'picks') {
           if (event.picks.length > 0) {
             const enriched = event.picks.map(deriveWineCardMeta);
+            const isComparison = (event.comparison?.length ?? 0) >= 2 && enriched.length >= 2;
             track('recommendation_shown', { count: enriched.length });
             setPicks(enriched);                       // desktop side panel
             setMessages(prev => {                     // mobile inline: attach to last sommelier msg
               const msgs = [...prev];
               for (let k = msgs.length - 1; k >= 0; k--) {
-                if (msgs[k].role === 'sommelier') { msgs[k] = { ...msgs[k], picks: enriched }; break; }
+                if (msgs[k].role === 'sommelier') { msgs[k] = { ...msgs[k], picks: enriched, comparison: isComparison }; break; }
               }
               return msgs;
             });
@@ -503,6 +505,9 @@ export default function ChatRecommend() {
       </SommelierBubble>
     );
     if (!hasPicks) return [intro];
+    const compare = m.comparison && m.picks.length >= 2
+      ? [<CompareFrame key={(m.id ?? i) + '-cmp'} picks={m.picks.slice(0, 2)} />]
+      : [];
     const pickMsgs = m.picks.map(pick => (
       <PickMessage
         key={(m.id ?? i) + '-' + pick.wine_id}
@@ -512,7 +517,7 @@ export default function ChatRecommend() {
         onClick={() => navToWine(pick)}
       />
     ));
-    return [intro, ...pickMsgs];
+    return [intro, ...compare, ...pickMsgs];
   });
 
   if (isMobile) {
@@ -600,22 +605,24 @@ export default function ChatRecommend() {
           {messages.map((m, i) =>
             m.role === 'user'
               ? <UserBubble key={m.id ?? i}>{m.text}</UserBubble>
-              : <SommelierBubble
-                  key={m.id ?? i}
-                  vote={messageVotes[m.id] ?? null}
-                  onVote={m.noFeedback ? undefined : dir => handleMessageVote(m.id, dir)}
-                >
-                  {m.text.split('\n\n').map((para, j) => (
-                    <p key={j} style={{ margin: j > 0 ? '10px 0 0' : 0 }}>
-                      {para.split(/\*\*([^*]+)\*\*/g).map((part, k) =>
-                        k % 2 === 1
-                          ? <strong key={k} style={{ color: 'var(--bordeaux)' }}>{part}</strong>
-                          : part
-                      )}
-                    </p>
-                  ))}
-                  <AvailabilityStrip lines={m.availability} />
-                </SommelierBubble>
+              : <div key={m.id ?? i}>
+                  <SommelierBubble
+                    vote={messageVotes[m.id] ?? null}
+                    onVote={m.noFeedback ? undefined : dir => handleMessageVote(m.id, dir)}
+                  >
+                    {m.text.split('\n\n').map((para, j) => (
+                      <p key={j} style={{ margin: j > 0 ? '10px 0 0' : 0 }}>
+                        {para.split(/\*\*([^*]+)\*\*/g).map((part, k) =>
+                          k % 2 === 1
+                            ? <strong key={k} style={{ color: 'var(--bordeaux)' }}>{part}</strong>
+                            : part
+                        )}
+                      </p>
+                    ))}
+                    <AvailabilityStrip lines={m.availability} />
+                  </SommelierBubble>
+                  {m.comparison && m.picks?.length >= 2 && <CompareFrame picks={m.picks.slice(0, 2)} />}
+                </div>
           )}
           {zipRequestBubble}
           {storePickerBubble}

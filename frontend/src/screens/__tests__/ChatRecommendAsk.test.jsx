@@ -142,3 +142,22 @@ describe('store picker', () => {
     expect(screen.queryByText(/H-E-B Lincoln Heights · change/)).toBeNull();
   });
 });
+
+it('renders the comparison frame when the picks event carries comparison', async () => {
+  window.matchMedia = vi.fn().mockImplementation(q => ({
+    matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},
+  }));
+  streamRecommend.mockImplementation(async function* () {
+    yield { type: 'token', text: 'Caymus, if I am honest.' };
+    yield { type: 'picks', comparison: ['Caymus', 'Bonanza'], picks: [
+      { wine_id: 'a', name: 'Caymus Cabernet', price: 89, retailer: 'H-E-B', why: 'Plush.', structure_profile: { body: 5, tannins: 4 } },
+      { wine_id: 'b', name: 'Bonanza Cabernet', price: 21, retailer: 'H-E-B', why: 'Value.', structure_profile: { body: 4, tannins: 3 } },
+    ], session_id: 's' };
+  });
+  renderAsk();
+  await userEvent.type(screen.getAllByRole('textbox')[0], 'caymus or bonanza?{Enter}');
+  await screen.findByText('MINE');
+  // price renders in the frame's PRICE row AND the pick message below it
+  expect(screen.getAllByText('$89')).toHaveLength(2);
+  window.matchMedia = undefined;
+});
