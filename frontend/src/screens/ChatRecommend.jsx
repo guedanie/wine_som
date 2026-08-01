@@ -188,6 +188,7 @@ export default function ChatRecommend() {
   // (getSession is async) so a signed-in user's taste context is attached to the
   // FIRST recommendation instead of racing to null.
   const firedRef = useRef(false);
+  const lastReqRef = useRef(null);
   useEffect(() => {
     if (!prefs || _restored || !ready || firedRef.current) return;
     firedRef.current = true;
@@ -221,9 +222,12 @@ export default function ChatRecommend() {
     let firstToken = true;
     let turnHadPicks = false;
     let errored = false;
+    let sawToken = false;
+    lastReqRef.current = req;
     try {
       for await (const event of streamRecommend(req)) {
         if (event.type === 'token') {
+          sawToken = true;
           if (firstToken) {
             firstToken = false;
             setStatusText(null);
@@ -292,7 +296,17 @@ export default function ChatRecommend() {
       }
     } catch (err) {
       errored = true;
-      setError(err.message);
+      if (askMode) {
+        // In-store failure: apologise in character, keep everything that
+        // arrived, preserve the question for a one-tap retry.
+        setMessages(prev => [...prev, {
+          id: uuid(), role: 'sommelier', noFeedback: true,
+          retry: sawToken ? 'finish' : 'again',
+          text: "Lost you for a second — the signal in here is doing me no favors. Your question's saved; tap when you've got a bar or two.",
+        }]);
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
       setStreaming(false);
@@ -510,6 +524,15 @@ export default function ChatRecommend() {
     </div>
   );
 
+  const retryButton = (m) => m.retry && (
+    <div style={{ marginTop: 10 }}>
+      <button onClick={() => { setMessages(prev => prev.filter(x => x.id !== m.id)); if (lastReqRef.current) callRecommend(lastReqRef.current); }}
+        style={{ cursor: 'pointer', background: 'var(--bordeaux)', color: 'var(--cream)', border: 'none', fontFamily: 'var(--font-sans)', fontSize: 12.5, padding: '8px 14px' }}>
+        {m.retry === 'finish' ? 'Finish the answer' : 'Ask again'}
+      </button>
+    </div>
+  );
+
   const messageList = messages.flatMap((m, i) => {
     if (m.role === 'user') return [<UserBubble key={m.id ?? i}>{m.text}</UserBubble>];
     const hasPicks = m.picks?.length;
@@ -526,6 +549,7 @@ export default function ChatRecommend() {
       >
         {renderBody(introText, i)}
         {offerButtons(m)}
+        {retryButton(m)}
         <AvailabilityStrip lines={m.availability} />
       </SommelierBubble>
     );
@@ -645,6 +669,7 @@ export default function ChatRecommend() {
                       </p>
                     ))}
                     {offerButtons(m)}
+                    {retryButton(m)}
                     <AvailabilityStrip lines={m.availability} />
                   </SommelierBubble>
                   {m.comparison && m.picks?.length >= 2 && <CompareFrame picks={m.picks.slice(0, 2)} />}

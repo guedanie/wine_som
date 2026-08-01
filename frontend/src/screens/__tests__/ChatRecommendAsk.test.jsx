@@ -187,3 +187,30 @@ describe('no-card closer', () => {
     expect(screen.queryByText('Want me to find you a good one here?')).toBeNull();
   });
 });
+
+describe('failure states', () => {
+  it('dropped request: somm apology + Ask again resends the same request', async () => {
+    streamRecommend
+      .mockImplementationOnce(async function* () { throw new Error('network'); })
+      .mockImplementationOnce(async function* () { yield { type: 'token', text: 'Back with you.' }; });
+    renderAsk();
+    await userEvent.type(screen.getAllByRole('textbox')[0], 'a good red{Enter}');
+    expect(await screen.findByText(/Lost you for a second/)).toBeInTheDocument();
+    expect(screen.getByText('a good red')).toBeInTheDocument();      // question preserved
+    await userEvent.click(screen.getByText('Ask again'));
+    await screen.findByText('Back with you.');
+    expect(streamRecommend.mock.calls[1][0].message).toBe('a good red');
+  });
+
+  it('half-arrived answer keeps what arrived and offers Finish the answer', async () => {
+    streamRecommend.mockImplementationOnce(async function* () {
+      yield { type: 'token', text: 'The Caymus is plush and' };
+      throw new Error('network');
+    });
+    renderAsk();
+    await userEvent.type(screen.getAllByRole('textbox')[0], 'caymus?{Enter}');
+    expect(await screen.findByText(/Lost you for a second/)).toBeInTheDocument();
+    expect(screen.getByText(/The Caymus is plush and/)).toBeInTheDocument();  // partial stays
+    expect(screen.getByText('Finish the answer')).toBeInTheDocument();
+  });
+});
