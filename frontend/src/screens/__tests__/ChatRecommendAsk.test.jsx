@@ -108,3 +108,37 @@ describe('lazy zip', () => {
     expect(localStorage.getItem('somm_zip')).toBe('78230');
   });
 });
+
+describe('store picker', () => {
+  it('opens from openStorePicker state, lists stores, selection scopes requests', async () => {
+    const { getNearbyStores } = await import('../../lib/api.js');
+    getNearbyStores.mockResolvedValue({ zip: '78209', stores: [
+      { id: 's1', retailer_name: 'H-E-B', name: 'H-E-B Lincoln Heights', address: 'x', distance_miles: 0.8 },
+      { id: 's2', retailer_name: "Spec's", name: "Spec's Broadway", address: 'y', distance_miles: 2.1 },
+    ] });
+    streamRecommend.mockImplementation(async function* () { yield { type: 'token', text: 'ok' }; });
+    renderAsk({ mode: 'ask', openStorePicker: true });
+    expect(await screen.findByText(/Which one are you standing in/)).toBeInTheDocument();
+    await screen.findByText('H-E-B Lincoln Heights');
+    expect(screen.getByText('closest')).toBeInTheDocument();
+    await userEvent.click(screen.getByText('H-E-B Lincoln Heights'));
+    // picker closes, pill shows
+    expect(screen.queryByText(/Which one are you standing in/)).toBeNull();
+    expect(screen.getByText(/H-E-B Lincoln Heights · change/)).toBeInTheDocument();
+    // requests now carry store_ref
+    await userEvent.type(screen.getAllByRole('textbox')[0], 'a bold red{Enter}');
+    await waitFor(() => expect(streamRecommend).toHaveBeenCalled());
+    expect(streamRecommend.mock.calls[0][0]).toMatchObject({ store_ref: 's1' });
+  });
+
+  it('the escape hatch clears the store', async () => {
+    const { getNearbyStores } = await import('../../lib/api.js');
+    getNearbyStores.mockResolvedValue({ zip: '78209', stores: [
+      { id: 's1', retailer_name: 'H-E-B', name: 'H-E-B Lincoln Heights', address: 'x', distance_miles: 0.8 },
+    ] });
+    renderAsk({ mode: 'ask', openStorePicker: true });
+    await screen.findByText('H-E-B Lincoln Heights');
+    await userEvent.click(screen.getByText(/Somewhere else — just use my zip/));
+    expect(screen.queryByText(/H-E-B Lincoln Heights · change/)).toBeNull();
+  });
+});

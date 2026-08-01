@@ -8,7 +8,7 @@ import Stamp from '../components/Stamp.jsx';
 import WineCard from '../components/WineCard.jsx';
 import WineGlassLoader from '../components/WineGlassLoader.jsx';
 import WineCardSkeleton from '../components/WineCardSkeleton.jsx';
-import { streamRecommend, postFeedback } from '../lib/api.js';
+import { streamRecommend, postFeedback, getNearbyStores } from '../lib/api.js';
 import { buildAskReq, ASK_INTENT_PILLS } from '../lib/askMode.js';
 import { loadZip, saveZip, hasStoredZip } from '../lib/useIsMobile.js';
 import { naturalChatMode } from '../lib/flags.js';
@@ -167,6 +167,8 @@ export default function ChatRecommend() {
   const [zipConfirmed, setZipConfirmed] = useState(() => Boolean(_restored) || hasStoredZip());
   const [pendingAskText, setPendingAskText] = useState(null);
   const [zipDraft, setZipDraft]     = useState('');
+  const [pickerOpen, setPickerOpen] = useState(() => Boolean(state?.openStorePicker));
+  const [nearbyStores, setNearbyStores] = useState(null);
   const [storeRef, setStoreRef]     = useState(() => _restored?.storeRef ?? null);
   const [storeLabel, setStoreLabel] = useState(() => _restored?.storeLabel ?? null);
   const [sessionId]    = useState(() => _restored?.sessionId    ?? uuid());
@@ -199,6 +201,15 @@ export default function ChatRecommend() {
     tasteFor().then(taste => callRecommend({ ...apiReq, taste }));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);
+
+  // Store picker data — fetched when the picker opens (strip entry or pill tap).
+  useEffect(() => {
+    if (!pickerOpen || nearbyStores != null || !askMode) return;
+    getNearbyStores(askZip)
+      .then(r => setNearbyStores(r.stores || []))
+      .catch(() => setNearbyStores([]));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickerOpen]);
 
   if (!prefs && !askMode) return <Navigate to="/" replace />;
 
@@ -365,6 +376,51 @@ export default function ChatRecommend() {
     </SommelierBubble>
   );
 
+  // In-thread store picker — "I'm here, now." Store is a soft filter.
+  const storePickerBubble = pickerOpen && askMode && (
+    <SommelierBubble>
+      <div>Which one are you standing in? I'll keep my answers to what's on their shelves.</div>
+      <div style={{ marginTop: 10, border: '1.5px solid var(--ink)', background: 'var(--cream-raised)' }}>
+        {(nearbyStores ?? []).map((s, i) => (
+          <button key={s.id} onClick={() => { setStoreRef(s.id); setStoreLabel(s.name); setPickerOpen(false); }}
+            style={{ display: 'flex', width: '100%', alignItems: 'baseline', gap: 8, textAlign: 'left',
+              cursor: 'pointer', background: 'none', border: 'none',
+              borderTop: i ? '0.75px solid var(--border)' : 'none', padding: '11px 13px' }}>
+            <span style={{ flex: 1, fontFamily: 'var(--font-sans)', fontSize: 13.5, color: 'var(--ink)', fontWeight: 500 }}>
+              {s.name}
+              {i === 0 && <span style={{ marginLeft: 8, fontFamily: 'var(--font-sans)', fontSize: 10, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--bordeaux)', fontWeight: 600 }}>closest</span>}
+            </span>
+            {s.distance_miles != null && (
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--faded)', whiteSpace: 'nowrap' }}>{s.distance_miles} mi</span>
+            )}
+          </button>
+        ))}
+        {nearbyStores == null && (
+          <div style={{ padding: '11px 13px', fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--faded)' }}>Finding stores near you…</div>
+        )}
+      </div>
+      <button onClick={() => { setStoreRef(null); setStoreLabel(null); setPickerOpen(false); }}
+        style={{ marginTop: 8, cursor: 'pointer', background: 'none', border: '1.5px solid var(--bordeaux)', color: 'var(--bordeaux)', fontFamily: 'var(--font-sans)', fontSize: 12.5, padding: '8px 13px' }}>
+        Somewhere else — just use my zip
+      </button>
+      <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--faded)', marginTop: 8 }}>
+        Store is a soft filter, not a cage — I'll still name a better bottle down the road if there is one.
+      </div>
+    </SommelierBubble>
+  );
+
+  // The standing location as editable pills, always visible above the composer.
+  const contextPills = askMode && (
+    <div style={{ display: 'flex', gap: 6, padding: '0 14px 8px', flexWrap: 'wrap' }}>
+      <span style={{ borderRadius: 999, border: '0.75px solid var(--border-strong)', color: 'var(--ink-2)', fontFamily: 'var(--font-sans)', fontSize: 10.5, padding: '3px 10px' }}>◎ {askZip}</span>
+      {storeLabel && (
+        <button onClick={() => setPickerOpen(true)} style={{ cursor: 'pointer', borderRadius: 999, border: '0.75px solid var(--sage)', color: 'var(--sage)', background: 'none', fontFamily: 'var(--font-sans)', fontSize: 10.5, padding: '3px 10px' }}>
+          ◎ {storeLabel} · change
+        </button>
+      )}
+    </div>
+  );
+
   // Ask empty state — the single invitation (deliberately generic: this door
   // knows no store).
   const askEmptyState = askMode && messages.length === 0 && !loading && (
@@ -467,6 +523,7 @@ export default function ChatRecommend() {
           {askEmptyState}
           {messageList}
           {zipRequestBubble}
+          {storePickerBubble}
           {awaitingPicks && !loading && (
             <div style={{ display: 'flex', gap: 11, alignItems: 'center', marginBottom: 14, paddingLeft: 43 }}>
               <span className="t-eyebrow" style={{ animation: 'skeleton-pulse 1.4s ease-in-out infinite' }}>Pouring your picks…</span>
@@ -497,6 +554,7 @@ export default function ChatRecommend() {
 
         {/* Composer */}
         <div style={{ borderTop: '1px solid var(--border)', padding: '10px 14px 12px', background: 'var(--cream)', flexShrink: 0, zIndex: 1, position: 'relative' }}>
+          {contextPills}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
             {followups.map(f => (
               <button key={f} onClick={() => setInput(f)} disabled={loading || streaming}
@@ -560,6 +618,7 @@ export default function ChatRecommend() {
                 </SommelierBubble>
           )}
           {zipRequestBubble}
+          {storePickerBubble}
           {loading && (
             <div style={{ display: 'flex', gap: 11, alignItems: 'flex-start', marginBottom: 14 }}>
               <Stamp size={32} reversed />
@@ -585,6 +644,7 @@ export default function ChatRecommend() {
 
         {/* Follow-up composer */}
         <div style={{ borderTop: '1px solid var(--border)', padding: '14px 24px 18px' }}>
+          {contextPills}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
             {followups.map(f => (
               <button key={f} onClick={() => handleFollowup(f)} disabled={loading || streaming}
