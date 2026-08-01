@@ -66,11 +66,12 @@ route the original probe hit). Values lifted from the storefront HTML
   `Corkdorks Wine Spirits Beer - Midtown`, **1610 Church St, Nashville TN 37203**,
   coords `36.1570489, -86.7943734`, merchant_id `5c2a8cae7309395802faf15d`,
   `api_key=7508df878a8c7566a880e4d3f7fa7972`, `client_origin=app://sites.corkdorks`.
-  **Multi-location chain** — the merchant carries `chain: {id:
-  5c54fed1cfac4e1bcadf2525, name: "Corkdorks (Multi)"}`, so there is at least a
-  second store (historically Green Hills). The chain-enumeration routes 400 with
-  the anonymous key; the mini build should discover the sibling merchant_id(s)
-  from an archived storefront or a cached widget config. Lesson: a dead
+  **Two-store chain** — the parent merchant `5c54fed1cfac4e1bcadf2525`
+  ("Corkdorks (Multi)") lists both branches in `aggregated_merchant_ids`
+  (enumerate the PARENT, not the branch, with the same anonymous key):
+  **Midtown** `5c2a8cae7309395802faf15d` (1610 Church St, 37203) + **Green Hills**
+  `5b52b2903ff14a3c5d9cdd19` (4009 Hillsboro Pike, 37215) — both confirmed live.
+  So Frugal (1) + Corkdorks (2) = 3 new Nashville stores. Lesson: a dead
   storefront ≠ a dead City Hive backend — probe the API before writing a store
   off.
 

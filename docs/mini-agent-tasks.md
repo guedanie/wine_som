@@ -345,9 +345,11 @@ writing off a City Hive store). Confirmed: 5 terms → 149 unique priced wines.
   coords 36.1570489 / -86.7943734.
 - Same `api_key = 7508df878a8c7566a880e4d3f7fa7972`, but
   `client_origin = app://sites.corkdorks` (NOT the frugal one).
-- **Multi-location chain** (`chain 5c54fed1cfac4e1bcadf2525, "Corkdorks (Multi)"`)
-  → find the sibling merchant_id(s) (historically a Green Hills store) from an
-  archived storefront widget config; the anonymous key 400s on chain enumeration.
+- **Two branches** (enumerated 2026-08-01 via the parent merchant
+  `5c54fed1cfac4e1bcadf2525`'s `aggregated_merchant_ids`; both confirmed serving
+  priced wine):
+  - **Midtown**: `5c2a8cae7309395802faf15d`, 1610 Church St, Nashville TN 37203, coords 36.1570489/-86.7943734
+  - **Green Hills**: `5b52b2903ff14a3c5d9cdd19`, 4009 Hillsboro Pike, Nashville TN 37215 (affluent, zero coverage today)
 - Cleanest build: parameterize the Frugal scraper over a small list of
   `(merchant_id, client_origin, store_meta)` tuples — Frugal + each Corkdorks
   store — rather than three near-identical files.
