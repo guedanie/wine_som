@@ -7,7 +7,8 @@ import Tag from '../components/Tag.jsx';
 import StructureBars from '../components/StructureBars.jsx';
 import SommOverlay from '../components/SommOverlay.jsx';
 import { REGION_POSTERS, REGION_META, REGION_DETAILS, regionSlug } from '../lib/regions.js';
-import useIsMobile, { loadZip } from '../lib/useIsMobile.js';
+import useIsMobile from '../lib/useIsMobile.js';
+import { useUserZip } from '../lib/useUserZip.js';
 import { getWine } from '../lib/api.js';
 import DossierSaveButton from '../components/DossierSaveButton.jsx';
 import DossierCellarButton from '../components/DossierCellarButton.jsx';
@@ -151,14 +152,7 @@ export default function RegionDossier() {
   const isMobile   = useIsMobile();
   const pick      = state?.pick ?? {};
   const chatState = state?.pick?.chatState ?? state?.chatState ?? null;
-  // Most specific first, then the SHARED persistence as the final net. Without the
-  // loadZip() fallback the dossier silently drops `?zip=`, the API skips its proximity
-  // filter, and "AVAILABLE NEAR YOU" lists the whole country (measured: 17 stores vs 1,
-  // including a Spec's 252 mi away in Dallas). ASK mode exposed it — its zip lives in
-  // `askZip` (lazy, asked in-conversation), not `prefs.zip`, so the old chain resolved
-  // to null there while the header pill still showed a zip read from loadZip().
-  const zip       = state?.zip ?? chatState?.askZip ?? chatState?.prefs?.zip
-                    ?? pick?.chatState?.prefs?.zip ?? loadZip();
+  const zip       = useUserZip();
 
   const [detail, setDetail] = useState(null);
 

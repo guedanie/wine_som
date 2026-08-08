@@ -4,6 +4,7 @@ import Eyebrow from '../components/Eyebrow.jsx';
 import Poster from '../components/Poster.jsx';
 import DealCard from '../components/DealCard.jsx';
 import { DISCOVERY_REGIONS, regionSlug } from '../lib/regions.js';
+import { useUserZip } from '../lib/useUserZip.js';
 import { getDeals } from '../lib/api.js';
 import { track } from '../lib/analytics.js';
 import useIsMobile, { loadZip } from '../lib/useIsMobile.js';
@@ -12,9 +13,10 @@ import useIsMobile, { loadZip } from '../lib/useIsMobile.js';
 // must seek. Renders nothing when the week has no cut (absence is the design).
 function DealsRail({ compact }) {
   const navigate = useNavigate();
+  const zip = useUserZip();
   const [data, setData] = useState(null);
   useEffect(() => {
-    getDeals(loadZip(), 10).then(setData).catch(() => {});
+    getDeals(zip, 10).then(setData).catch(() => {});
   }, []);
   if (!data || data.deals.length === 0) return null;
   const open = deal => {

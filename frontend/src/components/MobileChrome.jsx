@@ -1,7 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import Stamp from './Stamp.jsx';
 import { SLUG_TO_REGION } from '../lib/regions.js';
-import { loadZip } from '../lib/useIsMobile.js';
+import { useUserZip } from '../lib/useUserZip.js';
 
 // The two faces of the recommendation window (design handoff: aisle-mode).
 // Underlined labels sharing the header's ink rule — tabs, not a toggle.
@@ -30,7 +30,7 @@ function ModeTabs({ active, navigate }) {
 export function TopBar() {
   const { pathname, state } = useLocation();
   const navigate = useNavigate();
-  const zip = state?.zip ?? state?.prefs?.zip ?? loadZip();
+  const zip = useUserZip();
 
   const askMode = pathname === '/recommend' && state?.mode === 'ask';
   const showTabs = pathname === '/' || askMode;

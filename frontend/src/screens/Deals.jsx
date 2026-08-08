@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Eyebrow from '../components/Eyebrow.jsx';
 import WineCard from '../components/WineCard.jsx';
 import { getDeals } from '../lib/api.js';
+import { useUserZip } from '../lib/useUserZip.js';
 import { deriveWineCardMeta } from '../lib/regions.js';
 import { loadZip } from '../lib/useIsMobile.js';
 import { track } from '../lib/analytics.js';
@@ -23,7 +24,7 @@ export default function Deals() {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
-  const zip = loadZip();
+  const zip = useUserZip();
 
   useEffect(() => {
     getDeals(zip, 40).then(setData).catch(() => setError(true));

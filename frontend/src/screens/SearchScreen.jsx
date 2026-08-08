@@ -5,7 +5,8 @@ import {
 } from '../lib/regions.js';
 import { searchWines } from '../lib/api.js';
 import { track } from '../lib/analytics.js';
-import useIsMobile, { loadZip, saveZip } from '../lib/useIsMobile.js';
+import useIsMobile, { saveZip } from '../lib/useIsMobile.js';
+import { useUserZip } from '../lib/useUserZip.js';
 
 const STRIPE_BG = 'repeating-linear-gradient(135deg, var(--paper), var(--paper) 11px, #E6DAC2 11px, #E6DAC2 22px)';
 
@@ -72,7 +73,8 @@ export default function SearchScreen() {
   const { state } = useLocation();
   const [params, setParams] = useSearchParams();
 
-  const [zip, setZip] = useState(state?.zip ?? loadZip());
+  const initialZip = useUserZip();
+  const [zip, setZip] = useState(initialZip);
   const changeZip = (v) => {
     const digits = v.replace(/\D/g, '').slice(0, 5);
     setZip(digits);

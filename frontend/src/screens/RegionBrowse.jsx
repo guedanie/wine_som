@@ -6,7 +6,8 @@ import WineCard from '../components/WineCard.jsx';
 import Btn from '../components/Btn.jsx';
 import { getRegionWines } from '../lib/api.js';
 import { DISCOVERY_REGIONS, deriveWineCardMeta, buildApiReq } from '../lib/regions.js';
-import useIsMobile, { loadZip } from '../lib/useIsMobile.js';
+import useIsMobile from '../lib/useIsMobile.js';
+import { useUserZip } from '../lib/useUserZip.js';
 
 const PRICE_BANDS = [
   { label: 'Under $20',  min: 0,   max: 20 },
@@ -42,11 +43,10 @@ export default function RegionBrowse() {
   const regionName = decodeURIComponent(slug);
   const regionMeta = DISCOVERY_REGIONS.find(r => r.name === regionName) ?? { coord: null };
 
-  // loadZip(), never a hardcoded zip: this screen filters real inventory, so a literal
-  // '78209' silently shows a Nashville/Charlotte user San Antonio stock — wrong but
-  // plausible, which is harder to notice than an obviously over-broad list.
-  const [zip,       setZip]       = useState(state?.zip ?? loadZip());
-  const [zipInput,  setZipInput]  = useState(state?.zip ?? loadZip());
+  // The hook owns resolution; this screen only owns the user's edits to it.
+  const initialZip = useUserZip();
+  const [zip,       setZip]       = useState(initialZip);
+  const [zipInput,  setZipInput]  = useState(initialZip);
   const [retailers, setRetailers] = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState(null);

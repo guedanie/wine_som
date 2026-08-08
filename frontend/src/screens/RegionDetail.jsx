@@ -5,6 +5,7 @@ import {
   REGION_META, REGION_POSTERS, REGION_DETAILS, SLUG_TO_REGION,
 } from '../lib/regions.js';
 import { getSubregionCounts } from '../lib/api.js';
+import { useUserZip } from '../lib/useUserZip.js';
 import { track } from '../lib/analytics.js';
 import useIsMobile, { loadZip } from '../lib/useIsMobile.js';
 
@@ -58,11 +59,12 @@ export default function RegionDetail() {
   const detail = REGION_DETAILS[region];
   const poster = REGION_POSTERS[region];
 
+  const zip = useUserZip();
   const [counts, setCounts] = useState(null);
 
   useEffect(() => {
     if (!region) return;
-    getSubregionCounts(region, loadZip()).then(d => setCounts(d.counts)).catch(() => {});
+    getSubregionCounts(region, zip).then(d => setCounts(d.counts)).catch(() => {});
   }, [region]);
 
   if (!region || !detail) {
