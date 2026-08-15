@@ -63,3 +63,42 @@ def format_producer_block(facts: List[Dict[str, Any]]) -> str:
         lines.append(f"- {f.get('token')}: {regions}{ctry}")
     return ("\n\n[VERIFIED PRODUCER — drawn from our own catalog, not recalled. Use these "
             "regions when you describe the producer.]\n" + "\n".join(lines))
+
+
+def producer_tokens(message: str, wine_name: Optional[str] = None) -> List[str]:
+    """Candidate producer tokens: the parser's wine_name when present, plus the
+    message's distinctive tokens. The parser is unreliable here — it returned None for
+    "close to epoch in style", the case that produced the hallucination — so the token
+    scan is the deterministic floor."""
+    from recommendation.candidate_filters import significant_name_tokens
+    toks = []
+    for t in significant_name_tokens(wine_name) + significant_name_tokens(message):
+        if len(t) >= 4 and t not in toks:      # 3-char tokens are too noisy
+            toks.append(t)
+    return toks[:6]
+
+
+def fetch_producer_facts(supabase, message: str,
+                         wine_name: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Catalog-WIDE producer lookup: no nearby-store scoping and no price filter.
+
+    Both are load-bearing. Epoch is stocked only in Dallas at $55-$103 while the user
+    was in San Antonio — a nearby-scoped or budget-clamped lookup returns nothing in
+    exactly the situation where the model falls back on recall.
+
+    Fails open to [] (logged) — never breaks a recommendation."""
+    facts: List[Dict[str, Any]] = []
+    try:
+        for tok in producer_tokens(message, wine_name):
+            if len(facts) >= _MAX_PRODUCERS:
+                break
+            rows = (supabase.table("wines").select("name,region,country")
+                    .ilike("name", f"%{tok}%")
+                    .limit(_PRODUCER_MAX_ROWS + 1).execute().data or [])
+            f = summarize_producer(tok, rows)
+            if f:
+                facts.append(f)
+    except Exception:
+        logger.exception("PRODUCER | fact lookup failed — no producer facts this turn")
+        return []
+    return facts
