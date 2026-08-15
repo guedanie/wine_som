@@ -65,6 +65,22 @@ def format_producer_block(facts: List[Dict[str, Any]]) -> str:
             "regions when you describe the producer.]\n" + "\n".join(lines))
 
 
+# significant_name_tokens() only strips wine-name-generic words (varietals, "reserve",
+# "vineyard"...) — it was built for parsing wine names, not free chat text, so ordinary
+# English words sail through untouched. Two concrete false positives from the smoke test
+# drove this list: "close" (from "close to") substring-matched the real producer
+# "Closerie" (Bordeaux/Champagne, 4 rows, passed the concentration bound), and "bold"
+# concentrated on marketing-copy wines ("Big Bold Red", "Bold & Jammy") and was emitted
+# as a bogus producer for a totally generic message. Both also ate slots in the 6-token
+# cap, pushing the real producer name ("epoch") off the end. Kept short and local to
+# this file — not a shared module — because it's a narrow patch for chat free-text.
+_CHAT_STOPWORDS = {
+    "looking", "something", "from", "please", "close", "bold", "with", "that", "this",
+    "have", "want", "like", "just", "really", "would", "could", "about", "worth",
+    "structured", "style",
+}
+
+
 def producer_tokens(message: str, wine_name: Optional[str] = None) -> List[str]:
     """Candidate producer tokens: the parser's wine_name when present, plus the
     message's distinctive tokens. The parser is unreliable here — it returned None for
@@ -73,7 +89,7 @@ def producer_tokens(message: str, wine_name: Optional[str] = None) -> List[str]:
     from recommendation.candidate_filters import significant_name_tokens
     toks = []
     for t in significant_name_tokens(wine_name) + significant_name_tokens(message):
-        if len(t) >= 4 and t not in toks:      # 3-char tokens are too noisy
+        if len(t) >= 4 and t not in toks and t not in _CHAT_STOPWORDS:      # 3-char tokens are too noisy
             toks.append(t)
     return toks[:6]
 

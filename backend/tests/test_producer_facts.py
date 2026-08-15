@@ -3,7 +3,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
 from recommendation.producer_facts import (summarize_producer, format_producer_block,
-                                           _PRODUCER_MAX_ROWS)
+                                           producer_tokens, _PRODUCER_MAX_ROWS)
 
 
 def _PF_rows(*pairs):
@@ -59,3 +59,16 @@ def test_format_block_renders_counts_and_is_empty_when_none():
     ])
     assert "VERIFIED PRODUCER" in block
     assert "epoch" in block.lower() and "Paso Robles" in block and "3" in block
+
+
+def test_chat_stopwords_do_not_crowd_out_the_real_producer_name():
+    """Repro case: "close" (chat filler, false-matched "Closerie" in prod) and the
+    6-token cap previously pushed "epoch" off the end of the token list entirely."""
+    toks = producer_tokens("Looking for something from willow creek - close to epoch in style")
+    assert "close" not in toks
+    assert "epoch" in toks
+
+
+def test_generic_chat_message_yields_no_tokens():
+    """A message with no producer name should not surface a stopword as a candidate."""
+    assert producer_tokens("something bold and structured please") == []
