@@ -472,6 +472,23 @@ def test_no_fact_block_when_no_facts():
     assert "VERIFIED AVAILABILITY" not in msg
 
 
+# ── producer facts: verified producer block + hedging rule ───────────
+
+def test_producer_block_renders_with_hedging_rule():
+    msg = _build_user_message([{"wine_id": "1", "name": "X"}], _intent(
+        producer_facts=[{"token": "epoch", "regions": [("Paso Robles", 3)],
+                         "country": "United States", "total": 4}]))
+    assert "VERIFIED PRODUCER" in msg
+    assert "Paso Robles" in msg
+    low = msg.lower()
+    assert "hedge" in low or "i believe" in low     # the absent-producer rule
+
+
+def test_no_producer_block_when_no_facts():
+    msg = _build_user_message([{"wine_id": "1", "name": "X"}], _intent())
+    assert "VERIFIED PRODUCER" not in msg
+
+
 def test_facts_outrank_listings_precedence_rule():
     """Production verification caught a false absence where the oracle had the right fact
     (Brunello: 24 nearby / 4 in budget) but the model trusted its shortlist and wrote 'the

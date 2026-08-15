@@ -6,6 +6,7 @@ import anthropic
 from config import settings
 from recommendation.budget import budget_is_stated
 from recommendation.availability import format_fact_block, NOT_IN_CATALOG
+from recommendation.producer_facts import format_producer_block
 
 logger = logging.getLogger(__name__)
 
@@ -387,6 +388,23 @@ def _build_user_message(
             f"\n6. Never contradict a verified fact."
         )
 
+    # Producer identity as a looked-up fact, not a recalled one — same principle as the
+    # availability oracle above, applied to who-makes-this-wine instead of what's-in-stock.
+    producer_block = format_producer_block(intent.get("producer_facts") or [])
+    if producer_block:
+        producer_rule_text = (
+            "When a producer appears in VERIFIED PRODUCER, use THAT region — it is drawn "
+            "from our catalog, not memory. For a producer that does NOT appear there, you "
+            "may share what you know but must hedge (\"I believe Epoch is from Paso "
+            "Robles\"), never assert it flatly."
+        )
+        if availability_rules:
+            availability_rules += f"\n7. {producer_rule_text}"
+        else:
+            # No availability facts this turn, but there IS a producer fact — the rule
+            # still needs to render, so it gets its own single-item numbered list.
+            availability_rules = f"\n\nPRODUCER RULES (these override recall):\n1. {producer_rule_text}"
+
     # Aisle mode sends a wide-range sentinel instead of a real budget — the
     # somm must not invent one ("outside your budget") the user never stated.
     budget_line = (
@@ -410,6 +428,7 @@ def _build_user_message(
         f"{drop_note}"
         f"{comparison_directive}"
         f"{fact_block}"
+        f"{producer_block}"
         f"{availability_rules}"
         f"{followup_directive}"
     )

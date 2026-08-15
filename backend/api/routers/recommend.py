@@ -19,6 +19,7 @@ from recommendation.availability import (axes_from_intent, catalog_terms,
                                          count_shortlisted, derive_state,
                                          fetch_axis_counts, terms_in_message,
                                          axis_key, axis_label, availability_lines)
+from recommendation.producer_facts import fetch_producer_facts
 from recommendation.candidate_filters import (apply_type_gate, deep_fetch_reason,
                                               detect_retailer, is_referential,
                                               pin_prior_picks, prior_picks_from_history,
@@ -439,6 +440,14 @@ async def recommend(req: RecommendRequest):
     if _axes:
         logger.info("AVAILABILITY | axes=%d counted=%d", len(_axes), len(_axis_counts))
 
+    # Producer identity oracle: catalog-wide, price-blind lookup so the model has a
+    # verified region for a named producer instead of recalling one. Fired here so its
+    # latency overlaps the candidate fetch/scoring, mirroring the availability oracle above.
+    _producer_facts = fetch_producer_facts(supabase, req.message, resolved.get("wine_name"))
+    if _producer_facts:
+        logger.info("PRODUCER | %s",
+                    {f["token"]: f["regions"][0][0] for f in _producer_facts})
+
     def _targeted_rows() -> list:
         regions = resolved.get("regions") or (
             [resolved["region"]] if resolved.get("region") else [])
@@ -680,6 +689,7 @@ async def recommend(req: RecommendRequest):
                 "axis": a,
             })
         resolved["availability_facts"] = facts
+        resolved["producer_facts"] = _producer_facts
         if facts:
             logger.info("AVAILABILITY | %s",
                         {f["label"]: f["state"] for f in facts})
