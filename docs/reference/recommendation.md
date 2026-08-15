@@ -228,6 +228,68 @@ The oracle computes the truth; two rounds of prompt hardening (red-team PASS 50%
 - **Honest limitation.** This guarantees the user *sees* the counted truth; it does not stop the prose from contradicting it. Prevention and detection now run together: the strip shows the number, the tripwire alerts on disagreement. The deeper fix is the constraint-satisfaction tier (audit item #4) — in all three false-absence-adjacent probes, 0 picks satisfied the named axis despite in-budget stock existing.
 - **Acceptance** `scripts/verify_availability_oracle.py` replays both red-team failures against live inventory: `mendoza -> ['394 mendoza in budget nearby ($4–$73) · none in this list']`, `brunello -> ['4 Brunello di Montalcino in budget nearby ($27–$365) · none in this list']`. Tests: `tests/test_availability.py`, `tests/test_recommend_api.py`, `frontend/src/screens/__tests__/ChatRecommend.test.jsx`.
 
+### Producer facts (2026-08-01)
+Item 42. Somm told a user "Epoch is a Texas Hill Country producer" — Epoch Estate
+Wines is Paso Robles, and the catalog itself held 4 Epoch rows, 3 of them labelled
+`region=Paso Robles`. Structurally the same mistake as the false-absence class
+(items 39/40): the model inferring what the catalog could tell it directly, this
+time about producer identity rather than availability. `recommendation/producer_facts.py`
+extends the oracle's philosophy — look it up instead of trusting recall — to a second
+question the shortlist can't reliably answer, "where is this producer from?"
+
+- **Two detection layers, because parsing alone was measured insufficient.** The
+  Haiku intent parser's `wine_name` field returned `None` for the exact bug case
+  ("close to epoch in style" — no bottle named, just a producer mentioned in passing),
+  so `producer_tokens(message, wine_name)` adds a deterministic floor: it reuses
+  `significant_name_tokens()` (already built for wine-name parsing) over the raw
+  message and takes distinctive tokens ≥4 chars. A dev-time smoke test caught that
+  this floor alone was too noisy — ordinary chat words ("looking", "something",
+  "close") crowded a 6-token cap and could push the real producer token off the end,
+  and "close" itself substring-matched a real producer ("Closerie", Bordeaux/Champagne)
+  while "bold" concentrated on marketing-copy names ("Big Bold Red") and emitted a
+  bogus fact for a generic message. Fixed with a small local `_CHAT_STOPWORDS` list
+  scoped to this file only — not merged into the shared tokenizer, which other callers
+  rely on for actual wine-name parsing.
+- **Self-validating bound, not a maintained vocabulary.** `summarize_producer(token, rows)`
+  only emits a fact when the token's matches look like a coherent producer: a bounded
+  row count (`_PRODUCER_MAX_ROWS=60` — a real producer has a handful of catalog rows,
+  a generic word like "estate" matches thousands), at least 2 regioned rows
+  (`_PRODUCER_MIN_ROWS`), and the top region holding ≥50% of the regioned rows
+  (`_PRODUCER_MIN_CONCENTRATION`) — a scattered match (generic word hitting wines from
+  everywhere) fails the concentration test and emits nothing. No hand-maintained
+  producer list; it self-updates with the catalog. Majority vote with counts:
+  `summarize_producer` returns the top region(s) via `Counter.most_common`, so the
+  rendered fact is auditable ("Paso Robles (3 of 4 bottles we carry)"), not a bare
+  assertion. Epoch resolved 3-of-4 before the data-defect fix below, 4-of-4 after.
+- **Catalog-wide, price-blind — both deliberate.** `fetch_producer_facts` queries
+  `wines` directly with no nearby-store scoping and no budget filter. Epoch is
+  stocked only at Pogo's Wine & Spirits in Dallas ($55–$103) while the bug's user was
+  in San Antonio; a nearby-scoped or budget-clamped lookup returns nothing in exactly
+  the situation where the model reaches for recall — the same lesson item 39 learned
+  scoping the availability oracle to full inventory, not the shortlist. Fails open to
+  `[]` on any error, logged, never blocks a recommendation.
+- **Hedging rule.** `claude_client.py` renders the facts as a `[VERIFIED PRODUCER]`
+  prompt block (`format_producer_block`) with a two-sided directive: when a named
+  producer appears in the block, use THAT region, not recalled knowledge; when it
+  doesn't appear (lookup found nothing, or the token failed the self-validating
+  bound), the model may still share general knowledge but must hedge ("I believe
+  Epoch is from Paso Robles") rather than assert flatly — the block's absence is not
+  itself a licensed denial, unlike the availability oracle's `NOT_IN_CATALOG`.
+- **Data defect fixed alongside:** the one known bad row, `Epoch Estate Wines Block B
+  Paso Robles 2018`, was mislabelled `region=Ribeira Sacra, country=Spain` — its own
+  name says Paso Robles. Corrected directly (not through the lookup's self-validation,
+  which can't repair a bad row, only get outvoted by good ones).
+- **Report-only contradiction detector.** `backend/scripts/detect_region_contradictions.py`
+  derives a place vocabulary from the `wines` table's own `region`/`sub_region`/`country`
+  columns (self-updating, no hand-maintained gazetteer) and flags rows whose `name`
+  contains a place term absent from that row's own fields. Live run against the full
+  catalog: **5,622 of 23,166 wines (~24%) flagged** — a mix of genuine defects and
+  expected AVA-hierarchy fuzziness (e.g. "Yountville" isn't a literal substring of
+  "Napa Valley" even though it's a Napa sub-appellation). Per the project's standing
+  conservative-enrichment rule, this stays **report-only** — it never writes; a human
+  reviews the flagged rows. Acceptance: `backend/scripts/verify_producer_facts.py`
+  (live, confirms epoch→Paso Robles, Caymus→Napa Valley, a generic message→no facts).
+
 ## Aisle mode (Ask face) — 2026-08-01
 
 Design handoff: `frontend/design-system/handoffs/aisle-mode/`. Two faces of the
