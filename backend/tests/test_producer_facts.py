@@ -3,7 +3,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
 from recommendation.producer_facts import (summarize_producer, format_producer_block,
-                                           producer_tokens, _PRODUCER_MAX_ROWS)
+                                           producer_tokens, fetch_producer_facts,
+                                           _PRODUCER_MAX_ROWS)
 
 
 def _PF_rows(*pairs):
@@ -72,3 +73,40 @@ def test_chat_stopwords_do_not_crowd_out_the_real_producer_name():
 def test_generic_chat_message_yields_no_tokens():
     """A message with no producer name should not surface a stopword as a candidate."""
     assert producer_tokens("something bold and structured please") == []
+
+
+def test_one_failing_token_does_not_void_the_others():
+    """A single token's DB query raising must not collapse every OTHER token's fact —
+    the same isolation bug class the availability oracle's fetch_axis_counts was
+    hardened against. Mirrors tests/test_availability.py::
+    test_one_failing_axis_does_not_void_the_others."""
+
+    class _FlakyDB:
+        def table(self, _n):
+            return self
+
+        def select(self, *a, **k):
+            return self
+
+        def ilike(self, _col, pattern):
+            self._boom = "boom" in pattern
+            return self
+
+        def limit(self, *a, **k):
+            return self
+
+        def execute(self):
+            if self._boom:
+                raise RuntimeError("simulated transient error")
+
+            class R:
+                data = [{"name": "Caymus Cabernet", "region": "Napa Valley",
+                         "country": "United States"},
+                        {"name": "Caymus Special Selection", "region": "Napa Valley",
+                         "country": "United States"}]
+            return R()
+
+    facts = fetch_producer_facts(_FlakyDB(), "boom caymus")
+    tokens = {f["token"] for f in facts}
+    assert "boom" not in tokens
+    assert "caymus" in tokens

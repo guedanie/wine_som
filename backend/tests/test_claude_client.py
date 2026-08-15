@@ -489,6 +489,41 @@ def test_no_producer_block_when_no_facts():
     assert "VERIFIED PRODUCER" not in msg
 
 
+def test_both_fact_blocks_render_with_separate_self_contained_headings():
+    """When the availability oracle AND the producer lookup both fire in the same turn,
+    the producer hedging rule must get its OWN heading — not get folded into the
+    AVAILABILITY RULES numbered list as a trailing item, which mislabels the block
+    (that heading promises availability facts, not producer identity)."""
+    msg = _build_user_message([{"wine_id": "1", "name": "X"}], _intent(
+        availability_facts=[{"label": "Barolo at Geraldine's", "state": PRESENT_OUT_OF_BUDGET,
+                             "total": 3, "in_budget": 0, "min_price": 59, "max_price": 110}],
+        producer_facts=[{"token": "epoch", "regions": [("Paso Robles", 3)],
+                         "country": "United States", "total": 4}]))
+
+    # Both fact kinds present.
+    assert "VERIFIED AVAILABILITY" in msg
+    assert "VERIFIED PRODUCER" in msg
+    assert "Paso Robles" in msg
+
+    assert "PRODUCER RULES" in msg
+    avail_idx = msg.index("AVAILABILITY RULES")
+    avail_end = msg.index("PRODUCER RULES")
+    producer_idx = avail_end
+    availability_section = msg[avail_idx:avail_end]
+    producer_section = msg[producer_idx:]
+
+    # The producer hedging rule must not appear inside the availability-numbered list —
+    # it lives only in its own PRODUCER RULES section.
+    assert "i believe" not in availability_section.lower()
+    assert "i believe" in producer_section.lower()
+
+    # The producer section restarts numbering at item 1 rather than continuing as a
+    # trailing item on the availability list (e.g. "7." folded onto the wrong heading).
+    assert "PRODUCER RULES" in producer_section
+    producer_rule_start = producer_section.index("PRODUCER RULES")
+    assert "\n1." in producer_section[producer_rule_start:producer_rule_start + 60]
+
+
 def test_facts_outrank_listings_precedence_rule():
     """Production verification caught a false absence where the oracle had the right fact
     (Brunello: 24 nearby / 4 in budget) but the model trusted its shortlist and wrote 'the

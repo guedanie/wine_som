@@ -102,19 +102,29 @@ def fetch_producer_facts(supabase, message: str,
     was in San Antonio — a nearby-scoped or budget-clamped lookup returns nothing in
     exactly the situation where the model falls back on recall.
 
+    Isolated per token: one flaky query must not void every OTHER token's fact — the
+    same class of bug the availability oracle's `fetch_axis_counts` was hardened
+    against after a production incident.
+
     Fails open to [] (logged) — never breaks a recommendation."""
     facts: List[Dict[str, Any]] = []
     try:
-        for tok in producer_tokens(message, wine_name):
-            if len(facts) >= _MAX_PRODUCERS:
-                break
+        tokens = producer_tokens(message, wine_name)
+    except Exception:
+        logger.exception("PRODUCER | token extraction failed — no producer facts this turn")
+        return []
+
+    for tok in tokens:
+        if len(facts) >= _MAX_PRODUCERS:
+            break
+        try:
             rows = (supabase.table("wines").select("name,region,country")
                     .ilike("name", f"%{tok}%")
                     .limit(_PRODUCER_MAX_ROWS + 1).execute().data or [])
             f = summarize_producer(tok, rows)
             if f:
                 facts.append(f)
-    except Exception:
-        logger.exception("PRODUCER | fact lookup failed — no producer facts this turn")
-        return []
+        except Exception:
+            logger.exception("PRODUCER | token %r lookup failed — skipping", tok)
+            continue
     return facts
