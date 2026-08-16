@@ -1,8 +1,11 @@
 import sys
+import urllib.error
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
-from scrapers.heb import _parse_record, _price_for_context, HEBProduct
+from unittest.mock import patch
+
+from scrapers.heb import _parse_record, _price_for_context, HEBProduct, _graphql_post
 
 
 def _raw_record(**kwargs):
@@ -168,3 +171,38 @@ def test_upsert_inventory_with_curbside_uses_store_ref():
     assert rec["wine_id"] == "wine-1"
     assert rec["curbside_price"] == 19.92
     assert "retailer_name" not in rec and "zip_code" not in rec and "store_id" not in rec
+
+
+class _Resp:
+    def __init__(self, payload): self._p = payload
+    def read(self): return self._p.encode()
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+
+
+def _http_error():
+    return urllib.error.HTTPError("https://www.heb.com/graphql", 502, "Bad Gateway", {}, None)
+
+
+def test_graphql_post_retries_on_transient_502_then_succeeds():
+    """The weekly scrape failed 3 weeks running on a 502 that cleared within minutes —
+    this locks in that HTTPError (a URLError subclass) is retried, not treated as fatal."""
+    calls = {"n": 0}
+    def flaky(req, timeout=0):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise _http_error()
+        return _Resp('{"data": {"productSearch": {"total": 0, "records": []}}}')
+    with patch("urllib.request.urlopen", side_effect=flaky), patch("time.sleep"):
+        out = _graphql_post("{ productSearch { total } }")
+    assert out == {"data": {"productSearch": {"total": 0, "records": []}}}
+    assert calls["n"] == 3          # failed twice on 502, succeeded on the third
+
+
+def test_graphql_post_raises_after_exhausting_retries():
+    with patch("urllib.request.urlopen", side_effect=_http_error()), patch("time.sleep"):
+        try:
+            _graphql_post("{ productSearch { total } }")
+            assert False, "should have raised"
+        except urllib.error.HTTPError:
+            pass

@@ -147,8 +147,12 @@ def _parse_record(raw: Dict[str, Any]) -> Optional[HEBProduct]:
     )
 
 
-def _graphql_post(query: str, timeout: int = 20, retries: int = 3) -> Dict[str, Any]:
-    """POST a GraphQL query to HEB and return the parsed JSON. Retries on transient network errors."""
+def _graphql_post(query: str, timeout: int = 20, retries: int = 6) -> Dict[str, Any]:
+    """POST a GraphQL query to HEB and return the parsed JSON. Retries on transient network
+    errors — includes HTTPError (a URLError subclass), which is what a transient upstream
+    502 raises. Bumped from 3 to 6 attempts (~6s to ~75s of backoff) after the weekly scrape
+    failed 3 weeks running on a 502 that cleared within minutes — the old 3-attempt/~6s
+    budget couldn't outlast a short HEB-side blip."""
     import time
     body = json.dumps({"query": query}).encode("utf-8")
     last_err = None
@@ -160,7 +164,7 @@ def _graphql_post(query: str, timeout: int = 20, retries: int = 3) -> Dict[str, 
         except (urllib.error.URLError, TimeoutError) as e:
             last_err = e
             if attempt < retries - 1:
-                time.sleep(2 * (attempt + 1))
+                time.sleep(min(30, 3 * (attempt + 1)))
     raise last_err
 
 

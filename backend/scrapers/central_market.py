@@ -58,7 +58,8 @@ def fetch_cm_wine_page(offset: int = 0, limit: int = 60, store_id: str = "61"):
     )
     body = json.dumps({"query": query}).encode("utf-8")
     last_err = None
-    for attempt in range(3):
+    retries = 6  # matches heb.py's fetch_wine_page — see that function's docstring
+    for attempt in range(retries):
         try:
             req = urllib.request.Request(GRAPHQL_URL, data=body, headers=_CM_HEADERS, method="POST")
             with urllib.request.urlopen(req, timeout=20) as resp:
@@ -69,8 +70,8 @@ def fetch_cm_wine_page(offset: int = 0, limit: int = 60, store_id: str = "61"):
             return total, products
         except (urllib.error.URLError, TimeoutError) as e:
             last_err = e
-            if attempt < 2:
-                time.sleep(2 * (attempt + 1))
+            if attempt < retries - 1:
+                time.sleep(min(30, 3 * (attempt + 1)))
     raise last_err
 
 
