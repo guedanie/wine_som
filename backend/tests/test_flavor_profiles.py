@@ -107,3 +107,12 @@ def test_stylistically_diverse_regions_deliberately_have_no_region_level_tags():
     this is a documented decision, not a gap to "fix" later."""
     for region in ("Veneto", "Sicily", "Loire", "Penedès"):
         assert flavor_tags_for(varietal=None, grapes=[], region=region) == set()
+
+
+def test_blend_of_a_preexisting_and_a_newly_mapped_grape_unions_correctly():
+    """A blend naming both an old map entry (Grenache) and a new one (Nero d'Avola)
+    should get the union of both grapes' tags — locks in that the new entries mix
+    cleanly with pre-existing ones through the same union logic."""
+    tags = flavor_tags_for(varietal=None, grapes=["Grenache", "Nero d'Avola"], region=None)
+    assert {"earthy", "red-fruit", "spice"} <= tags       # from Grenache
+    assert {"bold", "dark-fruit", "savory"} <= tags       # from Nero d'Avola
