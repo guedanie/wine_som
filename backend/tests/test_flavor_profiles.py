@@ -60,3 +60,24 @@ def test_intent_flavor_vocab_stays_in_sync_with_flavor_profiles():
     from recommendation.intent import _FLAVOR_VOCAB
     words = {w.strip() for w in _FLAVOR_VOCAB.split(",")}
     assert words == FLAVOR_VOCAB
+
+
+def test_moscato_is_floral():
+    tags = flavor_tags_for(varietal="Moscato", grapes=["Moscato"], region=None)
+    assert "floral" in tags
+    assert "light" in tags
+
+
+def test_glera_and_prosecco_are_aliases_with_matching_tags():
+    glera_tags = flavor_tags_for(varietal=None, grapes=["Glera"], region=None)
+    prosecco_tags = flavor_tags_for(varietal="Prosecco", grapes=["Prosecco"], region=None)
+    assert glera_tags == prosecco_tags
+    assert "floral" in glera_tags
+    assert "citrus" in glera_tags
+
+
+def test_nero_davola_is_bold_and_savory():
+    tags = flavor_tags_for(varietal="Nero d'Avola", grapes=["Nero d'Avola"], region=None)
+    assert "bold" in tags
+    assert "dark-fruit" in tags
+    assert "savory" in tags

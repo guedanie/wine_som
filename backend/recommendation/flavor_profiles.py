@@ -50,6 +50,11 @@ GRAPE_FLAVORS = {
     "Viognier": {"ripe", "spice"},
     "Albariño": {"light", "savory"},
     "Grüner Veltliner": {"herbal", "spice", "savory"},
+    "Moscato": {"floral", "light", "ripe"},
+    "Glera": {"floral", "citrus", "light"},
+    "Prosecco": {"floral", "citrus", "light"},   # alias — catalog stores both as
+                                                  # standalone grape/varietal values
+    "Nero d'Avola": {"bold", "dark-fruit", "savory"},
 }
 
 REGION_FLAVORS = {
