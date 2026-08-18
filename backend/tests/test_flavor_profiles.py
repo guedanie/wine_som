@@ -45,3 +45,18 @@ def test_infer_body_light_from_light_tag():
 
 def test_infer_body_none_when_ambiguous():
     assert infer_body({"savory", "spice"}) is None
+
+
+def test_new_vocab_words_present():
+    from recommendation.flavor_profiles import FLAVOR_VOCAB
+    assert {"floral", "citrus", "mineral"} <= FLAVOR_VOCAB
+
+
+def test_intent_flavor_vocab_stays_in_sync_with_flavor_profiles():
+    """intent.py's _FLAVOR_VOCAB is a hand-written prompt string — this guards against
+    it silently drifting from the real vocabulary set, the way CORE_GRAPES is guarded
+    elsewhere in the codebase."""
+    from recommendation.flavor_profiles import FLAVOR_VOCAB
+    from recommendation.intent import _FLAVOR_VOCAB
+    words = {w.strip() for w in _FLAVOR_VOCAB.split(",")}
+    assert words == FLAVOR_VOCAB

@@ -18,7 +18,8 @@ _anthropic_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 # Keep `flavors` aligned with recommendation.flavor_profiles.FLAVOR_VOCAB.
 _FLAVOR_VOCAB = (
     "earthy, bold, savory, light, peppery, structured, herbal, red-fruit, "
-    "black-fruit, dark-fruit, tart-cherry, spice, gamey, garrigue, ripe"
+    "black-fruit, dark-fruit, tart-cherry, spice, gamey, garrigue, ripe, "
+    "floral, citrus, mineral"
 )
 
 _TOOL = {

@@ -14,7 +14,7 @@ from typing import Optional, List, Set
 FLAVOR_VOCAB = {
     "earthy", "bold", "savory", "light", "peppery", "structured", "herbal",
     "red-fruit", "black-fruit", "dark-fruit", "tart-cherry", "spice", "gamey",
-    "garrigue", "ripe",
+    "garrigue", "ripe", "floral", "citrus", "mineral",
 }
 
 GRAPE_FLAVORS = {
