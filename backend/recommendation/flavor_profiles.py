@@ -72,6 +72,13 @@ REGION_FLAVORS = {
     "Mendoza": {"bold", "dark-fruit", "ripe"},
     "Barossa Valley": {"bold", "ripe", "spice"},
     "Texas": {"bold", "ripe"},
+    "California": {"ripe"},      # conservative single tag, matches the existing
+                                  # Napa Valley / Sonoma / Central Coast pattern
+    "Champagne": {"mineral", "light"},
+    "Alsace": {"floral", "spice"},
+    # Deliberately NOT mapped: Veneto, Sicily, Loire, Penedès — each spans
+    # stylistically incompatible wines under one region label (see
+    # test_stylistically_diverse_regions_deliberately_have_no_region_level_tags).
 }
 
 

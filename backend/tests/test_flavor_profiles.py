@@ -81,3 +81,29 @@ def test_nero_davola_is_bold_and_savory():
     assert "bold" in tags
     assert "dark-fruit" in tags
     assert "savory" in tags
+
+
+def test_california_region_is_ripe():
+    tags = flavor_tags_for(varietal=None, grapes=[], region="California")
+    assert tags == {"ripe"}
+
+
+def test_champagne_region_is_mineral_and_light():
+    tags = flavor_tags_for(varietal=None, grapes=[], region="Champagne")
+    assert "mineral" in tags
+    assert "light" in tags
+
+
+def test_alsace_region_is_floral_and_spice():
+    tags = flavor_tags_for(varietal=None, grapes=[], region="Alsace")
+    assert "floral" in tags
+    assert "spice" in tags
+
+
+def test_stylistically_diverse_regions_deliberately_have_no_region_level_tags():
+    """Veneto/Sicily/Loire/Penedès span incompatible styles under one region label
+    (e.g. Veneto = light Soave whites AND big Amarone reds AND Prosecco) — a single
+    region-level tag set would overclaim. Region alone (no grape) must stay empty;
+    this is a documented decision, not a gap to "fix" later."""
+    for region in ("Veneto", "Sicily", "Loire", "Penedès"):
+        assert flavor_tags_for(varietal=None, grapes=[], region=region) == set()
