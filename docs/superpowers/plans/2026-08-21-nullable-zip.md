@@ -12,7 +12,27 @@
 
 **Reference:** design spec `docs/superpowers/specs/2026-08-20-nullable-zip-design.md`.
 
-**Ordering rationale:** Task 1 changes the shared helper and WILL break things until Tasks 2-4 land. Do not stop midway — the suite is expected to be red between Task 1 and Task 4. Task 1's own tests pass; other suites go red and are repaired in order. Task 5 (the actual reported bug) depends on Task 1's `hasStoredZip` removal.
+**Ordering rationale:** Task 1 changes the shared helper and WILL break things until Tasks 2-4 land. Do not stop midway — the suite is expected to be red between Task 1 and Task 4. Task 1's own tests pass; other suites go red and are repaired in order.
+
+**CORRECTION (2026-08-21, from Task 1 code review):** Task 1 as originally written left the frontend
+**unbuildable** (`npm run build` → `[MISSING_EXPORT] "hasStoredZip"`), because `ChatRecommend.jsx`
+still imported the deleted symbol. A dead build is a different animal from a red suite: it masks
+real breakage behind an "expected red" instruction. The two-line import swap (originally Task 5
+Step 3) is therefore **pulled forward into Task 1** — it is a pure refactor
+(`hasStoredZip() ≡ loadZip() != null`) and belongs in the commit that deletes the symbol it
+consumes. Consequences:
+- `npm run build` is now a **required gate on every task**, not just the test suite.
+- The expected-red set after Task 1 is **4 suites** — `PreferenceCapture`, `SearchScreen`,
+  `RegionBrowse`, `mobile` (all `.length`-on-null crashes) — not the 6 originally predicted, and
+  `ModeTabs` does NOT fail (it passes its zip via router state).
+- Task 4's "full suite green" gate is now actually satisfiable; before this correction it was not,
+  since `ChatRecommend*` could not go green until Task 5.
+
+**Deploy-safety note:** this repo has **no frontend CI** (`.github/workflows/` holds only the
+scrape/enrich jobs) and no pre-commit hook, so nothing but Vercel's build step stands between a
+push and production. The intermediate state failing at *build* time rather than runtime is what
+keeps a mid-plan deploy from white-screening live beta testers — Vercel rejects the build and
+keeps serving the last good bundle. Worth a follow-up roadmap item independent of this branch.
 
 **File map:**
 | File | Responsibility | Task |
@@ -290,6 +310,8 @@ git commit -m "fix(zip): keep zip inputs controlled when no location is known"
 **Files:**
 - Modify: `frontend/src/screens/Deals.jsx:29-31`
 - Modify: `frontend/src/screens/Discovery.jsx:17-19`
+- Modify: `frontend/src/screens/RegionDossier.jsx:305,459` (added by review — see Step 4b)
+- Modify: `frontend/src/screens/RegionDetail.jsx:65-68` (added by review — see Step 4b)
 - Modify: `frontend/src/screens/__tests__/Deals.test.jsx` (exists)
 - Modify: `frontend/src/screens/__tests__/Discovery.test.jsx` (exists)
 
@@ -370,6 +392,46 @@ with:
 The existing `if (!data || data.deals.length === 0) return null;` on the next line already handles
 the no-data case, so the rail correctly renders nothing without a zip.
 
+- [ ] **Step 4b: Stop claiming "near you" when we don't know where you are** (added by Task 1 review)
+
+`getWine` and `getSubregionCounts` are Optional-zip endpoints, so these two screens don't crash or
+send `"null"` — `api.js:50` and `:68` already guard `zip ? ... : ''`. But omitting the param makes
+the API **skip proximity filtering entirely and return nationwide results**, which the dossier
+still renders under an "Available near you" heading. That is precisely the prior bug
+`useUserZip.js`'s own docstring memorializes ("17 stores nationwide, including a Spec's 252 mi
+away") — unreachable while `loadZip` fabricated a default, reachable now. Fixing it is the whole
+point of this branch: never assert something we haven't been told.
+
+In `frontend/src/screens/RegionDossier.jsx`, the string `Available near you` appears at **line 305
+(desktop layout) and line 459 (mobile layout)** — both must change. In each, replace:
+```jsx
+<Eyebrow style={{ display: 'block', marginBottom: 10 }}>Available near you</Eyebrow>
+```
+with:
+```jsx
+<Eyebrow style={{ display: 'block', marginBottom: 10 }}>{zip ? 'Available near you' : 'Where to find it'}</Eyebrow>
+```
+(`zip` is already in scope from `useUserZip()` at line 155.)
+
+In `frontend/src/screens/RegionDetail.jsx`, fix the stale-zip dependency — the effect at lines
+65-68 lists only `[region]`, so like Discovery it never refetches after the user sets a location.
+Replace `}, [region]);` with `}, [region, zip]);`. No label change is needed here (it renders
+subregion counts, not a proximity claim).
+
+- [ ] **Step 4c: Test the dossier label**
+
+Append to `frontend/src/screens/__tests__/RegionDossier.test.jsx` (read the file first and reuse
+its existing render helper and api mocks):
+
+```js
+  it('does not claim "near you" when no zip is known', async () => {
+    localStorage.clear();
+    renderDossier();                   // reuse this suite's existing helper
+    expect(await screen.findByText(/where to find it/i)).toBeInTheDocument();
+    expect(screen.queryByText(/available near you/i)).not.toBeInTheDocument();
+  });
+```
+
 - [ ] **Step 5: Run to verify pass**
 
 Run: `cd frontend && npx vitest run src/screens/__tests__/Deals.test.jsx src/screens/__tests__/Discovery.test.jsx`
@@ -379,8 +441,8 @@ with `saveZip('78209')` in that suite's `beforeEach` rather than weakening its a
 - [ ] **Step 6: Commit**
 
 ```bash
-git add frontend/src/screens/Deals.jsx frontend/src/screens/Discovery.jsx frontend/src/screens/__tests__/Deals.test.jsx
-git commit -m "fix(zip): never send a null zip to the required-zip deals endpoint"
+git add frontend/src/screens/Deals.jsx frontend/src/screens/Discovery.jsx frontend/src/screens/RegionDossier.jsx frontend/src/screens/RegionDetail.jsx frontend/src/screens/__tests__/Deals.test.jsx frontend/src/screens/__tests__/RegionDossier.test.jsx
+git commit -m "fix(zip): guard required-zip endpoints and stop claiming 'near you' without a zip"
 ```
 
 ---
