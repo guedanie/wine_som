@@ -183,7 +183,12 @@ export default function ChatRecommend() {
   const [zipConfirmed, setZipConfirmed] = useState(() => Boolean(_restored) || loadZip() != null);
   const [pendingAskText, setPendingAskText] = useState(null);
   const [zipDraft, setZipDraft]     = useState('');
-  const [pickerOpen, setPickerOpen] = useState(() => Boolean(state?.openStorePicker));
+  // A store picker without a zip would list stores near a location we don't
+  // have. Defer the requested open until a zip exists (see the effect below).
+  const [pickerOpen, setPickerOpen] = useState(() =>
+    Boolean(state?.openStorePicker) && (Boolean(_restored) || loadZip() != null));
+  const [pickerDeferred, setPickerDeferred] = useState(() =>
+    Boolean(state?.openStorePicker) && !(Boolean(_restored) || loadZip() != null));
   const [nearbyStores, setNearbyStores] = useState(null);
   const [storeRef, setStoreRef]     = useState(() => _restored?.storeRef ?? null);
   const [storeLabel, setStoreLabel] = useState(() => _restored?.storeLabel ?? null);
@@ -221,12 +226,19 @@ export default function ChatRecommend() {
 
   // Store picker data — fetched when the picker opens (strip entry or pill tap).
   useEffect(() => {
-    if (!pickerOpen || nearbyStores != null || !askMode) return;
+    if (!pickerOpen || nearbyStores != null || !askMode || !askZip) return;
     getNearbyStores(askZip)
       .then(r => setNearbyStores(r.stores || []))
       .catch(() => setNearbyStores([]));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickerOpen]);
+
+  // Strip entry ("I'm here, now") with no known zip: ask for it first, then
+  // open the picker. Prevents both the wrong-city store list and the re-ask bug.
+  useEffect(() => {
+    if (pickerDeferred && pendingAskText == null) setPendingAskText('');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickerDeferred]);
 
   // Persist the evolving session (item 38). Cheap, latest-run-only; the
   // try/catch covers private mode and jsdom's null sessionStorage.
@@ -395,7 +407,8 @@ export default function ChatRecommend() {
   const handleAskSend = (text) => {
     if (loading || streaming || !text.trim()) return;
     // Lazy location: the zip request arrives INSIDE the conversation, once,
-    // only when no zip is actually stored (the loadZip default doesn't count).
+    // only when no zip is stored. loadZip() returns null rather than a default,
+    // so "unknown" is a real state and this can't contradict what the UI shows.
     if (!zipConfirmed) {
       setMessages(prev => [...prev, { id: uuid(), role: 'user', text }]);
       setPendingAskText(text);
@@ -418,6 +431,14 @@ export default function ChatRecommend() {
     setZipConfirmed(true);
     const text = pendingAskText;
     setPendingAskText(null);
+    // Deferred strip entry: the zip was asked FOR the picker, not for a
+    // question. Open the picker now — and return only when nothing is queued
+    // (the usual case); a question typed before the zip still gets answered.
+    if (pickerDeferred) {
+      setPickerDeferred(false);
+      setPickerOpen(true);
+      if (!text) return;
+    }
     const history = historyFrom(messages.slice(0, -1));
     tasteFor().then(taste => callRecommend(buildAskReq({
       zip: zipDraft, message: text, history: history.length ? history : undefined,
@@ -480,7 +501,7 @@ export default function ChatRecommend() {
   // The standing location as editable pills, always visible above the composer.
   const contextPills = askMode && (
     <div style={{ display: 'flex', gap: 6, padding: '0 14px 8px', flexWrap: 'wrap' }}>
-      <span style={{ borderRadius: 999, border: '0.75px solid var(--border-strong)', color: 'var(--ink-2)', fontFamily: 'var(--font-sans)', fontSize: 10.5, padding: '3px 10px' }}>◎ {askZip}</span>
+      {askZip && <span style={{ borderRadius: 999, border: '0.75px solid var(--border-strong)', color: 'var(--ink-2)', fontFamily: 'var(--font-sans)', fontSize: 10.5, padding: '3px 10px' }}>◎ {askZip}</span>}
       {storeLabel && (
         <button onClick={() => setPickerOpen(true)} style={{ cursor: 'pointer', borderRadius: 999, border: '0.75px solid var(--sage)', color: 'var(--sage)', background: 'none', fontFamily: 'var(--font-sans)', fontSize: 10.5, padding: '3px 10px' }}>
           ◎ {storeLabel} · change
