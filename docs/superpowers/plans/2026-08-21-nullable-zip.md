@@ -392,6 +392,29 @@ with:
 The existing `if (!data || data.deals.length === 0) return null;` on the next line already handles
 the no-data case, so the rail correctly renders nothing without a zip.
 
+- [ ] **Step 4a: `RegionBrowse`'s no-zip empty state** (added by Task 2 implementer's concern)
+
+Task 2 guarded `RegionBrowse`'s fetch, so with no zip it now renders the header and the zip form
+and then nothing — its "No matches" state is gated on `allWines.length > 0` and never fires. Not
+misleading (it no longer claims results near a fabricated zip), but it's a dead-end.
+
+In `frontend/src/screens/RegionBrowse.jsx`, find the render branch that handles the empty/loading
+states (read the file — it has `loading`, `error`, and a "No wines in {regionName} match your
+current filters near {zip}" message around line 221). Add a no-zip branch BEFORE the existing
+empty-state check, mirroring the copy voice of the Deals prompt in Step 3:
+
+```jsx
+  if (!zip) return (
+    <div style={{ padding: '32px 20px', textAlign: 'center', fontFamily: 'var(--font-sans)', fontSize: 13, lineHeight: 1.6, color: 'var(--faded)' }}>
+      Tell me where you are — the zip box above — and I'll show you what's on shelves near you.
+    </div>
+  );
+```
+
+Place it so the zip form above it still renders (the user needs the input to recover). If the
+file's structure makes that awkward, put the message inside the existing results container rather
+than early-returning from the component.
+
 - [ ] **Step 4b: Stop claiming "near you" when we don't know where you are** (added by Task 1 review)
 
 `getWine` and `getSubregionCounts` are Optional-zip endpoints, so these two screens don't crash or
