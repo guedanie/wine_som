@@ -65,3 +65,10 @@ it('shows the tabs on a restored ask session (_restored.mode===ask)', () => {
   renderAt({ pathname: '/recommend', state: { _restored: { mode: 'ask' } } });
   expect(screen.getByText('ASK').style.color).toBe('var(--ink)');
 });
+
+it('offers to set a location instead of showing a fabricated zip', () => {
+  localStorage.clear();
+  renderAt('/recommend');
+  expect(screen.queryByText(/near null/i)).not.toBeInTheDocument();
+  expect(screen.getByText(/set location/i)).toBeInTheDocument();
+});

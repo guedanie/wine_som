@@ -82,7 +82,7 @@ export default function Account() {
       <div style={{ padding: '22px 20px 8px' }}>
         <div style={{ fontFamily: 'var(--font-sans)', fontSize: 9, letterSpacing: '0.2em', textTransform: 'uppercase', color: 'var(--faded)', fontWeight: 600, marginBottom: 10 }}>Your preferences</div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          {[zip, 'Recent picks'].map(chip => (
+          {[zip ?? 'Set your location', 'Recent picks'].map(chip => (
             <span key={chip} style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderRadius: 0, padding: '4px 10px', fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--brass-deep, #5C4A2E)' }}>{chip}</span>
           ))}
         </div>

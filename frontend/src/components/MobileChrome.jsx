@@ -47,7 +47,7 @@ export function TopBar() {
   let back = null;
 
   if (pathname === '/recommend') {
-    title = `Tonight, near ${zip}`;
+    title = zip ? `Tonight, near ${zip}` : 'Tonight';
     sub = null;
   } else if (pathname.startsWith('/wine/')) {
     const name = state?.pick?.name ?? 'Wine';
@@ -111,9 +111,16 @@ export function TopBar() {
           )}
         </div>
       )}
-      <div style={{ fontFamily: 'var(--font-sans)', fontSize: 10.5, letterSpacing: '0.06em', color: 'var(--faded)', border: '1px solid var(--border)', padding: '5px 10px', flexShrink: 0 }}>
-        ◎ {zip}
-      </div>
+      {zip ? (
+        <div style={{ fontFamily: 'var(--font-sans)', fontSize: 10.5, letterSpacing: '0.06em', color: 'var(--faded)', border: '1px solid var(--border)', padding: '5px 10px', flexShrink: 0 }}>
+          ◎ {zip}
+        </div>
+      ) : (
+        <button onClick={() => navigate('/')}
+          style={{ fontFamily: 'var(--font-sans)', fontSize: 10.5, letterSpacing: '0.06em', color: 'var(--bordeaux)', background: 'none', border: '1px solid var(--bordeaux)', padding: '5px 10px', flexShrink: 0, cursor: 'pointer', borderRadius: 0 }}>
+          ◎ Set location
+        </button>
+      )}
     </div>
   );
 }
