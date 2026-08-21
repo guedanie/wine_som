@@ -11,7 +11,7 @@ import WineCardSkeleton from '../components/WineCardSkeleton.jsx';
 import CompareFrame from '../components/CompareFrame.jsx';
 import { streamRecommend, postFeedback, getNearbyStores } from '../lib/api.js';
 import { buildAskReq, ASK_INTENT_PILLS } from '../lib/askMode.js';
-import { loadZip, saveZip, hasStoredZip } from '../lib/useIsMobile.js';
+import { loadZip, saveZip } from '../lib/useIsMobile.js';
 import { naturalChatMode } from '../lib/flags.js';
 import { track } from '../lib/analytics.js';
 import { useAuth } from '../lib/auth.jsx';
@@ -180,7 +180,7 @@ export default function ChatRecommend() {
   const tasteFor = () => (user ? buildTasteContext(user.id).catch(() => null) : Promise.resolve(null));
 
   const [askZip, setAskZip]         = useState(() => _restored?.askZip ?? loadZip());
-  const [zipConfirmed, setZipConfirmed] = useState(() => Boolean(_restored) || hasStoredZip());
+  const [zipConfirmed, setZipConfirmed] = useState(() => Boolean(_restored) || loadZip() != null);
   const [pendingAskText, setPendingAskText] = useState(null);
   const [zipDraft, setZipDraft]     = useState('');
   const [pickerOpen, setPickerOpen] = useState(() => Boolean(state?.openStorePicker));

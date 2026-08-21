@@ -58,12 +58,10 @@ describe('useUserZip — one precedence chain for every screen', () => {
   });
 
   it('returns null when nothing is stored — "no location" must be representable', () => {
-    // Previously this asserted a fabricated '78209' default. That default was
-    // rendered to users as though confirmed (top bar, aisle context pill) while
-    // a separate flag still said the zip was unknown — the root cause of the
-    // aisle-mode "asked for a zip I already gave you" bug. The invariant that
-    // actually mattered (never send a null zip to a required-zip endpoint) is
-    // enforced at the call sites instead — see Deals/Discovery guards.
+    // Inverted from a prior test asserting a fabricated '78209' default. The
+    // invariant that actually mattered — never send a null zip to a required-zip
+    // endpoint — is enforced at the consuming call sites instead.
+    // See docs/superpowers/specs/2026-08-20-nullable-zip-design.md
     expect(renderRawWith(undefined)).toBe(null);
   });
 });

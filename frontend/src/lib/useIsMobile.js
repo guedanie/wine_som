@@ -35,5 +35,6 @@ export function loadZip() {
 }
 
 export function saveZip(zip) {
+  if (!/^\d{5}$/.test(zip ?? '')) return;   // keeps loadZip's `|| null` honest
   try { localStorage.setItem('somm_zip', zip); } catch { /* private mode */ }
 }
