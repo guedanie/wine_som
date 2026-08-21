@@ -25,11 +25,13 @@ export default function useIsMobile() {
 }
 
 // Shared zip persistence — TopBar pill + screens read the last-used zip.
+// Returns null when we genuinely don't know where the user is. Callers must
+// handle that: screens owning a zip INPUT coerce to '' at the useState
+// boundary; screens CONSUMING a zip for a required-zip endpoint guard the
+// fetch. Never fabricate a default — the UI showing a zip the app hasn't
+// actually been given is what produced the aisle-mode re-ask bug.
 export function loadZip() {
-  try { return localStorage.getItem('somm_zip') || '78209'; } catch { return '78209'; }
-}
-export function hasStoredZip() {
-  try { return localStorage.getItem('somm_zip') != null; } catch { return false; }
+  try { return localStorage.getItem('somm_zip') || null; } catch { return null; }
 }
 
 export function saveZip(zip) {

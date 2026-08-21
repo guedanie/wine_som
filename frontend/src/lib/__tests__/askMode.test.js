@@ -1,6 +1,5 @@
 // frontend/src/lib/__tests__/askMode.test.js
 import { buildAskReq, ASK_INTENT_PILLS } from '../askMode.js';
-import { hasStoredZip } from '../useIsMobile.js';
 
 // jsdom's opaque origin makes localStorage null — in-memory stub (repo pattern).
 beforeEach(() => {
@@ -38,15 +37,5 @@ describe('ASK_INTENT_PILLS', () => {
     expect(ASK_INTENT_PILLS.map(p => p.label)).toEqual(
       ['Compare two', 'Is this good?', 'What is this?', 'Pair with dinner']);
     ASK_INTENT_PILLS.forEach(p => expect(p.fill.length).toBeGreaterThan(0));
-  });
-});
-
-describe('hasStoredZip', () => {
-  it('false when nothing stored, true after set', () => {
-    localStorage.removeItem('somm_zip');
-    expect(hasStoredZip()).toBe(false);
-    localStorage.setItem('somm_zip', '78209');
-    expect(hasStoredZip()).toBe(true);
-    localStorage.removeItem('somm_zip');
   });
 });

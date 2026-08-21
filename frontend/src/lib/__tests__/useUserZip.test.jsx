@@ -43,9 +43,14 @@ describe('useUserZip — one precedence chain for every screen', () => {
     expect(renderWith(undefined)).toBe('37210');
   });
 
-  it('never returns null/undefined — inventory filters depend on it', () => {
-    const v = renderWith(undefined);
-    expect(v).toBeTruthy();
-    expect(v).toMatch(/^\d{5}$/);
+  it('returns null when nothing is stored — "no location" must be representable', () => {
+    // Previously this asserted a fabricated '78209' default. That default was
+    // rendered to users as though confirmed (top bar, aisle context pill) while
+    // a separate flag still said the zip was unknown — the root cause of the
+    // aisle-mode "asked for a zip I already gave you" bug. The invariant that
+    // actually mattered (never send a null zip to a required-zip endpoint) is
+    // enforced at the call sites instead — see Deals/Discovery guards.
+    // When rendered into the DOM, null becomes an empty string.
+    expect(renderWith(undefined)).toBe('');
   });
 });
