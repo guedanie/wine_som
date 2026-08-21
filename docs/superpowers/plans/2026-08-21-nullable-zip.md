@@ -392,7 +392,46 @@ with:
 The existing `if (!data || data.deals.length === 0) return null;` on the next line already handles
 the no-data case, so the rail correctly renders nothing without a zip.
 
+- [ ] **Step 3b: `SearchScreen`'s silent no-op** (added by Task 2 code review — REAL REGRESSION)
+
+Before this branch, a zipless user searching got results (near the fabricated `'78209'`). Now
+`SearchScreen.jsx:117`'s `if (query && zip.length === 5)` guard means they type a query, press
+Enter, and **nothing happens** — no results, no error, no prompt. Search looks broken rather than
+location-gated. Task 2's new test even asserts `expect(searchWines).not.toHaveBeenCalled()`
+without asserting any user-visible feedback, locking the silence in as correct.
+
+This screen appears in no other task, so fix it here. In `frontend/src/screens/SearchScreen.jsx`,
+find the results region (where `wines` / `loading` / `error` are rendered) and add a no-zip branch
+before the empty-results state:
+
+```jsx
+  if (query && zip.length !== 5) return (
+    <div style={{ padding: '32px 20px', textAlign: 'center', fontFamily: 'var(--font-sans)', fontSize: 13, lineHeight: 1.6, color: 'var(--faded)' }}>
+      Tell me where you are — the zip box above — and I'll search what's actually on shelves near you.
+    </div>
+  );
+```
+
+Place it inside the results container so the query input and zip box above stay usable. Then
+strengthen Task 2's test rather than leaving it asserting only absence — add to the existing
+`does not search when no zip is stored` test in `SearchScreen.test.jsx`:
+
+```js
+    expect(screen.getByText(/tell me where you are/i)).toBeInTheDocument();
+```
+
 - [ ] **Step 4a: `RegionBrowse`'s no-zip empty state** (added by Task 2 implementer's concern)
+
+Also fix the one-frame loading flash the Task 2 review traced: `RegionBrowse`'s
+`useState(true)` for `loading` commits and paints "Loading wines from…" before the guard's
+`setLoading(false)` runs, announcing a fetch we already decided not to make. Change the
+declaration (around line 51) from `useState(true)` to:
+```js
+  const [loading,   setLoading]   = useState(Boolean(initialZip));
+```
+and simplify the guard added in Task 2 to just `if (!zip) return;` (dropping its now-redundant
+`setLoading(false)`). `fetchWines` sets `loading = true` itself, so the `'' → 5-digit` transition
+still shows the loader.
 
 Task 2 guarded `RegionBrowse`'s fetch, so with no zip it now renders the header and the zip form
 and then nothing — its "No matches" state is gated on `allWines.length > 0` and never fires. Not
@@ -464,8 +503,8 @@ with `saveZip('78209')` in that suite's `beforeEach` rather than weakening its a
 - [ ] **Step 6: Commit**
 
 ```bash
-git add frontend/src/screens/Deals.jsx frontend/src/screens/Discovery.jsx frontend/src/screens/RegionDossier.jsx frontend/src/screens/RegionDetail.jsx frontend/src/screens/__tests__/Deals.test.jsx frontend/src/screens/__tests__/RegionDossier.test.jsx
-git commit -m "fix(zip): guard required-zip endpoints and stop claiming 'near you' without a zip"
+git add frontend/src/screens/Deals.jsx frontend/src/screens/Discovery.jsx frontend/src/screens/SearchScreen.jsx frontend/src/screens/RegionBrowse.jsx frontend/src/screens/RegionDossier.jsx frontend/src/screens/RegionDetail.jsx frontend/src/screens/__tests__/Deals.test.jsx frontend/src/screens/__tests__/SearchScreen.test.jsx frontend/src/screens/__tests__/RegionBrowse.test.jsx frontend/src/screens/__tests__/RegionDossier.test.jsx
+git commit -m "fix(zip): prompt for a location instead of failing silently, and never claim 'near you' without one"
 ```
 
 ---
