@@ -16,6 +16,20 @@ function renderWith(state) {
   return screen.getByTestId('zip').textContent;
 }
 
+// Captures the hook's raw return value. The DOM-based renderWith() above
+// stringifies through textContent, which can't tell null from '' — and the
+// null case is precisely what the test below exists to pin down.
+function renderRawWith(state) {
+  let captured;
+  function RawProbe() { captured = useUserZip(); return null; }
+  render(
+    <MemoryRouter initialEntries={[{ pathname: '/wine/1', state }]}>
+      <RawProbe />
+    </MemoryRouter>,
+  );
+  return captured;
+}
+
 beforeEach(() => { localStorage.clear(); });
 
 describe('useUserZip — one precedence chain for every screen', () => {
@@ -50,7 +64,6 @@ describe('useUserZip — one precedence chain for every screen', () => {
     // aisle-mode "asked for a zip I already gave you" bug. The invariant that
     // actually mattered (never send a null zip to a required-zip endpoint) is
     // enforced at the call sites instead — see Deals/Discovery guards.
-    // When rendered into the DOM, null becomes an empty string.
-    expect(renderWith(undefined)).toBe('');
+    expect(renderRawWith(undefined)).toBe(null);
   });
 });
