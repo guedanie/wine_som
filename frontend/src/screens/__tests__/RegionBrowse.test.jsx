@@ -195,4 +195,11 @@ it('does not fetch region wines when no zip is stored', async () => {
   await new Promise(r => setTimeout(r, 0));
   expect(getRegionWines).not.toHaveBeenCalled();
   expect(screen.queryByText(/loading/i)).not.toBeInTheDocument();
+  expect(screen.getByText(/tell me where you are/i)).toBeInTheDocument();
+});
+
+it('never flashes the loading line when there is no zip to fetch for', () => {
+  localStorage.clear();
+  renderScreen('Tuscany');
+  expect(screen.queryByText(/loading wines from/i)).not.toBeInTheDocument();
 });

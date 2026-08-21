@@ -27,6 +27,7 @@ export default function Deals() {
   const zip = useUserZip();
 
   useEffect(() => {
+    if (!zip) return;                 // required-zip endpoint; ask first, don't send "null"
     getDeals(zip, 40).then(setData).catch(() => setError(true));
   }, [zip]);
 
@@ -34,6 +35,22 @@ export default function Deals() {
     track('deal_opened', { wine_id: deal.wine_id, retailer: deal.retailer });
     navigate(`/wine/${deal.wine_id}`, { state: { pick: toPick(deal) } });
   };
+
+  // A deals screen with no location can only lie ("near you" — near where?).
+  // Ask for the zip instead of rendering an empty week.
+  if (!zip) return (
+    <div style={{ maxWidth: 640, margin: '0 auto', padding: '48px 24px', textAlign: 'center' }}>
+      <div style={{ fontFamily: 'var(--font-serif)', fontSize: 22, color: 'var(--ink)' }}>
+        Deals are local by nature.
+      </div>
+      <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, lineHeight: 1.6, color: 'var(--faded)', marginTop: 8 }}>
+        Tell me where you are and I&rsquo;ll show you what dropped near you this week.
+      </div>
+      <button onClick={() => navigate('/')} style={{ marginTop: 16, cursor: 'pointer', background: 'var(--bordeaux)', color: 'var(--cream)', border: 'none', fontFamily: 'var(--font-sans)', fontSize: 13, padding: '10px 18px' }}>
+        Set your location
+      </button>
+    </div>
+  );
 
   return (
     <div style={{ overflowY: 'auto', height: '100%', WebkitOverflowScrolling: 'touch' }}>

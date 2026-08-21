@@ -16,8 +16,9 @@ function DealsRail({ compact }) {
   const zip = useUserZip();
   const [data, setData] = useState(null);
   useEffect(() => {
+    if (!zip) return;
     getDeals(zip, 10).then(setData).catch(() => {});
-  }, []);
+  }, [zip]);      // was [] — the rail never refetched after the user set a location
   if (!data || data.deals.length === 0) return null;
   const open = deal => {
     track('deal_opened', { wine_id: deal.wine_id, retailer: deal.retailer, source: 'rail' });

@@ -176,6 +176,14 @@ it('back button navigates to /recommend with _restored when chatState is present
   });
 });
 
+it('does not claim "near you" when no zip is known', async () => {
+  localStorage.clear();
+  getWine.mockResolvedValue(wineDetail);
+  renderScreen();                    // no zip in router state either
+  expect(await screen.findByText(/where to find it/i)).toBeInTheDocument();
+  expect(screen.queryByText(/available near you/i)).not.toBeInTheDocument();
+});
+
 it('renders SommOverlay with wine name', () => {
   getWine.mockReturnValue(new Promise(() => {}));
   renderScreen();

@@ -12,6 +12,7 @@ vi.mock('react-router-dom', async () => {
 
 vi.mock('../../lib/api.js', () => ({ getDeals: vi.fn() }));
 import { getDeals } from '../../lib/api.js';
+import { saveZip } from '../../lib/useIsMobile.js';
 
 const DEAL = {
   wine_id: 'w1', name: 'Schug Carneros Chardonnay', producer: 'Schug', vintage_year: 2022,
@@ -21,7 +22,14 @@ const DEAL = {
   retailer: 'H-E-B', store_address: '123 Main',
 };
 
-beforeEach(() => { getDeals.mockReset(); mockNavigate.mockClear(); });
+// These specs were written against a hardcoded '78209' default; they test the
+// behaviour WITH a known zip, so seed one explicitly now that none is fabricated.
+beforeEach(() => {
+  getDeals.mockReset();
+  mockNavigate.mockClear();
+  localStorage.clear();
+  saveZip('78209');
+});
 
 function renderScreen(el, path = '/deals') {
   return render(
@@ -60,6 +68,14 @@ describe('Deals screen', () => {
     renderScreen();
     await waitFor(() => screen.getByText(/Nothing worth flagging/));
   });
+
+  it('does not call getDeals when no zip is known', async () => {
+    localStorage.clear();
+    renderScreen();
+    await new Promise(r => setTimeout(r, 0));
+    expect(getDeals).not.toHaveBeenCalled();
+    expect(screen.getByText(/set your location/i)).toBeInTheDocument();
+  });
 });
 
 describe('Discovery deals rail', () => {
@@ -86,6 +102,14 @@ describe('Discovery deals rail', () => {
     getDeals.mockResolvedValue({ week_of: 'JUL 12', count: 0, deals: [] });
     renderScreen(null, '/discover');
     await waitFor(() => expect(getDeals).toHaveBeenCalled());
+    expect(screen.queryByText(/Worth grabbing/)).toBeNull();
+  });
+
+  it('does not call getDeals for the rail when no zip is known', async () => {
+    localStorage.clear();
+    renderScreen(null, '/discover');
+    await new Promise(r => setTimeout(r, 0));
+    expect(getDeals).not.toHaveBeenCalled();
     expect(screen.queryByText(/Worth grabbing/)).toBeNull();
   });
 });

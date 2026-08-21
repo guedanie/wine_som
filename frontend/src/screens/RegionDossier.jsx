@@ -302,7 +302,9 @@ export default function RegionDossier() {
             {availRows.length > 0 && (
               <>
                 <PriceContextModule ctx={wine.price_context} compact wineId={id} wineName={wine.name ?? pick.name} />
-                <Eyebrow style={{ display: 'block', marginBottom: 10 }}>Available near you</Eyebrow>
+                {/* No zip => getWine skipped proximity filtering, so these rows are
+                    nationwide. Don't call them "near you". */}
+                <Eyebrow style={{ display: 'block', marginBottom: 10 }}>{zip ? 'Available near you' : 'Where to find it'}</Eyebrow>
                 <div style={{ border: '1.5px solid var(--ink)', background: 'var(--cream)', marginBottom: 18 }}>
                   {availRows.map((loc, i) => {
                     const cheapest = loc.is_cheapest ?? i === 0;
@@ -456,7 +458,9 @@ export default function RegionDossier() {
               <div style={{ maxWidth: 520 }}>
                 <PriceContextModule ctx={wine.price_context} wineId={id} wineName={wine.name ?? pick.name} />
               </div>
-              <Eyebrow style={{ display: 'block', marginBottom: 10 }}>Available near you</Eyebrow>
+              {/* No zip => getWine skipped proximity filtering, so these rows are
+                  nationwide. Don't call them "near you". */}
+              <Eyebrow style={{ display: 'block', marginBottom: 10 }}>{zip ? 'Available near you' : 'Where to find it'}</Eyebrow>
               <div style={{ border: '1.5px solid var(--ink)', background: 'var(--cream)', maxWidth: 520 }}>
                 {(wine.availability?.length > 0
                   ? wine.availability

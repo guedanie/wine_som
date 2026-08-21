@@ -65,7 +65,7 @@ export default function RegionDetail() {
   useEffect(() => {
     if (!region) return;
     getSubregionCounts(region, zip).then(d => setCounts(d.counts)).catch(() => {});
-  }, [region]);
+  }, [region, zip]);   // zip was missing — counts never refreshed after a location was set
 
   if (!region || !detail) {
     return (

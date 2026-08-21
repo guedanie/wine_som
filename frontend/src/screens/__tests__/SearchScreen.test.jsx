@@ -115,4 +115,5 @@ test('does not search when no zip is stored', async () => {
   await new Promise(r => setTimeout(r, 0));
   expect(searchWines).not.toHaveBeenCalled();
   expect(screen.getByLabelText(/zip code for nearby availability/i)).toHaveValue('');
+  expect(screen.getByText(/tell me where you are/i)).toBeInTheDocument();
 });

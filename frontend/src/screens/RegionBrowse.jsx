@@ -48,7 +48,9 @@ export default function RegionBrowse() {
   const [zip,       setZip]       = useState(initialZip ?? '');
   const [zipInput,  setZipInput]  = useState(initialZip ?? '');
   const [retailers, setRetailers] = useState([]);
-  const [loading,   setLoading]   = useState(true);
+  // Only "loading" if there is in fact a fetch to make — otherwise the loading
+  // line paints for a frame announcing a fetch we already decided against.
+  const [loading,   setLoading]   = useState(Boolean(initialZip));
   const [error,     setError]     = useState(null);
 
   // Filter state
@@ -71,8 +73,8 @@ export default function RegionBrowse() {
   }
 
   useEffect(() => {
-    if (!zip) { setLoading(false); return; }   // no location yet — the zip form is shown
-    fetchWines(zip);
+    if (!zip) return;                          // no location yet — the zip form is shown
+    fetchWines(zip);                           // fetchWines sets loading itself
   }, [zip]);
 
   function handleZipSubmit(e) {
@@ -204,6 +206,13 @@ export default function RegionBrowse() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* No location — the zip form above is how you recover, so keep it rendered. */}
+      {!zip && (
+        <div style={{ padding: '32px 20px', textAlign: 'center', fontFamily: 'var(--font-sans)', fontSize: 13, lineHeight: 1.6, color: 'var(--faded)' }}>
+          Tell me where you are &mdash; the zip box above &mdash; and I&rsquo;ll show you what&rsquo;s on shelves near you.
         </div>
       )}
 
