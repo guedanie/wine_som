@@ -45,8 +45,8 @@ export default function RegionBrowse() {
 
   // The hook owns resolution; this screen only owns the user's edits to it.
   const initialZip = useUserZip();
-  const [zip,       setZip]       = useState(initialZip);
-  const [zipInput,  setZipInput]  = useState(initialZip);
+  const [zip,       setZip]       = useState(initialZip ?? '');
+  const [zipInput,  setZipInput]  = useState(initialZip ?? '');
   const [retailers, setRetailers] = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState(null);
@@ -70,7 +70,10 @@ export default function RegionBrowse() {
     }
   }
 
-  useEffect(() => { fetchWines(zip); }, [zip]);
+  useEffect(() => {
+    if (!zip) { setLoading(false); return; }   // no location yet — the zip form is shown
+    fetchWines(zip);
+  }, [zip]);
 
   function handleZipSubmit(e) {
     e.preventDefault();

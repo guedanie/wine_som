@@ -10,6 +10,7 @@ vi.mock('react-router-dom', async () => {
 });
 vi.mock('../../lib/api.js', () => ({ getRegionWines: vi.fn() }));
 import { getRegionWines } from '../../lib/api.js';
+import { saveZip } from '../../lib/useIsMobile.js';
 
 const MOCK_RESP = {
   region: 'Tuscany',
@@ -61,9 +62,16 @@ function renderScreen(slug = 'Tuscany', state = {}) {
   );
 }
 
-beforeEach(() => { mockNavigate.mockClear(); getRegionWines.mockClear(); });
+// These specs were written against a hardcoded '78209' default; they test the
+// behaviour WITH a known zip, so seed one explicitly now that none is fabricated.
+beforeEach(() => {
+  mockNavigate.mockClear();
+  getRegionWines.mockClear();
+  localStorage.clear();
+  saveZip('78209');
+});
 
-it('calls getRegionWines with decoded slug and default zip on mount', async () => {
+it('calls getRegionWines with decoded slug and the stored zip on mount', async () => {
   getRegionWines.mockResolvedValueOnce(MOCK_RESP);
   renderScreen('Tuscany');
   await waitFor(() => expect(getRegionWines).toHaveBeenCalledWith('Tuscany', '78209'));
@@ -171,4 +179,20 @@ it('navigates to /recommend with region + filters when "Ask the sommelier" is cl
       }),
     }),
   }));
+});
+
+// ---- nullable zip: no location known ----
+
+it('renders without crashing when no zip is stored', () => {
+  localStorage.clear();
+  renderScreen('Tuscany');
+  expect(screen.getByPlaceholderText('78209')).toHaveValue('');
+});
+
+it('does not fetch region wines when no zip is stored', async () => {
+  localStorage.clear();
+  renderScreen('Tuscany');
+  await new Promise(r => setTimeout(r, 0));
+  expect(getRegionWines).not.toHaveBeenCalled();
+  expect(screen.queryByText(/loading/i)).not.toBeInTheDocument();
 });

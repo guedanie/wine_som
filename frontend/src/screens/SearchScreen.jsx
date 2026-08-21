@@ -74,7 +74,7 @@ export default function SearchScreen() {
   const [params, setParams] = useSearchParams();
 
   const initialZip = useUserZip();
-  const [zip, setZip] = useState(initialZip);
+  const [zip, setZip] = useState(initialZip ?? '');
   const changeZip = (v) => {
     const digits = v.replace(/\D/g, '').slice(0, 5);
     setZip(digits);

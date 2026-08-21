@@ -11,6 +11,7 @@ vi.mock('../../lib/api.js', () => ({ searchWines: vi.fn() }));
 
 import SearchScreen from '../SearchScreen.jsx';
 import { searchWines } from '../../lib/api.js';
+import { saveZip } from '../../lib/useIsMobile.js';
 
 const MOCK_RESULTS = {
   query: 'tuscany',
@@ -36,8 +37,12 @@ function renderScreen(initial = '/search') {
   );
 }
 
+// These specs were written against a hardcoded '78209' default; they test the
+// behaviour WITH a known zip, so seed one explicitly now that none is fabricated.
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
+  saveZip('78209');
   searchWines.mockResolvedValue(MOCK_RESULTS);
 });
 
@@ -100,4 +105,14 @@ test('editing the zip re-runs the search with the new zip', async () => {
   await userEvent.clear(zipInput);
   await userEvent.type(zipInput, '37205');   // Nashville
   await waitFor(() => expect(searchWines).toHaveBeenCalledWith(expect.objectContaining({ q: 'tuscany', zip: '37205' })));
+});
+
+// ---- nullable zip: no location known ----
+
+test('does not search when no zip is stored', async () => {
+  localStorage.clear();
+  renderScreen('/search?q=malbec');
+  await new Promise(r => setTimeout(r, 0));
+  expect(searchWines).not.toHaveBeenCalled();
+  expect(screen.getByLabelText(/zip code for nearby availability/i)).toHaveValue('');
 });
