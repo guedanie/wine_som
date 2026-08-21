@@ -5,7 +5,6 @@ import WineCard from '../components/WineCard.jsx';
 import { getDeals } from '../lib/api.js';
 import { useUserZip } from '../lib/useUserZip.js';
 import { deriveWineCardMeta } from '../lib/regions.js';
-import { loadZip } from '../lib/useIsMobile.js';
 import { track } from '../lib/analytics.js';
 
 // "Worth grabbing this week" — the full editorial deals screen (design:

@@ -301,7 +301,7 @@ export default function RegionDossier() {
             {/* Price context + store list */}
             {availRows.length > 0 && (
               <>
-                <PriceContextModule ctx={wine.price_context} compact wineId={id} wineName={wine.name ?? pick.name} />
+                <PriceContextModule ctx={wine.price_context} compact wineId={id} wineName={wine.name ?? pick.name} zipKnown={Boolean(zip)} />
                 {/* No zip => getWine skipped proximity filtering, so these rows are
                     nationwide. Don't call them "near you". */}
                 <Eyebrow style={{ display: 'block', marginBottom: 10 }}>{zip ? 'Available near you' : 'Where to find it'}</Eyebrow>
@@ -456,7 +456,7 @@ export default function RegionDossier() {
               </div>
 
               <div style={{ maxWidth: 520 }}>
-                <PriceContextModule ctx={wine.price_context} wineId={id} wineName={wine.name ?? pick.name} />
+                <PriceContextModule ctx={wine.price_context} wineId={id} wineName={wine.name ?? pick.name} zipKnown={Boolean(zip)} />
               </div>
               {/* No zip => getWine skipped proximity filtering, so these rows are
                   nationwide. Don't call them "near you". */}

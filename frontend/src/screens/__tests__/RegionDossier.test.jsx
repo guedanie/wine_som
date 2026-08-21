@@ -184,6 +184,44 @@ it('does not claim "near you" when no zip is known', async () => {
   expect(screen.queryByText(/available near you/i)).not.toBeInTheDocument();
 });
 
+it('does not claim "cheapest nearby" when no zip is known', async () => {
+  localStorage.clear();
+  getWine.mockResolvedValue({
+    ...wineDetail,
+    availability: [
+      { store_ref: 's1', retailer: 'H-E-B', address: '123 Main', price: 19.99, is_cheapest: true, was_price: 24.99 },
+    ],
+    price_context: {
+      variant: 'drop', amount: 5, from_price: 24.99, to_price: 19.99,
+      store: 'H-E-B', since_label: 'this week', weeks_tracked: 6,
+      strip: [24.99, 24.99, 19.99],
+      cheapest: { retailer: 'H-E-B', price: 19.99, delta_vs_next: 6 },
+    },
+  });
+  renderScreen();
+  // The drop prose still renders — only the proximity clause is withheld.
+  await waitFor(() => expect(screen.getByText(/Down to/)).toBeInTheDocument());
+  expect(screen.queryByText(/cheapest nearby by/i)).not.toBeInTheDocument();
+});
+
+it('DOES claim "cheapest nearby" once a zip is known', async () => {
+  localStorage.clear();
+  getWine.mockResolvedValue({
+    ...wineDetail,
+    availability: [
+      { store_ref: 's1', retailer: 'H-E-B', address: '123 Main', price: 19.99, is_cheapest: true, was_price: 24.99 },
+    ],
+    price_context: {
+      variant: 'drop', amount: 5, from_price: 24.99, to_price: 19.99,
+      store: 'H-E-B', since_label: 'this week', weeks_tracked: 6,
+      strip: [24.99, 24.99, 19.99],
+      cheapest: { retailer: 'H-E-B', price: 19.99, delta_vs_next: 6 },
+    },
+  });
+  renderScreen('uuid-1', { pick, zip: '78209' });
+  expect(await screen.findByText(/cheapest nearby by \$6/i)).toBeInTheDocument();
+});
+
 it('renders SommOverlay with wine name', () => {
   getWine.mockReturnValue(new Promise(() => {}));
   renderScreen();
