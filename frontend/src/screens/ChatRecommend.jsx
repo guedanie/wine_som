@@ -179,16 +179,22 @@ export default function ChatRecommend() {
   // Fail-soft: a taste hiccup must never block the recommendation itself.
   const tasteFor = () => (user ? buildTasteContext(user.id).catch(() => null) : Promise.resolve(null));
 
+  // Do we know where the user is at mount? `pickerOpen` and `zipConfirmed` MUST
+  // derive from the same answer — if they can disagree, the store picker opens
+  // without a zip and we're back to the bug this file was fixed for (picking a
+  // store, then being asked for a zip anyway). One const, so they can't drift.
+  const zipKnownAtMount = Boolean(_restored) || loadZip() != null;
+
   const [askZip, setAskZip]         = useState(() => _restored?.askZip ?? loadZip());
-  const [zipConfirmed, setZipConfirmed] = useState(() => Boolean(_restored) || loadZip() != null);
+  const [zipConfirmed, setZipConfirmed] = useState(zipKnownAtMount);
   const [pendingAskText, setPendingAskText] = useState(null);
   const [zipDraft, setZipDraft]     = useState('');
   // A store picker without a zip would list stores near a location we don't
   // have. Defer the requested open until a zip exists (see the effect below).
   const [pickerOpen, setPickerOpen] = useState(() =>
-    Boolean(state?.openStorePicker) && (Boolean(_restored) || loadZip() != null));
+    Boolean(state?.openStorePicker) && zipKnownAtMount);
   const [pickerDeferred, setPickerDeferred] = useState(() =>
-    Boolean(state?.openStorePicker) && !(Boolean(_restored) || loadZip() != null));
+    Boolean(state?.openStorePicker) && !zipKnownAtMount);
   const [nearbyStores, setNearbyStores] = useState(null);
   const [storeRef, setStoreRef]     = useState(() => _restored?.storeRef ?? null);
   const [storeLabel, setStoreLabel] = useState(() => _restored?.storeLabel ?? null);
