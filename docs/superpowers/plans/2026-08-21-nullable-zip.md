@@ -12,7 +12,27 @@
 
 **Reference:** design spec `docs/superpowers/specs/2026-08-20-nullable-zip-design.md`.
 
-**Ordering rationale:** Task 1 changes the shared helper and WILL break things until Tasks 2-4 land. Do not stop midway — the suite is expected to be red between Task 1 and Task 4. Task 1's own tests pass; other suites go red and are repaired in order. Task 5 (the actual reported bug) depends on Task 1's `hasStoredZip` removal.
+**Ordering rationale:** Task 1 changes the shared helper and WILL break things until Tasks 2-4 land. Do not stop midway — the suite is expected to be red between Task 1 and Task 4. Task 1's own tests pass; other suites go red and are repaired in order.
+
+**CORRECTION (2026-08-21, from Task 1 code review):** Task 1 as originally written left the frontend
+**unbuildable** (`npm run build` → `[MISSING_EXPORT] "hasStoredZip"`), because `ChatRecommend.jsx`
+still imported the deleted symbol. A dead build is a different animal from a red suite: it masks
+real breakage behind an "expected red" instruction. The two-line import swap (originally Task 5
+Step 3) is therefore **pulled forward into Task 1** — it is a pure refactor
+(`hasStoredZip() ≡ loadZip() != null`) and belongs in the commit that deletes the symbol it
+consumes. Consequences:
+- `npm run build` is now a **required gate on every task**, not just the test suite.
+- The expected-red set after Task 1 is **4 suites** — `PreferenceCapture`, `SearchScreen`,
+  `RegionBrowse`, `mobile` (all `.length`-on-null crashes) — not the 6 originally predicted, and
+  `ModeTabs` does NOT fail (it passes its zip via router state).
+- Task 4's "full suite green" gate is now actually satisfiable; before this correction it was not,
+  since `ChatRecommend*` could not go green until Task 5.
+
+**Deploy-safety note:** this repo has **no frontend CI** (`.github/workflows/` holds only the
+scrape/enrich jobs) and no pre-commit hook, so nothing but Vercel's build step stands between a
+push and production. The intermediate state failing at *build* time rather than runtime is what
+keeps a mid-plan deploy from white-screening live beta testers — Vercel rejects the build and
+keeps serving the last good bundle. Worth a follow-up roadmap item independent of this branch.
 
 **File map:**
 | File | Responsibility | Task |
@@ -290,6 +310,8 @@ git commit -m "fix(zip): keep zip inputs controlled when no location is known"
 **Files:**
 - Modify: `frontend/src/screens/Deals.jsx:29-31`
 - Modify: `frontend/src/screens/Discovery.jsx:17-19`
+- Modify: `frontend/src/screens/RegionDossier.jsx:305,459` (added by review — see Step 4b)
+- Modify: `frontend/src/screens/RegionDetail.jsx:65-68` (added by review — see Step 4b)
 - Modify: `frontend/src/screens/__tests__/Deals.test.jsx` (exists)
 - Modify: `frontend/src/screens/__tests__/Discovery.test.jsx` (exists)
 
@@ -370,6 +392,108 @@ with:
 The existing `if (!data || data.deals.length === 0) return null;` on the next line already handles
 the no-data case, so the rail correctly renders nothing without a zip.
 
+- [ ] **Step 3b: `SearchScreen`'s silent no-op** (added by Task 2 code review — REAL REGRESSION)
+
+Before this branch, a zipless user searching got results (near the fabricated `'78209'`). Now
+`SearchScreen.jsx:117`'s `if (query && zip.length === 5)` guard means they type a query, press
+Enter, and **nothing happens** — no results, no error, no prompt. Search looks broken rather than
+location-gated. Task 2's new test even asserts `expect(searchWines).not.toHaveBeenCalled()`
+without asserting any user-visible feedback, locking the silence in as correct.
+
+This screen appears in no other task, so fix it here. In `frontend/src/screens/SearchScreen.jsx`,
+find the results region (where `wines` / `loading` / `error` are rendered) and add a no-zip branch
+before the empty-results state:
+
+```jsx
+  if (query && zip.length !== 5) return (
+    <div style={{ padding: '32px 20px', textAlign: 'center', fontFamily: 'var(--font-sans)', fontSize: 13, lineHeight: 1.6, color: 'var(--faded)' }}>
+      Tell me where you are — the zip box above — and I'll search what's actually on shelves near you.
+    </div>
+  );
+```
+
+Place it inside the results container so the query input and zip box above stay usable. Then
+strengthen Task 2's test rather than leaving it asserting only absence — add to the existing
+`does not search when no zip is stored` test in `SearchScreen.test.jsx`:
+
+```js
+    expect(screen.getByText(/tell me where you are/i)).toBeInTheDocument();
+```
+
+- [ ] **Step 4a: `RegionBrowse`'s no-zip empty state** (added by Task 2 implementer's concern)
+
+Also fix the one-frame loading flash the Task 2 review traced: `RegionBrowse`'s
+`useState(true)` for `loading` commits and paints "Loading wines from…" before the guard's
+`setLoading(false)` runs, announcing a fetch we already decided not to make. Change the
+declaration (around line 51) from `useState(true)` to:
+```js
+  const [loading,   setLoading]   = useState(Boolean(initialZip));
+```
+and simplify the guard added in Task 2 to just `if (!zip) return;` (dropping its now-redundant
+`setLoading(false)`). `fetchWines` sets `loading = true` itself, so the `'' → 5-digit` transition
+still shows the loader.
+
+Task 2 guarded `RegionBrowse`'s fetch, so with no zip it now renders the header and the zip form
+and then nothing — its "No matches" state is gated on `allWines.length > 0` and never fires. Not
+misleading (it no longer claims results near a fabricated zip), but it's a dead-end.
+
+In `frontend/src/screens/RegionBrowse.jsx`, find the render branch that handles the empty/loading
+states (read the file — it has `loading`, `error`, and a "No wines in {regionName} match your
+current filters near {zip}" message around line 221). Add a no-zip branch BEFORE the existing
+empty-state check, mirroring the copy voice of the Deals prompt in Step 3:
+
+```jsx
+  if (!zip) return (
+    <div style={{ padding: '32px 20px', textAlign: 'center', fontFamily: 'var(--font-sans)', fontSize: 13, lineHeight: 1.6, color: 'var(--faded)' }}>
+      Tell me where you are — the zip box above — and I'll show you what's on shelves near you.
+    </div>
+  );
+```
+
+Place it so the zip form above it still renders (the user needs the input to recover). If the
+file's structure makes that awkward, put the message inside the existing results container rather
+than early-returning from the component.
+
+- [ ] **Step 4b: Stop claiming "near you" when we don't know where you are** (added by Task 1 review)
+
+`getWine` and `getSubregionCounts` are Optional-zip endpoints, so these two screens don't crash or
+send `"null"` — `api.js:50` and `:68` already guard `zip ? ... : ''`. But omitting the param makes
+the API **skip proximity filtering entirely and return nationwide results**, which the dossier
+still renders under an "Available near you" heading. That is precisely the prior bug
+`useUserZip.js`'s own docstring memorializes ("17 stores nationwide, including a Spec's 252 mi
+away") — unreachable while `loadZip` fabricated a default, reachable now. Fixing it is the whole
+point of this branch: never assert something we haven't been told.
+
+In `frontend/src/screens/RegionDossier.jsx`, the string `Available near you` appears at **line 305
+(desktop layout) and line 459 (mobile layout)** — both must change. In each, replace:
+```jsx
+<Eyebrow style={{ display: 'block', marginBottom: 10 }}>Available near you</Eyebrow>
+```
+with:
+```jsx
+<Eyebrow style={{ display: 'block', marginBottom: 10 }}>{zip ? 'Available near you' : 'Where to find it'}</Eyebrow>
+```
+(`zip` is already in scope from `useUserZip()` at line 155.)
+
+In `frontend/src/screens/RegionDetail.jsx`, fix the stale-zip dependency — the effect at lines
+65-68 lists only `[region]`, so like Discovery it never refetches after the user sets a location.
+Replace `}, [region]);` with `}, [region, zip]);`. No label change is needed here (it renders
+subregion counts, not a proximity claim).
+
+- [ ] **Step 4c: Test the dossier label**
+
+Append to `frontend/src/screens/__tests__/RegionDossier.test.jsx` (read the file first and reuse
+its existing render helper and api mocks):
+
+```js
+  it('does not claim "near you" when no zip is known', async () => {
+    localStorage.clear();
+    renderDossier();                   // reuse this suite's existing helper
+    expect(await screen.findByText(/where to find it/i)).toBeInTheDocument();
+    expect(screen.queryByText(/available near you/i)).not.toBeInTheDocument();
+  });
+```
+
 - [ ] **Step 5: Run to verify pass**
 
 Run: `cd frontend && npx vitest run src/screens/__tests__/Deals.test.jsx src/screens/__tests__/Discovery.test.jsx`
@@ -379,8 +503,8 @@ with `saveZip('78209')` in that suite's `beforeEach` rather than weakening its a
 - [ ] **Step 6: Commit**
 
 ```bash
-git add frontend/src/screens/Deals.jsx frontend/src/screens/Discovery.jsx frontend/src/screens/__tests__/Deals.test.jsx
-git commit -m "fix(zip): never send a null zip to the required-zip deals endpoint"
+git add frontend/src/screens/Deals.jsx frontend/src/screens/Discovery.jsx frontend/src/screens/SearchScreen.jsx frontend/src/screens/RegionBrowse.jsx frontend/src/screens/RegionDossier.jsx frontend/src/screens/RegionDetail.jsx frontend/src/screens/__tests__/Deals.test.jsx frontend/src/screens/__tests__/SearchScreen.test.jsx frontend/src/screens/__tests__/RegionBrowse.test.jsx frontend/src/screens/__tests__/RegionDossier.test.jsx
+git commit -m "fix(zip): prompt for a location instead of failing silently, and never claim 'near you' without one"
 ```
 
 ---

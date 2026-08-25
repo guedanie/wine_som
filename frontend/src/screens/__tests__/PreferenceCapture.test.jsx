@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import PreferenceCapture from '../PreferenceCapture.jsx';
+import { saveZip } from '../../lib/useIsMobile.js';
 
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
@@ -8,7 +9,9 @@ vi.mock('react-router-dom', async () => {
   return { ...actual, useNavigate: () => mockNavigate };
 });
 
-beforeEach(() => { mockNavigate.mockClear(); });
+// These specs were written against a hardcoded '78209' default; they test the
+// behaviour WITH a known zip, so seed one explicitly now that none is fabricated.
+beforeEach(() => { mockNavigate.mockClear(); localStorage.clear(); saveZip('78209'); });
 
 function renderScreen() {
   return render(<MemoryRouter><PreferenceCapture /></MemoryRouter>);
@@ -99,4 +102,20 @@ it('submitting carries a per-run reqId so a refresh can be told apart from a re-
   expect(mockNavigate).toHaveBeenCalledWith('/recommend', expect.objectContaining({
     state: expect.objectContaining({ reqId: expect.any(String) }),
   }));
+});
+
+
+// ---- nullable zip: no location known ----
+
+it('renders with an empty zip field when no zip is stored', () => {
+  localStorage.clear();
+  renderScreen();
+  // The desktop input has no aria-label; '78209' is its placeholder, not a value.
+  expect(screen.getByPlaceholderText('78209')).toHaveValue('');
+});
+
+it('disables Find wines when no zip is stored', () => {
+  localStorage.clear();
+  renderScreen();
+  expect(screen.getByRole('button', { name: /find wines/i })).toBeDisabled();
 });

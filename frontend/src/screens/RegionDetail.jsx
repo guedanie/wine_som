@@ -7,7 +7,7 @@ import {
 import { getSubregionCounts } from '../lib/api.js';
 import { useUserZip } from '../lib/useUserZip.js';
 import { track } from '../lib/analytics.js';
-import useIsMobile, { loadZip } from '../lib/useIsMobile.js';
+import useIsMobile from '../lib/useIsMobile.js';
 
 const STRIPE_BG = 'repeating-linear-gradient(135deg, var(--paper), var(--paper) 11px, #E6DAC2 11px, #E6DAC2 22px)';
 
@@ -65,7 +65,7 @@ export default function RegionDetail() {
   useEffect(() => {
     if (!region) return;
     getSubregionCounts(region, zip).then(d => setCounts(d.counts)).catch(() => {});
-  }, [region]);
+  }, [region, zip]);   // zip was missing — counts never refreshed after a location was set
 
   if (!region || !detail) {
     return (
@@ -138,7 +138,9 @@ export default function RegionDetail() {
                   <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, fontWeight: 500, color: 'var(--ink)' }}>{s2.name}</div>
                   <div style={{ fontSize: 10.5, letterSpacing: '0.12em', color: 'var(--sage)', marginTop: 2 }}>{s2.coord}</div>
                 </div>
-                {n != null && <div style={{ fontSize: 11, color: 'var(--bordeaux)', whiteSpace: 'nowrap', marginRight: 10 }}>{n} nearby</div>}
+                {/* No zip => getSubregionCounts drops ?zip= and the endpoint counts
+                    catalog-wide, so "nearby" would be a claim we never computed. */}
+                {n != null && <div style={{ fontSize: 11, color: 'var(--bordeaux)', whiteSpace: 'nowrap', marginRight: 10 }}>{n} {zip ? 'nearby' : 'in the catalog'}</div>}
                 <span style={{ fontSize: 12, color: 'var(--bordeaux)', flex: 'none' }}>→</span>
               </div>
             );
@@ -261,7 +263,7 @@ export default function RegionDetail() {
                   </span>
                   {n != null && (
                     <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--faded)', marginLeft: 18, whiteSpace: 'nowrap' }}>
-                      {n} nearby
+                      {n} {zip ? 'nearby' : 'in the catalog'}
                     </span>
                   )}
                   <span style={{ fontSize: 12, color: 'var(--bordeaux)', marginLeft: 12, flex: 'none' }}>→</span>

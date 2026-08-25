@@ -19,7 +19,8 @@ const WINE_TYPES = ['Red', 'White', 'Rosé', 'Sparkling'];
 export default function PreferenceCapture() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const [zip,      setZip]      = useState(loadZip);
+  // '' (not null) so the input stays controlled; `valid` already requires 5 digits.
+  const [zip,      setZip]      = useState(() => loadZip() ?? '');
   const [budget,   setBudget]   = useState(60);
   const [styles,   setStyles]   = useState(['Bold & Tannic']);
   const [occasion, setOccasion] = useState('Tonight');

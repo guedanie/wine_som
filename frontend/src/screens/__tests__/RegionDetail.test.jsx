@@ -15,6 +15,7 @@ vi.mock('../../components/RegionMap.jsx', () => ({
 
 import RegionDetail from '../RegionDetail.jsx';
 import { getSubregionCounts } from '../../lib/api.js';
+import { saveZip } from '../../lib/useIsMobile.js';
 
 function renderScreen(slug = 'tuscany') {
   return render(
@@ -26,8 +27,12 @@ function renderScreen(slug = 'tuscany') {
   );
 }
 
+// These specs were written against a hardcoded '78209' default; they test the
+// behaviour WITH a known zip, so seed one explicitly now that none is fabricated.
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
+  saveZip('78209');
   getSubregionCounts.mockResolvedValue({ region: 'Tuscany', counts: {} });
 });
 
@@ -55,6 +60,21 @@ test('renders sub-regions with live wine counts', async () => {
   await waitFor(() => expect(screen.getByText('24 nearby')).toBeInTheDocument());
   // "Montalcino" (curated) matches "Brunello di Montalcino" (DB) by containment
   expect(screen.getByText('18 nearby')).toBeInTheDocument();
+});
+
+// ---- nullable zip: no location known ----
+
+test('labels counts "in the catalog", not "nearby", when no zip is known', async () => {
+  localStorage.clear();
+  getSubregionCounts.mockResolvedValue({
+    region: 'Tuscany',
+    counts: { 'Chianti Classico': 412 },
+  });
+  renderScreen('tuscany');
+  // Without a zip the endpoint counts catalog-wide — calling that "nearby" is a
+  // claim we never computed, and a bare integer is unfalsifiable from the UI.
+  await waitFor(() => expect(screen.getByText('412 in the catalog')).toBeInTheDocument());
+  expect(screen.queryByText(/nearby/i)).not.toBeInTheDocument();
 });
 
 test('renders the map', () => {

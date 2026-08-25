@@ -7,7 +7,7 @@ import { DISCOVERY_REGIONS, regionSlug } from '../lib/regions.js';
 import { useUserZip } from '../lib/useUserZip.js';
 import { getDeals } from '../lib/api.js';
 import { track } from '../lib/analytics.js';
-import useIsMobile, { loadZip } from '../lib/useIsMobile.js';
+import useIsMobile from '../lib/useIsMobile.js';
 
 // The weekly deals rail — a curated cut on Discover, not a destination you
 // must seek. Renders nothing when the week has no cut (absence is the design).
@@ -16,8 +16,9 @@ function DealsRail({ compact }) {
   const zip = useUserZip();
   const [data, setData] = useState(null);
   useEffect(() => {
+    if (!zip) return;
     getDeals(zip, 10).then(setData).catch(() => {});
-  }, []);
+  }, [zip]);      // was [] — the rail never refetched after the user set a location
   if (!data || data.deals.length === 0) return null;
   const open = deal => {
     track('deal_opened', { wine_id: deal.wine_id, retailer: deal.retailer, source: 'rail' });

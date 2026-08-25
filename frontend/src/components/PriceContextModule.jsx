@@ -43,7 +43,10 @@ function WeekStrip({ strip, variant, compact }) {
   );
 }
 
-export default function PriceContextModule({ ctx, compact = false, wineId = null, wineName = null }) {
+// `zipKnown` defaults true: price_context is derived server-side from the same
+// availability list the dossier renders, which is only store-scoped when a zip
+// was sent. Without one, "cheapest nearby" compares against stores nationwide.
+export default function PriceContextModule({ ctx, compact = false, wineId = null, wineName = null, zipKnown = true }) {
   if (!ctx || !ctx.cheapest) return null;
   const isDrop = ctx.variant === 'drop';
   const { cheapest } = ctx;
@@ -70,7 +73,7 @@ export default function PriceContextModule({ ctx, compact = false, wineId = null
               </div>
               <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, lineHeight: 1.55, color: 'var(--faded)', marginTop: 6 }}>
                 Was {fmt(ctx.from_price)} — it slipped this week.
-                {cheapest.delta_vs_next != null && ` Cheapest nearby by ${fmt(cheapest.delta_vs_next)}.`}
+                {cheapest.delta_vs_next != null && zipKnown && ` Cheapest nearby by ${fmt(cheapest.delta_vs_next)}.`}
               </div>
             </>
           ) : (

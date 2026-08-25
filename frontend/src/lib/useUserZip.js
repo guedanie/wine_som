@@ -19,8 +19,12 @@ import { loadZip } from './useIsMobile.js';
  * Both were the same root cause: a new entry path not inheriting context the old one
  * carried. One chain, owned here, is what stops the next one.
  *
- * Returns a usable zip ALWAYS (never null) — a null silently disables server-side
- * proximity filtering, which fails open to the whole country.
+ * Returns the user's zip, or NULL when we genuinely don't know it — "no location"
+ * must be representable, because rendering a fabricated default as though confirmed
+ * is what produced the aisle-mode re-ask bug. Consumers MUST handle null: a null zip
+ * omits the proximity filter server-side, so a screen that shows "near you" must
+ * either suppress that framing or ask for a location first. See
+ * docs/superpowers/specs/2026-08-20-nullable-zip-design.md
  */
 export function useUserZip() {
   const { state } = useLocation();

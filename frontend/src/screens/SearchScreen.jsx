@@ -74,7 +74,7 @@ export default function SearchScreen() {
   const [params, setParams] = useSearchParams();
 
   const initialZip = useUserZip();
-  const [zip, setZip] = useState(initialZip);
+  const [zip, setZip] = useState(initialZip ?? '');
   const changeZip = (v) => {
     const digits = v.replace(/\D/g, '').slice(0, 5);
     setZip(digits);
@@ -141,6 +141,17 @@ export default function SearchScreen() {
   ) : [];
 
   const activeFilterCount = styles.length + retailers.length + varietals.length + (inStock ? 1 : 0);
+
+  // Search is zip-gated (runSearch only fires at 5 digits). Without this the user
+  // types, hits Enter and nothing happens — search looks broken rather than
+  // location-gated. Rendered INSIDE the results area so the query + zip inputs
+  // above stay usable; the zip box is how you recover.
+  const zipKnown  = zip.length === 5;
+  const noZipHint = query && !zipKnown ? (
+    <div style={{ padding: '32px 20px', textAlign: 'center', fontFamily: 'var(--font-sans)', fontSize: 13, lineHeight: 1.6, color: 'var(--faded)' }}>
+      Tell me where you are &mdash; the zip box above &mdash; and I&rsquo;ll search what&rsquo;s actually on shelves near you.
+    </div>
+  ) : null;
 
   const wineRow = w => (
     <div
@@ -241,7 +252,8 @@ export default function SearchScreen() {
 
         {/* Results */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '16px 14px 20px', WebkitOverflowScrolling: 'touch' }}>
-          {query && !loading && (
+          {noZipHint}
+          {query && zipKnown && !loading && (
             <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--faded)', marginBottom: 14 }}>
               {visibleWines.length} wine{visibleWines.length !== 1 ? 's' : ''} for “{query}”
             </div>
@@ -273,7 +285,7 @@ export default function SearchScreen() {
               ))}
             </>
           )}
-          {query && !loading && !error && visibleWines.length === 0 && places.length === 0 && (
+          {query && zipKnown && !loading && !error && visibleWines.length === 0 && places.length === 0 && (
             <div className="t-body" style={{ padding: '16px 0' }}>
               Nothing found for “{query}”. Try a grape, a region, or a producer name.
             </div>
@@ -466,7 +478,8 @@ export default function SearchScreen() {
 
         {/* Results */}
         <main style={{ padding: '28px 32px 60px', borderTop: '1.5px solid var(--ink)' }}>
-          {query && !loading && (
+          {noZipHint}
+          {query && zipKnown && !loading && (
             <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--faded)', marginBottom: 4 }}>
               {visibleWines.length} wine{visibleWines.length !== 1 ? 's' : ''} for “{query}”
             </div>
@@ -551,7 +564,7 @@ export default function SearchScreen() {
             </>
           )}
 
-          {query && !loading && !error && visibleWines.length === 0 && places.length === 0 && (
+          {query && zipKnown && !loading && !error && visibleWines.length === 0 && places.length === 0 && (
             <div className="t-body" style={{ padding: '20px 0' }}>
               Nothing found for “{query}”. Try a grape, a region, or a producer name.
             </div>

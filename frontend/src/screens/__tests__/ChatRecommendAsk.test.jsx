@@ -131,6 +131,40 @@ describe('store picker', () => {
     expect(streamRecommend.mock.calls[0][0]).toMatchObject({ store_ref: 's1' });
   });
 
+  it('asks for a zip BEFORE opening the store picker when none is stored', async () => {
+    const { getNearbyStores } = await import('../../lib/api.js');
+    getNearbyStores.mockResolvedValue({ zip: '37210', stores: [
+      { id: 's1', retailer_name: 'Kroger', name: 'Kroger Nashville', address: 'x', distance_miles: 0.9 },
+    ] });
+    getNearbyStores.mockClear();   // shared mock: earlier tests in this file call it
+    localStorage.removeItem('somm_zip');
+    renderAsk({ mode: 'ask', openStorePicker: true });
+    expect(await screen.findByText(/tell me roughly where you are/)).toBeInTheDocument();
+    expect(screen.queryByText(/Which one are you standing in/)).toBeNull();
+    expect(getNearbyStores).not.toHaveBeenCalled();
+  });
+
+  it('does not re-ask for a zip after a store has been picked', async () => {
+    const { getNearbyStores } = await import('../../lib/api.js');
+    getNearbyStores.mockResolvedValue({ zip: '37210', stores: [
+      { id: 's1', retailer_name: 'Kroger', name: 'Kroger Nashville', address: 'x', distance_miles: 0.9 },
+    ] });
+    streamRecommend.mockImplementation(async function* () { yield { type: 'token', text: 'ok' }; });
+    getNearbyStores.mockClear();
+    localStorage.removeItem('somm_zip');
+    renderAsk({ mode: 'ask', openStorePicker: true });
+    await userEvent.type(await screen.findByLabelText('Your zip'), '37210');
+    await userEvent.click(screen.getByText('Set'));
+    // the picker opens with the zip we just learned — and uses it
+    await userEvent.click(await screen.findByText('Kroger Nashville'));
+    expect(getNearbyStores).toHaveBeenCalledWith('37210');
+    expect(streamRecommend).not.toHaveBeenCalled();   // nothing was queued to send
+    await userEvent.type(screen.getAllByRole('textbox')[0], 'something bold{Enter}');
+    await waitFor(() => expect(streamRecommend).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(/tell me roughly where you are/)).toBeNull();
+    expect(streamRecommend.mock.calls[0][0]).toMatchObject({ zip_code: '37210', store_ref: 's1' });
+  });
+
   it('the escape hatch clears the store', async () => {
     const { getNearbyStores } = await import('../../lib/api.js');
     getNearbyStores.mockResolvedValue({ zip: '78209', stores: [
