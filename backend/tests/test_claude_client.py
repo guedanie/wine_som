@@ -580,3 +580,26 @@ def test_history_preamble_names_prior_picks_with_ids():
     msg = _build_user_message([], intent, conversation_history=history)
     assert "Avaline Sauvignon Blanc [wine_id: w1]" in msg
     assert "Starborough Sauvignon Blanc [wine_id: w2]" in msg
+
+
+# ---- item 44: in-store directive ----
+
+def test_standing_store_directive_present_and_named():
+    from recommendation.claude_client import _build_user_message
+    intent = {"flavors": [], "avoid": [], "grapes": [],
+              "budget_min": 10.0, "budget_max": 50.0,
+              "message": "a red for pizza",
+              "standing_store": "Geraldine's Natural Wines"}
+    msg = _build_user_message([], intent)
+    assert "Geraldine's Natural Wines" in msg
+    assert "shelves" in msg.lower()                 # wines are on the store's shelves
+    assert "only from this list" in msg.lower()     # hard scope stated to the model
+    assert "check nearby stores" in msg.lower()     # the honest thin-store offer
+
+
+def test_no_standing_store_directive_when_absent():
+    from recommendation.claude_client import _build_user_message
+    intent = {"flavors": [], "avoid": [], "grapes": [],
+              "budget_min": 10.0, "budget_max": 50.0, "message": "a red for pizza"}
+    msg = _build_user_message([], intent)
+    assert "standing in" not in msg.lower()

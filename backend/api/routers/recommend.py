@@ -424,6 +424,9 @@ async def recommend(req: RecommendRequest):
     detected_retailer = detect_retailer(req.message, list(retailer_to_stores))
     if req.store_ref and detected_store and detected_store.get("id") == req.store_ref:
         logger.info("STORE | structured store_ref honored: %s", detected_store.get("name"))
+    # Tell the prompt which store the user is standing in (item 44) so it recommends
+    # only from those shelves and offers to check nearby when the fit is thin.
+    resolved["standing_store"] = detected_store["name"] if detected_store else None
 
     # Availability oracle: count full nearby inventory for the constraints the user
     # actually named. Fired here so its latency overlaps the candidate fetch/scoring;
