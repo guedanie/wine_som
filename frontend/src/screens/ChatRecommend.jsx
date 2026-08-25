@@ -501,7 +501,7 @@ export default function ChatRecommend() {
         Somewhere else — just use my zip
       </button>
       <div style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--faded)', marginTop: 8 }}>
-        Store is a soft filter, not a cage — I'll still name a better bottle down the road if there is one.
+        I'll keep to what's on their shelves. If they don't have a great match, I'll say so and you can send me to check nearby.
       </div>
     </SommelierBubble>
   );
