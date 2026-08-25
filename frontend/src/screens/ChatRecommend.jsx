@@ -215,6 +215,7 @@ export default function ChatRecommend() {
   // FIRST recommendation instead of racing to null.
   const firedRef = useRef(false);
   const lastReqRef = useRef(null);
+  const lastAskTextRef = useRef(null);   // last real question, for the 'check nearby' widen (item 44)
   useEffect(() => {
     if (!prefs || _restored || !ready || firedRef.current) return;
     firedRef.current = true;
@@ -420,6 +421,7 @@ export default function ChatRecommend() {
       setPendingAskText(text);
       return;
     }
+    lastAskTextRef.current = text;
     const history = historyFrom(messages);
     setMessages(prev => [...prev, { id: uuid(), role: 'user', text }]);
     tasteFor().then(taste => callRecommend(buildAskReq({
@@ -596,6 +598,29 @@ export default function ChatRecommend() {
     </div>
   );
 
+  // Aisle mode (item 44): a store-scoped answer offers to widen to nearby stores.
+  // Tapping re-sends the LAST question without store_ref — a one-turn widen; the
+  // storeRef state stays set, so the next question is scoped to the store again.
+  // Cross-store results are ONLY reachable this way (explicit accept in the chat).
+  const checkNearby = (m) =>
+    (askMode && storeRef && m.role === 'sommelier' && m.picks?.length) ? (
+      <button onClick={() => {
+        const q = lastAskTextRef.current;
+        if (!q || loading || streaming) return;
+        const history = historyFrom(messages);
+        setMessages(prev => [...prev, { id: uuid(), role: 'user', text: 'Check nearby stores' }]);
+        tasteFor().then(taste => callRecommend(buildAskReq({
+          zip: askZip, message: q, history: history.length ? history : undefined,
+          conversational: naturalChatMode(), taste,   // storeRef omitted → widen
+        })));
+      }}
+        style={{ marginTop: 8, cursor: 'pointer', background: 'none', color: 'var(--bordeaux)',
+          border: '1.5px solid var(--bordeaux)', fontFamily: 'var(--font-sans)', fontSize: 12,
+          padding: '7px 13px' }}>
+        Check nearby stores
+      </button>
+    ) : null;
+
   const retryButton = (m) => m.retry && (
     <div style={{ marginTop: 10 }}>
       <button onClick={() => { setMessages(prev => prev.filter(x => x.id !== m.id)); if (lastReqRef.current) callRecommend(lastReqRef.current); }}
@@ -621,6 +646,7 @@ export default function ChatRecommend() {
       >
         {renderBody(introText, i)}
         {offerButtons(m)}
+        {checkNearby(m)}
         {retryButton(m)}
         <AvailabilityStrip lines={m.availability} />
       </SommelierBubble>
@@ -741,6 +767,7 @@ export default function ChatRecommend() {
                       </p>
                     ))}
                     {offerButtons(m)}
+                    {checkNearby(m)}
                     {retryButton(m)}
                     <AvailabilityStrip lines={m.availability} />
                   </SommelierBubble>
