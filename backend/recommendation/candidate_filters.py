@@ -249,6 +249,17 @@ def resolve_requested_store(store_ref: Optional[str],
     return detect_store(message or "", stores)
 
 
+def filter_to_store(candidates: List[Dict[str, Any]],
+                    store_id: Optional[str]) -> List[Dict[str, Any]]:
+    """Keep only rows on the given store's shelves — the aisle-mode HARD filter
+    (item 44). A wine exclusive to another store must never surface to someone
+    standing in this one. No-op on a falsy store_id. An empty result is the
+    honest 'this store has nothing' signal — the caller must NOT silently widen."""
+    if not store_id:
+        return candidates
+    return [c for c in candidates if c.get("store_ref") == store_id]
+
+
 def merge_candidates(breadth: List[Dict[str, Any]],
                      targeted: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Union breadth + targeted candidate dicts, deduped by (wine_id, store_ref)."""

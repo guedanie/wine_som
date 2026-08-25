@@ -302,6 +302,16 @@ recommendation window: `/` (plan) and `/recommend` without prefs state (ask).
   `store_ref` when the store picker set a standing store.
 - **`GET /api/stores/nearby?zip=`** (`api/routers/stores.py`): the store
   picker's list — id, retailer, branch name, address, distance; closest first.
+- **Hard store filter (item 44, 2026-08-25)**: when the picker sets `store_ref`,
+  the shortlist is hard-filtered to that store — `filter_to_store()` inside
+  `_score_and_select` (the one scoring choke point, so breadth + every deep-fetch
+  merge is covered). A wine exclusive to another store never surfaces. The prompt
+  gets `standing_store` → an in-store directive (recommend only from these
+  shelves; when nothing fits, be honest and offer to check nearby). Widening is
+  the frontend's **"Check nearby stores"** affordance re-sending the last question
+  WITHOUT `store_ref` — a one-turn widen (state persists, next question re-scopes).
+  Cross-store is reachable ONLY that way, so "no cross-store without asking" is
+  structural, not a prompt rule.
 - **Picks SSE event** carries `comparison` (the 2+ compared bottle names, else
   null) and each pick carries `body` + `structure_profile` (axes 0–10) so the
   frontend `CompareFrame` renders price/body/tannin rows from data. Winner =

@@ -426,3 +426,29 @@ def test_pin_prior_picks_pins_in_history_order_cheapest_row():
     assert [w["wine_id"] for w in out[:2]] == ["w1", "w2"]   # history order, not input order
     assert out[0]["price"] == 22.0                            # cheapest row per wine
     assert "x" in [w["wine_id"] for w in out]
+
+
+# ---- item 44: hard store filter (aisle mode) ----
+
+from recommendation.candidate_filters import filter_to_store
+
+
+def test_filter_to_store_keeps_only_that_store():
+    cands = [
+        {"wine_id": "w1", "store_ref": "s1", "name": "In-store red"},
+        {"wine_id": "w2", "store_ref": "s2", "name": "Other-store red"},
+        {"wine_id": "w1", "store_ref": "s1", "name": "In-store red (dup row)"},
+    ]
+    out = filter_to_store(cands, "s1")
+    assert [c["store_ref"] for c in out] == ["s1", "s1"]
+    assert all(c["store_ref"] == "s1" for c in out)
+
+
+def test_filter_to_store_empty_when_store_absent():
+    cands = [{"wine_id": "w2", "store_ref": "s2"}]
+    assert filter_to_store(cands, "s1") == []
+
+
+def test_filter_to_store_noop_on_falsy_store():
+    cands = [{"wine_id": "w1", "store_ref": "s1"}]
+    assert filter_to_store(cands, None) == cands

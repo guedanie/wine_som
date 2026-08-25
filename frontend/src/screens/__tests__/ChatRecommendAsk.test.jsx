@@ -269,3 +269,43 @@ it('follow-up history carries the prior picks (item 41 — referent carry)', asy
     { wine_id: 'w2', name: 'Starborough Sauvignon Blanc' },
   ]);
 });
+
+describe('hard store filter — check nearby (item 44)', () => {
+  it('offers Check nearby stores on a store-scoped answer and widens on tap', async () => {
+    const { getNearbyStores } = await import('../../lib/api.js');
+    getNearbyStores.mockResolvedValue({ zip: '78209', stores: [
+      { id: 's1', retailer_name: "Geraldine's", name: "Geraldine's Natural Wines", address: 'x', distance_miles: 0 },
+    ] });
+    streamRecommend
+      .mockImplementationOnce(async function* () {
+        yield { type: 'token', text: "Here's the best on Geraldine's shelves." };
+        yield { type: 'picks', picks: [{ wine_id: 'w1', name: 'COS Cerasuolo', price: 30, retailer: "Geraldine's", why: 'In store.' }], session_id: 's' };
+      })
+      .mockImplementationOnce(async function* () {
+        yield { type: 'token', text: 'Looking wider.' };
+        yield { type: 'picks', picks: [{ wine_id: 'w2', name: 'Torbreck Shiraz', price: 40, retailer: 'Twin Liquors', why: 'Nearby.' }], session_id: 's2' };
+      });
+    renderAsk({ mode: 'ask', openStorePicker: true });
+    await screen.findByText("Geraldine's Natural Wines");
+    await userEvent.click(screen.getByText("Geraldine's Natural Wines"));   // pick the store
+    await userEvent.type(screen.getAllByRole('textbox')[0], 'a red for pizza{Enter}');
+    await screen.findByText('COS Cerasuolo');
+    expect(streamRecommend.mock.calls[0][0].store_ref).toBe('s1');          // scoped
+    await userEvent.click(screen.getByText('Check nearby stores'));
+    await screen.findByText('Torbreck Shiraz');
+    const widened = streamRecommend.mock.calls[1][0];
+    expect(widened.store_ref).toBeUndefined();                              // widened
+    expect(widened.message).toBe('a red for pizza');
+  });
+
+  it('does not show Check nearby stores when no store is picked', async () => {
+    streamRecommend.mockImplementation(async function* () {
+      yield { type: 'token', text: 'Ok.' };
+      yield { type: 'picks', picks: [{ wine_id: 'w1', name: 'Some Red', price: 20, retailer: 'H-E-B', why: 'x' }], session_id: 's' };
+    });
+    renderAsk();
+    await userEvent.type(screen.getAllByRole('textbox')[0], 'a red for pizza{Enter}');
+    await screen.findByText('Some Red');
+    expect(screen.queryByText('Check nearby stores')).toBeNull();
+  });
+});

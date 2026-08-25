@@ -21,7 +21,8 @@ from recommendation.availability import (axes_from_intent, catalog_terms,
                                          axis_key, axis_label, availability_lines)
 from recommendation.producer_facts import fetch_producer_facts
 from recommendation.candidate_filters import (apply_type_gate, deep_fetch_reason,
-                                              detect_retailer, is_referential,
+                                              detect_retailer, filter_to_store,
+                                              is_referential,
                                               pin_prior_picks, prior_picks_from_history,
                                               resolve_requested_store,
                                               ensure_region_representation,
@@ -423,6 +424,9 @@ async def recommend(req: RecommendRequest):
     detected_retailer = detect_retailer(req.message, list(retailer_to_stores))
     if req.store_ref and detected_store and detected_store.get("id") == req.store_ref:
         logger.info("STORE | structured store_ref honored: %s", detected_store.get("name"))
+    # Tell the prompt which store the user is standing in (item 44) so it recommends
+    # only from those shelves and offers to check nearby when the fit is thin.
+    resolved["standing_store"] = detected_store["name"] if detected_store else None
 
     # Availability oracle: count full nearby inventory for the constraints the user
     # actually named. Fired here so its latency overlaps the candidate fetch/scoring;
@@ -596,6 +600,16 @@ async def recommend(req: RecommendRequest):
     # Seeded jitter (±0.4, well under any single axis weight) varies the
     # candidate mix between turns without ever dropping strong matches.
     def _score_and_select(pool: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        # Aisle-mode hard filter (item 44): a picked store means the user is
+        # standing there — only its shelves are eligible. Applied here (the one
+        # scoring choke point) so the breadth pool AND every deep-fetch merge are
+        # covered. An empty result is the honest "store has nothing" signal; we
+        # never silently widen (that requires the user dropping store_ref).
+        if detected_store:
+            _before_store = len(pool)
+            pool = filter_to_store(pool, detected_store["id"])
+            logger.info("STORE FILTER | %s → %d/%d candidates",
+                        detected_store.get("name"), len(pool), _before_store)
         scored = score_candidates(resolved, pool)
         # No silent caps: `avoid` is a HARD exclusion, and a bogus one ("nothing from
         # Mendoza right?" once parsed Mendoza into avoid) silently deleted 275 of 300
@@ -615,9 +629,8 @@ async def recommend(req: RecommendRequest):
         sel = _select_diverse_top(scored, _MAX_CANDIDATES, _RETAILER_CAP, _VARIETAL_CAP)
         sel = ensure_region_representation(
             sel, scored, resolved.get("regions") or [], _MAX_CANDIDATES)
-        if detected_store:
-            sel.sort(key=lambda w: (w.get("store_ref") == detected_store["id"],
-                                    w.get("_score", 0)), reverse=True)
+        # (Store scoping is now a hard filter above — every survivor is already
+        # in-store, so no post-sort by store is needed.)
         # A referential follow-up must keep its subjects in front — a
         # comparison cannot lose the wines it is about (item 41).
         if referential and prior_cands:

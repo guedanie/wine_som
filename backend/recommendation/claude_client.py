@@ -362,6 +362,23 @@ def _build_user_message(
             "never imply it's stocked nearby."
         )
 
+    # Aisle mode (item 44): the user picked a store and is standing in it. The pool
+    # is already hard-filtered to that store's shelves; tell the model so, and require
+    # an honest "no strong fit → offer to check nearby" instead of a weak pad.
+    store_directive = ""
+    standing = intent.get("standing_store")
+    if standing:
+        store_directive = (
+            f"\n\nThe user is standing in {standing} and wants to buy right now. "
+            f"EVERY wine listed below is on {standing}'s shelves — recommend only from "
+            f"this list, and never suggest a bottle that isn't here. If none is a strong "
+            f"match for what they asked, say so plainly (name the closest thing on the "
+            f"shelf if there is one) and offer to check nearby stores — e.g. \"{standing} "
+            f"doesn't have a great match for that; want me to check nearby stores?\" — "
+            f"rather than padding with a weak pick. Do not leave {standing} unless the "
+            f"user asks you to."
+        )
+
     # The availability oracle's computed facts about FULL nearby inventory — the only
     # thing that licenses an absence claim (the listings never can).
     fact_block = format_fact_block(intent.get("availability_facts") or [])
@@ -426,6 +443,7 @@ def _build_user_message(
         f"{similarity_note}"
         f"{drop_note}"
         f"{comparison_directive}"
+        f"{store_directive}"
         f"{fact_block}"
         f"{producer_block}"
         f"{availability_rules}"
