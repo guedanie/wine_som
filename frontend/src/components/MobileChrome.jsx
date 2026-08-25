@@ -32,7 +32,14 @@ export function TopBar() {
   const navigate = useNavigate();
   const zip = useUserZip();
 
-  const askMode = pathname === '/recommend' && state?.mode === 'ask';
+  // Mirror ChatRecommend's ask-mode detection exactly (state.mode, a restored ask
+  // session, or a stateless arrival = ask) so the header tabs never desync from the
+  // content — a reload/direct-load of /recommend rendered the ask face but dropped
+  // the tabs when this only checked state.mode.
+  const askMode = pathname === '/recommend' && (
+    state?.mode === 'ask' || state?._restored?.mode === 'ask' ||
+    (!state?.prefs && !state?._restored)
+  );
   const showTabs = pathname === '/' || askMode;
 
   let title = 'Somm';
