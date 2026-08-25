@@ -49,3 +49,19 @@ it('tapping PLAN A BOTTLE navigates home', async () => {
   await userEvent.click(screen.getByText('PLAN A BOTTLE'));
   expect(mockNavigate).toHaveBeenCalledWith('/');
 });
+
+// Regression: the ask face reached WITHOUT an explicit state.mode==='ask' (a reload
+// or direct load of /recommend, or a restored ask session) renders ask content in
+// ChatRecommend but the header fell through to its title branch and dropped the tabs.
+// MobileChrome must detect ask mode the same way ChatRecommend does.
+it('shows the tabs (ASK active) on a stateless /recommend load', () => {
+  renderAt({ pathname: '/recommend', state: null });
+  expect(screen.getByText('PLAN A BOTTLE')).toBeInTheDocument();
+  expect(screen.getByText('ASK').style.color).toBe('var(--ink)');
+  expect(screen.queryByText(/Tonight/)).toBeNull();
+});
+
+it('shows the tabs on a restored ask session (_restored.mode===ask)', () => {
+  renderAt({ pathname: '/recommend', state: { _restored: { mode: 'ask' } } });
+  expect(screen.getByText('ASK').style.color).toBe('var(--ink)');
+});
