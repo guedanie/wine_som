@@ -116,3 +116,31 @@ def test_parse_returns_empty_without_a_json_ld_itemlist():
 def test_store_registry_has_the_verified_san_antonio_store():
     s = TW_STORES["503"]
     assert s["zip"] == "78216" and s["city"] == "San Antonio" and s["state"] == "TX"
+
+
+# --- resumable crawl cursor ---------------------------------------------------
+# A single run CANNOT finish a store: Total Wine throttles to a stripped page and
+# then a 403 around page ~11 of 30. So progress is a bookmark, and "throttled" is
+# an expected outcome rather than a failure.
+
+from scrapers.total_wine import _next_page
+
+
+def test_crawl_resumes_after_the_last_completed_page():
+    cur = {"503": {"last_page": 11, "total_pages": 30}}
+    assert _next_page(cur, "503", 30) == 12
+
+
+def test_crawl_starts_at_page_one_for_an_unseen_store():
+    assert _next_page({}, "999", 30) == 1
+
+
+def test_crawl_wraps_to_page_one_once_the_store_is_exhausted():
+    """A finished store must re-crawl for fresh prices, not stall forever."""
+    cur = {"503": {"last_page": 30, "total_pages": 30}}
+    assert _next_page(cur, "503", 30) == 1
+
+
+def test_crawl_wraps_when_the_cursor_overshoots_a_shrunken_catalog():
+    cur = {"503": {"last_page": 42, "total_pages": 60}}
+    assert _next_page(cur, "503", 30) == 1

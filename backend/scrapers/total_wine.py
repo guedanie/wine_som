@@ -35,6 +35,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from scrapers.base import BaseScraper, RetailInventoryItem
@@ -46,11 +47,24 @@ _UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
        "(KHTML, like Gecko) Chrome/131.0 Safari/537.36")
 
 _PAGE_SIZE = 200          # measured ceiling that still returns cleanly (3.3 MB/page)
-_PACE_SECONDS = 5.0       # measured: ~10 rapid requests trips a 403
-_BACKOFF_SECONDS = 120.0  # measured: a 120s pause restores correct behaviour
 _MAX_PAGES = 60           # 5,947 wines / 200 ≈ 30; cap guards a pagination bug
-_MAX_EMPTY = 3            # a single empty page is transient, not the end (measured:
-                          # page 2 returned 0 while pages 1 and 3 returned 200 each)
+
+# Two modes, because Total Wine throttles hard (see below).
+#   SEED  — first N pages per store, quick, to get usable coverage the same day.
+#   CRAWL — resume where the last run stopped, slowly, a few pages at a time.
+# Rationale: a single run CANNOT finish a store. Measured — pages 1,3,4 fine, then a
+# 4-page empty streak, then intermittent, then HTTP 403 at page ~11 of 30. Those empty
+# pages are the throttle serving a STRIPPED page (no JSON-LD), not flakiness: degradation
+# tracks request volume. So partial progress is the design, not a failure mode.
+_SEED_PAGES = 5           # 5 x 200 = ~1,000 wines/store, the fast first pass
+_SEED_PACE = 8.0
+_CRAWL_PAGES = 6          # per slow run; several runs/week finish a store
+_CRAWL_PACE = 45.0        # measured: fast pacing is what triggers the strip-then-403
+_EMPTY_BACKOFF = 150.0    # an empty page means "you are being throttled" — wait, do not
+                          # retry fast. Retrying at 5s burned ~4 requests per empty page
+                          # and accelerated the 403 that killed the first full run.
+
+_CURSOR_PATH = Path(__file__).parents[2] / "data" / "totalwine_cursor.json"
 
 # Verified store metadata. Harvested via local_delivery_pages_sitemap.xml ->
 # alcohol-delivery-near-me-{City}-{State} -> /store-info/{state-city}/{id}.
@@ -190,10 +204,36 @@ def fetch_page(store_id: str, page: int = 1, retries: int = 4,
             last = e
         if attempt < retries - 1:
             # short pause for a flaky render; long one only after a real block
-            time.sleep(_PACE_SECONDS if isinstance(last, RuntimeError) else _BACKOFF_SECONDS)
+            # empty page == throttle signal; wait properly rather than retry-storm
+            time.sleep(_EMPTY_BACKOFF)
     if isinstance(last, RuntimeError):
         return []            # genuinely empty after retries — let the caller decide
     raise last if last else RuntimeError("fetch failed")
+
+
+def load_cursor() -> Dict[str, Dict[str, Any]]:
+    """Per-store crawl progress. A plain JSON file, not a table: this job only ever
+    runs on the mini, and a local file avoids a prod migration for what is really
+    just a bookmark. Swap for a table if it ever needs to run in two places."""
+    try:
+        return json.loads(_CURSOR_PATH.read_text())
+    except (OSError, json.JSONDecodeError, ValueError):
+        return {}
+
+
+def save_cursor(cursor: Dict[str, Dict[str, Any]]) -> None:
+    try:
+        _CURSOR_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _CURSOR_PATH.write_text(json.dumps(cursor, indent=2, sort_keys=True))
+    except OSError as e:
+        print(f"    WARN: could not persist cursor ({e}) — next crawl restarts this store")
+
+
+def _next_page(cursor: Dict[str, Dict[str, Any]], store_id: str, last_page: int) -> int:
+    """Where the slow crawl resumes. Wraps to page 1 once a store is exhausted so a
+    weekly job keeps prices fresh instead of stopping forever."""
+    done = int((cursor.get(store_id) or {}).get("last_page", 0))
+    return 1 if done >= last_page else done + 1
 
 
 class TotalWineScraper(BaseScraper):
@@ -219,40 +259,64 @@ class TotalWineScraper(BaseScraper):
             in_stock=True, varietal=p.varietal,
         ) for p in products if p.name and p.price is not None]
 
-    async def run_full(self, store_ids: Optional[List[str]] = None) -> dict:
+    async def run_full(self, store_ids: Optional[List[str]] = None,
+                       mode: str = "seed") -> dict:
+        """mode='seed'  -> first _SEED_PAGES per store, quickly (same-day coverage)
+           mode='crawl' -> resume from the cursor, _CRAWL_PAGES slowly (weekly depth)
+
+        A 403 or an empty streak ENDS THE STORE CLEANLY rather than failing the run:
+        being throttled is the expected outcome of asking for a 5,947-wine catalog,
+        and the cursor means the next run picks up exactly where this one stopped."""
         import uuid
+        if mode not in ("seed", "crawl"):
+            raise ValueError("mode must be 'seed' or 'crawl'")
         stores = store_ids or list(TW_STORES)
+        pace = _SEED_PACE if mode == "seed" else _CRAWL_PACE
+        budget = _SEED_PAGES if mode == "seed" else _CRAWL_PAGES
+        cursor = load_cursor()
+
         run_id = str(uuid.uuid4())
         self.supabase.table("scraper_runs").insert({
             "id": run_id, "retailer_name": RETAILER_NAME, "status": "running",
         }).execute()
 
-        total = 0
+        total, throttled = 0, []
         try:
             for store_id in stores:
-                s = TW_STORES[store_id]
-                print(f"\n  Store {store_id} — {s['name']}")
+                s_meta = TW_STORES[store_id]
                 expected = total_results(store_id)
-                # Iterate the page count the catalog implies rather than guessing at an
-                # end sentinel — empty pages here are flaky renders, not termination.
-                last_page = (min(_MAX_PAGES, -(-expected // _PAGE_SIZE))
-                             if expected else _MAX_PAGES)
-                print(f"    catalog claims {expected} wines -> {last_page} pages", flush=True)
-                seen_ids = set()
-                empty_streak = 0
-                for page in range(1, last_page + 1):
-                    products = fetch_page(store_id, page)
+                if expected:
+                    last_page = min(_MAX_PAGES, -(-expected // _PAGE_SIZE))
+                else:
+                    # throttled out of the count — reuse what we learned last time
+                    last_page = int((cursor.get(store_id) or {}).get("total_pages") or _MAX_PAGES)
+                start = 1 if mode == "seed" else _next_page(cursor, store_id, last_page)
+                stop = min(last_page, start + budget - 1)
+                print(f"\n  Store {store_id} — {s_meta['name']} [{mode}] "
+                      f"pages {start}-{stop} of {last_page} ({expected} wines)", flush=True)
+
+                seen_ids, empties, reached = set(), 0, start - 1
+                for page in range(start, stop + 1):
+                    try:
+                        products = fetch_page(store_id, page)
+                    except urllib.error.HTTPError as e:
+                        if e.code in (403, 429):
+                            print(f"    page {page}: {e.code} — throttled, stopping this "
+                                  f"store (resume here next run)", flush=True)
+                            throttled.append(store_id)
+                            break
+                        raise
+                    if not products:
+                        empties += 1
+                        print(f"    page {page}: stripped page ({empties} in a row) — "
+                              f"throttle signal, waiting {_EMPTY_BACKOFF:.0f}s", flush=True)
+                        if empties >= 2:
+                            throttled.append(store_id)
+                            break              # back off for real; resume next run
+                        time.sleep(_EMPTY_BACKOFF)
+                        continue
+                    empties = 0
                     fresh = [p for p in products if p.product_id not in seen_ids]
-                    if not fresh:
-                        # ONE empty page is transient (a page whose JSON-LD didn't
-                        # render), not the end of the catalog — measured: page 2 gave 0
-                        # while pages 1 and 3 each gave 200. Only stop on a streak.
-                        empty_streak += 1
-                        print(f"    page {page}: still empty after retries "
-                              f"({empty_streak} in a row)", flush=True)
-                        time.sleep(_PACE_SECONDS)
-                        continue          # keep going — the page count is known
-                    empty_streak = 0
                     seen_ids.update(p.product_id for p in fresh)
                     items = self._to_items(fresh, store_id)
                     if items:
@@ -260,24 +324,29 @@ class TotalWineScraper(BaseScraper):
                         self._upsert_stores(items)
                         self._upsert_inventory(items, upc_to_id)
                         total += len(items)
+                    reached = page
                     print(f"    page {page}: {len(fresh)} products "
                           f"({len(items)} priced, total {total})", flush=True)
-                    if expected and len(seen_ids) >= expected:
-                        break
-                    time.sleep(_PACE_SECONDS)
+                    time.sleep(pace)
 
+                if mode == "crawl" and reached >= start:
+                    cursor[store_id] = {"last_page": reached, "total_pages": last_page,
+                                        "updated": datetime.now(timezone.utc).isoformat()}
+                    save_cursor(cursor)
+
+            note = f" (throttled: {sorted(set(throttled))})" if throttled else ""
             self.supabase.table("scraper_runs").update({
                 "status": "success", "records_updated": total,
+                "error_message": f"[{mode}]{note}" if note else f"[{mode}]",
                 "completed_at": datetime.now(timezone.utc).isoformat(),
             }).eq("id", run_id).execute()
-            return {"wines_committed": total, "stores": len(stores)}
+            return {"wines_committed": total, "stores": len(stores),
+                    "mode": mode, "throttled": sorted(set(throttled))}
 
         except Exception as e:
-            # Record what landed — commits are per page, so a mid-run failure still
-            # leaves real inventory behind (the lesson from item 45's first live run).
             self.supabase.table("scraper_runs").update({
                 "status": "failed", "records_updated": total,
-                "error_message": f"[{total} rows committed before failure] {e}",
+                "error_message": f"[{mode}] [{total} rows committed before failure] {e}",
                 "completed_at": datetime.now(timezone.utc).isoformat(),
             }).eq("id", run_id).execute()
             raise
