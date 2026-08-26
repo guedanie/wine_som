@@ -48,25 +48,15 @@ jobs:
           asyncio.run(GeraldinesScraper().run_full())
           "
 
-      - name: Scrape H-E-B (all active stores)
-        id: heb
-        continue-on-error: true
-        run: |
-          python3 -c "
-          import asyncio
-          from scrapers.heb import HebScraper
-          asyncio.run(HebScraper().run_full())
-          "
-
-      - name: Scrape Central Market (Austin stores 61 + 420)
-        id: central_market
-        continue-on-error: true
-        run: |
-          python3 -c "
-          import asyncio
-          from scrapers.central_market import CentralMarketScraper
-          asyncio.run(CentralMarketScraper().run_full())
-          "
+      # H-E-B + Central Market are NOT run here (item 45). HEB moved
+      # heb.com/graphql behind Imperva Incapsula ~2026-07-26; urllib/curl cannot
+      # solve its JS challenge, so both failed silently every run from 07-26.
+      # They now run on the mini via a HEADED patchright browser session
+      # (com.somm.heb, Sun 05:30 CT) — the only thing that clears Incapsula, and
+      # it needs a real display, which a CI runner does not have.
+      # Central Market is additionally parked: every configured CM_STORES id
+      # returns total=0 (HEB renumbered them), so it would commit nothing.
+      # verify_scrape_runs.py still runs below and will catch a silent zero.
 
       - name: Scrape AOC Selections (San Antonio)
         id: aoc
@@ -176,8 +166,6 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OUTCOMES: >-
             geraldines=${{ steps.geraldines.outcome }}
-            heb=${{ steps.heb.outcome }}
-            central_market=${{ steps.central_market.outcome }}
             aoc=${{ steps.aoc.outcome }}
             usnw=${{ steps.usnw.outcome }}
             antonellis=${{ steps.antonellis.outcome }}

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.somm.heb</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/danielguerrero/dev/wine_app/backend/scripts/run_heb_launchd.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/danielguerrero/dev/wine_app/backend</string>
+
+    <!-- Weekly Sun 05:30 CT — after extraction (03:00), Twin Liquors (04:00)
+         and Spec's (05:00), so the headed browser doesn't fight them for CPU.
+         H-E-B is on the mini because heb.com/graphql sits behind Incapsula and
+         only a HEADED patchright session clears it (item 45) — this MUST be a
+         GUI LaunchAgent in the logged-in Aqua session, never a daemon. -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key><integer>0</integer>
+        <key>Hour</key><integer>5</integer>
+        <key>Minute</key><integer>30</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/danielguerrero/Library/Logs/somm-heb.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/danielguerrero/Library/Logs/somm-heb.err.log</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+    <!-- NOT ProcessType Background: that throttles CPU/IO for the headed
+         browser and can stall the Incapsula solve. -->
+    <key>LowPriorityIO</key>
+    <false/>
+</dict>
+</plist>
