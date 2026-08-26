@@ -222,3 +222,78 @@ def test_session_post_raises_after_exhausting_retries():
     except RuntimeError:
         pass
     assert s._solves == 2               # re-solved between the 3 attempts (not after the last)
+
+
+# --- _w_solve must validate against the API, not the page title ---------------
+# The first live run committed 59k rows then died on Incapsula errorCode 15 (a
+# FINGERPRINT block). _w_solve only checked that the storefront had a title —
+# but a fingerprinted client still gets a perfectly good storefront page while
+# every API POST stays 401. So the re-solve loop declared success, retried, and
+# burned all 3 attempts against a block it had never actually cleared.
+
+class _FakeSolvePage:
+    """Storefront always loads (title present); the API probe is scripted."""
+    def __init__(self, probe_responses, title="H-E-B"):
+        self._probe = list(probe_responses)
+        self._title = title
+        self.gotos = 0
+        self.probes = 0
+
+    def goto(self, *a, **k): self.gotos += 1
+    def wait_for_timeout(self, _ms): pass
+    def title(self): return self._title
+    def evaluate(self, _js, _args):
+        r = self._probe[min(self.probes, len(self._probe) - 1)]
+        self.probes += 1
+        return r
+
+
+def _solve_session(page):
+    s = _BrowserSession.__new__(_BrowserSession)
+    s._page = page
+    s._posts = 0
+    return s
+
+
+def test_solve_rejects_a_titled_page_whose_api_is_still_blocked():
+    """errorCode 15: storefront renders, API 401s. Must NOT count as solved."""
+    page = _FakeSolvePage([{"status": 401, "body": '{"errorCode":"15"}'}])
+    s = _solve_session(page)
+    try:
+        s._w_solve(attempts=2)
+        assert False, "a 401 API probe must not be treated as a cleared challenge"
+    except RuntimeError:
+        pass
+    assert page.probes >= 2          # it actually probed the API, not just the title
+
+
+def test_solve_succeeds_when_the_api_probe_returns_200():
+    page = _FakeSolvePage([{"status": 200, "body": '{"data":{"productSearch":{"total":1}}}'}])
+    s = _solve_session(page)
+    s._w_solve(attempts=2)           # must not raise
+    assert page.probes == 1
+
+
+def test_solve_retries_until_the_api_clears():
+    page = _FakeSolvePage([
+        {"status": 401, "body": '{"errorCode":"15"}'},
+        {"status": 200, "body": '{"data":{"productSearch":{"total":1}}}'},
+    ])
+    s = _solve_session(page)
+    s._w_solve(attempts=3)
+    assert page.probes == 2 and page.gotos == 2
+
+
+# --- proactive re-solve so a long run doesn't trip the volume block -----------
+
+def test_session_resolves_proactively_every_n_posts():
+    """48 stores in one session tripped Incapsula. Re-solve on a cadence."""
+    from scrapers.heb import _RESOLVE_EVERY
+    ok = {"status": 200, "body": '{"data":{"productSearch":{"total":1}}}'}
+    s = _session_with([ok] * (_RESOLVE_EVERY + 1))
+    s._posts = 0
+    for _ in range(_RESOLVE_EVERY):
+        s._w_post("{ productSearch { total } }", "heb-com")
+    assert s._solves == 0                      # none yet
+    s._w_post("{ productSearch { total } }", "heb-com")
+    assert s._solves == 1                      # cadence tripped exactly once

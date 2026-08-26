@@ -171,6 +171,16 @@ from concurrent.futures import ThreadPoolExecutor
 _PROFILE_DIR = os.path.join(tempfile.gettempdir(), "heb_patchright_profile")
 _HOME = "https://www.heb.com/"
 
+# Re-solve proactively after this many successful POSTs. Measured: a 48-store run
+# (~1k POSTs, ~27 min) in one session tripped Incapsula's fingerprint block
+# mid-run. A solve costs ~6s; losing the run costs everything after the trip.
+_RESOLVE_EVERY = 150
+
+# Cheapest real query, used by _w_solve to prove the API — not just the
+# storefront — is actually reachable. Store 567 is the canonical SA store.
+_PROBE_QUERY = ('{ productSearch(shoppingContext: CURBSIDE_PICKUP, query: "wine", '
+                'storeId: 567, limit: 1, offset: 0) { total } }')
+
 _POST_JS = """async ([q, cn, url]) => {
     const r = await fetch(url, {
         method: "POST",
@@ -201,24 +211,48 @@ class _BrowserSession:
         self._w_solve()
 
     def _w_solve(self, attempts: int = 5) -> None:
-        """Load the storefront and wait for the Incapsula JS challenge to clear
-        (a non-empty page title == the real page, i.e. challenge passed)."""
+        """Load the storefront, then prove the challenge cleared by probing the
+        API itself.
+
+        A page title is NOT sufficient evidence. Incapsula's fingerprint block
+        (errorCode 15) serves a perfectly normal storefront while every /graphql
+        POST 401s — so a title-only check reports "solved" against a block it
+        never cleared, and the caller burns its retries. The first live run died
+        exactly this way after 59k rows. The probe is the same cheap query the
+        scraper uses, issued raw (NOT via _w_post, which would recurse)."""
         for _ in range(attempts):
             try:
                 self._page.goto(_HOME, wait_until="domcontentloaded", timeout=45000)
             except Exception:
                 pass
             self._page.wait_for_timeout(6000)
-            if self._page.title():
+            if not self._page.title():
+                continue
+            try:
+                probe = self._page.evaluate(_POST_JS, [_PROBE_QUERY, "heb-com", GRAPHQL_URL])
+            except Exception:
+                continue
+            if probe.get("status") == 200:
+                self._posts = 0                # fresh session — restart the cadence
                 return
-        raise RuntimeError("Incapsula challenge did not clear (title stayed blank)")
+        raise RuntimeError(
+            "Incapsula challenge did not clear (storefront loaded but the API "
+            "probe never returned 200 — likely a fingerprint block, errorCode 15)")
 
     def _w_post(self, query: str, client_name: str, retries: int = 3) -> Dict[str, Any]:
+        # Long runs trip a volume/fingerprint block: 48 stores (~1k POSTs) in one
+        # session died mid-run. Re-solve on a cadence rather than waiting to be
+        # blocked — a solve costs ~6s, far less than losing the run.
+        if getattr(self, "_posts", 0) >= _RESOLVE_EVERY:
+            self._w_solve()
+            self._posts = 0
         for attempt in range(retries):
             res = self._page.evaluate(_POST_JS, [query, client_name, GRAPHQL_URL])
             if res.get("status") == 200:
                 try:
-                    return json.loads(res["body"])
+                    parsed = json.loads(res["body"])
+                    self._posts = getattr(self, "_posts", 0) + 1
+                    return parsed
                 except (json.JSONDecodeError, ValueError):
                     pass                       # 200 but unparseable — treat as challenge
             if attempt < retries - 1:
@@ -479,9 +513,14 @@ class HebScraper(BaseScraper):
             return {"wines_committed": total_committed, "stores": len(stores)}
 
         except Exception as e:
+            # Record what DID land. Commits are per page, so a mid-run block still
+            # leaves real inventory behind — the first live run wrote 59,007 rows
+            # and then reported records_updated=0, which understates the run and
+            # misleads verify_scrape_runs.py (it keys on exactly this number).
             self.supabase.table("scraper_runs").update({
                 "status": "failed",
-                "error_message": str(e),
+                "records_updated": total_committed,
+                "error_message": f"[{total_committed} rows committed before failure] {e}",
                 "completed_at": datetime.now(timezone.utc).isoformat(),
             }).eq("id", run_id).execute()
             raise
