@@ -145,10 +145,53 @@ the site owner explicitly leaves crawlable, and the one obvious path to avoid is
 clearer signal than we had, and it points at a design constraint: **browse categories and
 store-info; never drive `/search/`.**
 
+## 7. SOLVED 2026-08-26 — store selection is a forgeable cookie
+
+The binding is a single cookie, `twm-userStoreInformation`, in a flat `~`/`@` encoding:
+
+```
+twm-userStoreInformation=ispStore~{id}:ifcStore~{id}@ifcStoreState~{US-XX}@method~INSTORE_PICKUP
+```
+
+Sending it on a plain `urllib` GET re-scopes the page. **No session, no handshake, no
+browser** — visiting a store-info page does NOT rebind it (the cookie stays 1108/US-CA),
+so forging the cookie directly is both necessary and sufficient.
+
+Verified against `/wine/c/c0020`:
+
+| store | `storeId` echoed in page | bytes | prices (first 8) |
+|---|---|---|---|
+| 1108 CA Sacramento | 1108 | 1,430,774 | 29.99, 13.49, **10.99**, 11.99, 14.99, 13.99, **12.49**, 19.99 |
+| 503 TX SA Del Norte | 503 | 1,463,627 | 29.99, 13.49, **12.99**, 11.99, 14.99, 13.99, **12.99**, 19.99 |
+| 504 TX SA The Rim | 504 | 1,464,253 | 29.99, 13.49, **12.99**, 11.99, 14.99, 13.99, **12.99**, 19.99 |
+
+Prices move, byte counts move, the echoed `storeId` matches what was asked for, and the
+two SA stores agree with each other while differing from CA — the signature of real
+regional pricing, not a cosmetic swap. **The go/no-go gate in §"next steps" PASSES.**
+
+### San Antonio store ids
+
+| id | store |
+|---|---|
+| 503 | San Antonio Del Norte |
+| 504 | San Antonio The Rim |
+| 520 | Forum |
+
+Harvest route (repeatable for any market): `local_delivery_pages_sitemap.xml` (205 urls,
+34 Texas) → `alcohol-delivery-near-me-{City}-{State}` page → scrape
+`/store-info/{state-city}/{id}` links. Austin/Dallas/Houston come the same way.
+
+## 8. REMAINING before a scraper is worth writing
+
+**Product identity extraction is not solved.** Prices parse cleanly, but the `href` regex
+used in the gate test returned **no** `/p/{productId}` matches, and an earlier attempt
+pulled only 51 links out of 613 `href=` occurrences. Prices without a product key are
+useless — this is the next thing to nail, and it is a parsing problem, not an access one.
+Anchor on `/p/{digits}` and treat the hashed CSS classes as unusable.
+
 ## Verdict
 
-**Not challenge-blocked, and store ids are reachable — but store *selection* is still
-unsolved, and it must be solved over plain HTTP.** The reusable insight from item 45
+**UNLOCKED for access and scoping; blocked only on HTML parsing.** The reusable insight from item 45
 (patchright beats Incapsula) is not merely irrelevant here; the browser is the one thing
 that reliably gets refused. What remains is ordinary product engineering: find how the
 site binds a store to a session over HTTP, and confirm prices actually move when it does.
