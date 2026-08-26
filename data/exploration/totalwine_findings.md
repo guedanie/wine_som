@@ -308,3 +308,55 @@ is the one client that gets refused.
 ToS posture. H-E-B's GraphQL was open and got fenced later; Total Wine's storefront being
 readable today says nothing about whether scraping it is permitted. That's a business
 decision to make deliberately, not by default.
+
+
+---
+
+## 10. RESOLVED 2026-08-26 — `?storeId=` + `pageSize` retire the problem
+
+Two findings that together turn this from "slow and dangerous" into "ordinary".
+
+**Scope via the URL, not the cookie.** `?storeId={id}` on the category URL scopes the same
+24 products and reproduces every known price delta — Olema $12.99 vs $15.99, Caymus $68.99
+vs $66.97, Mina Mesa $12.99 vs $10.99, 8 of 24 differing, identical to the cookie method.
+Because the store is now part of the URL it is part of the **cache key**, so a
+`?storeId=503` request structurally cannot be served the Sacramento default. This retires
+the silent-wrong-data failure rather than guarding against it.
+
+Also settled while getting there:
+- **The CA default is hard-coded, not geographic.** A San Antonio residential IP with no
+  cookie still returns 1108. It is a system default, not a failed geo-lookup.
+- **`?s=` scopes product DETAIL pages only** (`/p/{id}?s=503` → $12.99 vs `?s=1108` →
+  $15.99, no cookie needed) — but NOT category pages. One product per request, so it is a
+  fallback for spot-checks, not a crawl strategy.
+- **Cache-busting was a dead end.** Every response was `x-cache: MISS` with and without a
+  bust param, and a control at identical pacing was 8/8 clean without it — there was no
+  cache contamination to bust. The real variable was always request *rate*.
+
+**`pageSize` scales.** The default 24 is not a ceiling:
+
+| pageSize | products returned | bytes |
+|---|---|---|
+| 24 (default) | 24 | 1.43 MB |
+| 48 | 48 | 1.72 MB |
+| 100 | 100 (99 priced) | 2.34 MB |
+| 200 | **200** (199 priced) | 3.30 MB |
+
+### Cost model
+
+The wine category reports **`totalResults: 5947`**. `page=2` returns 24 entirely different
+products (0 overlap with page 1), so pagination is straightforward.
+
+| strategy | requests per store | at ~5s pacing |
+|---|---|---|
+| pageSize=24 | 248 | ~21 min |
+| **pageSize=200** | **30** | **~2.5 min** |
+
+At `pageSize=200`, 38 Texas stores ≈ **1,140 requests ≈ 1.6 hours** for the entire Texas
+wine catalog — a normal overnight job, comparable to the existing Vivino/extraction agents,
+not the multi-hour crawl feared in §9.
+
+Caveats to carry into a build: ~1 product per large page loses its price (199/200) and
+should be re-fetched individually via `/p/{id}?s={store}`; 3.3 MB per request is heavy, so
+stream/parse rather than holding many in memory; and the rate limit (~10 rapid requests →
+403) still applies, so pacing remains mandatory even though the request count is now small.
