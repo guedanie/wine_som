@@ -88,25 +88,92 @@ data — they'd feed the recommender confident, wrong inventory, which is exactl
 false-availability class items 39/40/44 exist to prevent. A Total Wine scraper that
 can't scope to a Texas store should not be built.
 
+## 5. ROUND 2 — the block profile is INVERTED vs H-E-B
+
+Follow-up probe (`backend/scripts/probe_totalwine_store.py`) tried to watch a store
+selection in a patchright browser and diff cookies/localStorage. It couldn't:
+
+```
+Loading the store finder…
+  baseline: 3 cookies, 4 localStorage keys
+Network calls captured (1):
+  403 GET https://www.totalwine.com/store-finder
+```
+
+**The automated browser gets 403 on a page plain `urllib` reads fine.** Control test run
+immediately after, same machine, same minute: `urllib` → **200**, 854,808 bytes. So we
+are not rate-limited or IP-banned; Total Wine fingerprints and rejects the
+automation-driven Chromium specifically.
+
+| | H-E-B | Total Wine |
+|---|---|---|
+| Plain HTTP (urllib) | ❌ blocked — Incapsula JS challenge | ✅ **200** |
+| Automated browser | ✅ works (patchright) | ❌ **403, fingerprinted** |
+
+**Consequence: for Total Wine the browser is a liability, not an asset.** The item-45
+technique is not just unnecessary here, it is actively counterproductive — and the
+"open a browser and diff the cookies" plan from §"next steps" **cannot work**. Any
+scraper here must be HTTP-only.
+
+## 6. Store ids ARE enumerable — via `/store-info/`
+
+The store-finder HTML exposes a clean, semantic store URL pattern:
+
+```
+/store-info/california-sacramento-arden/1108     <- the default store
+/store-info/california-roseville/1101
+/store-info/california-folsom/1111
+/store-info/california-elk-grove/1114
+```
+
+`/store-info/{state}-{city}[-{suffix}]/{storeId}`. The finder only rendered *California*
+stores (it geo-defaults, and shows no Texas cities — 0 mentions of San Antonio/Austin/
+Dallas/Houston), but the pattern means Texas ids are discoverable rather than guessable.
+
+`robots.txt` lists three sitemaps (`sitemap.xml` → 34 sub-sitemaps including
+`wine-dynamic-sitemap.xml`; plus `site/sitemap-index.xml`). **Probing stopped here** —
+`site/sitemap-index.xml` returned **503**, and after a sustained probe run the right move
+was to stop hammering rather than push through it. Re-try later, gently.
+
+### robots.txt — relevant to the ToS question
+
+Total Wine's `robots.txt` **disallows `/search/`**, `/cart/`, `/checkout/`, `/my-account/`,
+`/session`, `/app/` — but does **not** disallow `/wine/...` category pages, `/p/{id}`
+product pages, or `/store-info/`. So the paths a catalog scraper would want are the ones
+the site owner explicitly leaves crawlable, and the one obvious path to avoid is
+`/search/`. That is not legal advice and does not settle the ToS question, but it is a
+clearer signal than we had, and it points at a design constraint: **browse categories and
+store-info; never drive `/search/`.**
+
 ## Verdict
 
-**Not blocked — but not yet scrapable either.** The reusable insight from item 45
-(patchright beats Incapsula) turned out to be irrelevant here; nothing needed solving.
-What stands in the way is a plain product-engineering problem: discovering how the site
-selects a store, and getting real Texas store ids.
+**Not challenge-blocked, and store ids are reachable — but store *selection* is still
+unsolved, and it must be solved over plain HTTP.** The reusable insight from item 45
+(patchright beats Incapsula) is not merely irrelevant here; the browser is the one thing
+that reliably gets refused. What remains is ordinary product engineering: find how the
+site binds a store to a session over HTTP, and confirm prices actually move when it does.
 
 ## If picked up again — next steps, cheapest first
 
-1. **Find how the store is actually set.** Open totalwine.com in the browser session we
-   already have, select a San Antonio store by hand, and diff the cookies/localStorage
-   before and after. That names the real mechanism in one shot — far faster than the
-   guessing this probe did.
-2. **Get TX store ids** from whatever XHR the store-finder fires (visible in the same
-   browser session), since they're not in the HTML.
-3. **Only then** assess scraping cost: SSR HTML parsing anchored on the `/p/{productId}`
-   URL pattern, with pagination over category pages. Avoid the hashed CSS classes.
-4. **Re-probe the gate from a datacenter IP** before assuming GitHub Actions can run it —
-   this probe was residential-IP only, and that may be exactly why it saw no challenge.
+**Constraint learned the hard way: HTTP only. Do not reach for a browser** — §5 shows it
+is the one client that gets refused.
+
+1. **Harvest TX store ids from the sitemaps** (gently — one returned 503 after this
+   probe's run). `sitemap.xml` indexes 34 sub-sitemaps; find the one carrying
+   `/store-info/` URLs and filter `texas-*`. That replaces guessing entirely.
+2. **Fetch a Texas `/store-info/{…}/{id}` page** and diff it against the California one.
+   Whatever binds a store to a session — a `Set-Cookie` on that response, a form POST, a
+   query param that sticks — should be visible in the headers of a plain request.
+3. **Prove prices actually move.** Fetch the same category page under a CA store and a TX
+   store and compare a known product (e.g. `caymus-cabernet/p/223968750`). If the price
+   doesn't change, the scoping isn't real and the whole effort stops there. This is the
+   go/no-go gate — do it before writing any scraper.
+4. **Only then** assess scraping cost: SSR HTML parsing anchored on the `/p/{productId}`
+   URL pattern, paginating category pages. Avoid the hashed CSS classes, and never touch
+   `/search/` (robots.txt disallows it).
+5. **Re-probe from a datacenter IP** before assuming GitHub Actions can run it — this was
+   residential-IP only. If CI is refused, this lands on the mini like everything else,
+   but as an HTTP job, not a browser one.
 
 ## Not assessed
 
