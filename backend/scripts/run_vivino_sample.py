@@ -21,6 +21,7 @@ import httpx
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
 from db import get_service_client
+from scrapers.base import _execute_with_retry
 from enrichment.vivino import (VivinoFetchError, build_query, fetch_ratings,
                                search_wine, strip_query_noise,
                                structure_to_profile)
@@ -156,7 +157,7 @@ def write_facts(db, w, attrs):
     if attrs.get("country") and not w.get("country"):
         wine_update["country"] = attrs["country"]
     if wine_update:
-        db.table("wines").update(wine_update).eq("id", w["id"]).execute()
+        _execute_with_retry(db.table("wines").update(wine_update).eq("id", w["id"]))
         filled += list(wine_update.keys())
 
     profile = structure_to_profile(attrs.get("structure"))
@@ -174,7 +175,7 @@ def write_facts(db, w, attrs):
             if pairing and not existing[0].get("pairing"):
                 detail_update["pairing"] = pairing
             if detail_update:
-                db.table("wine_details").update(detail_update).eq("wine_id", w["id"]).execute()
+                _execute_with_retry(db.table("wine_details").update(detail_update).eq("wine_id", w["id"]))
                 filled += list(detail_update.keys())
         else:
             record = {"wine_id": w["id"], "source": "vivino"}
@@ -182,7 +183,7 @@ def write_facts(db, w, attrs):
                 record["structure_profile"] = profile
             if pairing:
                 record["pairing"] = pairing
-            db.table("wine_details").insert(record).execute()
+            _execute_with_retry(db.table("wine_details").insert(record))
             filled += [k for k in record if k not in ("wine_id", "source")]
     return filled
 
@@ -234,7 +235,7 @@ async def enrich_one(w, db, client, sem, args, results, state, abort):
                         }
                         if stats.get("image_url"):
                             update["image_url"] = stats["image_url"]
-                        db.table("wines").update(update).eq("id", w["id"]).execute()
+                        _execute_with_retry(db.table("wines").update(update).eq("id", w["id"]))
                         if hit["score"] >= FACTS_THRESHOLD:
                             filled = write_facts(db, w, stats.get("attributes"))
                             if filled:
@@ -247,9 +248,9 @@ async def enrich_one(w, db, client, sem, args, results, state, abort):
         state["consecutive_fails"] = 0
 
         if not args.dry_run and not status.startswith("OK"):
-            db.table("wines").update({
+            _execute_with_retry(db.table("wines").update({
                 "vivino_enriched_at": datetime.now(timezone.utc).isoformat(),
-            }).eq("id", w["id"]).execute()
+            }).eq("id", w["id"]))
 
         print(f"  {w['name'][:55]!r} → {status}", flush=True)
         results.append((w["name"][:55], query[:50], status))
@@ -281,8 +282,8 @@ async def backfill_one(w, db, client, sem, args, results, state, abort):
         else:
             filled = []
             if stats.get("image_url") and not w.get("image_url"):
-                db.table("wines").update({"image_url": stats["image_url"]}) \
-                    .eq("id", w["id"]).execute()
+                _execute_with_retry(db.table("wines").update({"image_url": stats["image_url"]})
+                                    .eq("id", w["id"]))
                 filled.append("image")
             filled += write_facts(db, w, stats.get("attributes"))
             status = "OK" + (f" +{','.join(filled)}" if filled else " (nothing to fill)")
@@ -309,7 +310,20 @@ async def main_async(args):
     worker = backfill_one if args.backfill_facts else enrich_one
     async with httpx.AsyncClient(follow_redirects=True) as client:
         tasks = [worker(w, db, client, sem, args, results, state, abort) for w in wines]
-        await asyncio.gather(*tasks)
+        # return_exceptions: one wine must not abort the batch. A single Cloudflare
+        # 502 on a wine_details write once killed a 946s run and threw away every
+        # wine still queued — the enrichment is per-wine and idempotent, so a
+        # failure should cost ONE wine, not the run. Retryable blips are already
+        # absorbed below this by base._execute_with_retry; anything reaching here
+        # is either unretryable or outlasted the retries, so record and move on.
+        outcomes = await asyncio.gather(*tasks, return_exceptions=True)
+    errors = [o for o in outcomes if isinstance(o, BaseException)]
+    if errors:
+        kinds = {}
+        for e in errors:
+            kinds[type(e).__name__] = kinds.get(type(e).__name__, 0) + 1
+        print(f"\n{len(errors)} of {len(tasks)} wines failed and were skipped: {kinds}")
+        print(f"  first: {errors[0]}")
 
     matched = sum(1 for _, _, s in results if s.startswith("OK"))
     below   = sum(1 for _, _, s in results if s.startswith("LOW_SCORE"))

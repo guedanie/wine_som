@@ -384,3 +384,36 @@ def test_execute_with_retry_gives_up_after_exhausting_retries(monkeypatch):
 
     with pytest.raises(APIError):
         _base._execute_with_retry(_Q(), retries=3)
+
+
+# --- transient gateway errors (2026-08-26) ------------------------------------
+# A Vivino run died after 946s when a single wine_details write got a Cloudflare
+# 502 fronting Supabase. Gateway blips are transient in exactly the way deadlocks
+# are, so they belong in the same retry path — one bad second shouldn't cost a
+# 15-minute job.
+
+def test_execute_with_retry_retries_a_cloudflare_502(monkeypatch):
+    monkeypatch.setattr(_base.time, "sleep", lambda s: None)
+    calls = {"n": 0}
+
+    class _Q:
+        def execute(self):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise _pg_error(502)       # int, as postgrest reports it
+            return "ok"
+
+    assert _base._execute_with_retry(_Q()) == "ok"
+    assert calls["n"] == 3
+
+
+def test_execute_with_retry_retries_gateway_codes_given_as_strings():
+    """postgrest reports code as an int here but a string elsewhere — accept both."""
+    for code in ("502", "503", "504"):
+        assert _base._is_retryable(code), f"{code} should be retryable"
+
+
+def test_execute_with_retry_still_refuses_a_real_client_error():
+    """4xx means we sent something wrong; retrying just repeats the mistake."""
+    assert not _base._is_retryable(400)
+    assert not _base._is_retryable("42703")

@@ -24,6 +24,18 @@ from utils.geo import zip_to_centroid
 # when Spec's moved to the mini (Sun 10:00 UTC) and overlapped the still-running
 # GitHub weekly scrape, both upserting overlapping wines on `upc_canonical`.
 _RETRYABLE_PG_CODES = {"40P01", "40001"}
+# Transient gateway errors from the edge that fronts Supabase (Cloudflare). Added
+# 2026-08-26 after a 946s Vivino run died on a single wine_details write that got a
+# 502 — the blip lasted seconds, the lost work did not. 4xx stays non-retryable:
+# that means we sent something wrong, and retrying just repeats the mistake.
+_RETRYABLE_GATEWAY_CODES = {"502", "503", "504"}
+
+
+def _is_retryable(code) -> bool:
+    """postgrest reports `code` as an int for gateway errors and a string for
+    Postgres SQLSTATEs — normalise before comparing."""
+    c = str(code) if code is not None else ""
+    return c in _RETRYABLE_PG_CODES or c in _RETRYABLE_GATEWAY_CODES
 
 
 def _execute_with_retry(query, retries: int = 4, base_delay: float = 0.5):
@@ -33,7 +45,7 @@ def _execute_with_retry(query, retries: int = 4, base_delay: float = 0.5):
         try:
             return query.execute()
         except APIError as e:
-            if getattr(e, "code", None) in _RETRYABLE_PG_CODES and attempt < retries - 1:
+            if _is_retryable(getattr(e, "code", None)) and attempt < retries - 1:
                 time.sleep(base_delay * (2 ** attempt))
                 continue
             raise
