@@ -231,6 +231,33 @@ An unguarded scraper would therefore fill the database with **California prices 
 as San Antonio** — silently, at 200 OK. That is precisely the false-availability class
 items 39/40/44 exist to prevent, and it is worse than an outage because nothing looks wrong.
 
+### Root cause (headers, 2026-08-26)
+
+```
+vary:         Accept-Encoding, X-UA-Device, Origin      <-- NO Cookie
+x-served-by:  cache-iah17222-IAH, cache-iah17269-IAH    <-- Fastly, Houston POP
+x-cache:      MISS, MISS
+```
+
+**`Cookie` is absent from `Vary`.** Total Wine is behind Fastly and the cache is told to
+vary on encoding/device/origin but *not* on cookies — so nothing in the caching layer is
+obliged to keep per-store responses separate, and a response rendered for one store can be
+served to a request carrying a different store cookie. Store **1108 is the origin default**,
+so any non-personalised path (throttled render, shared cached copy) lands on Sacramento —
+at 200, because from the CDN's view nothing failed.
+
+**It escalates to a hard block.** A run of rapid requests: 9 consecutive correct (all
+`x-cache: MISS`), then request 10 → **HTTP 403 Forbidden**. So throttling has two faces —
+silent default-store content, then an outright 403.
+
+*Honest limit of this evidence:* no `x-cache: HIT` was ever caught serving California, so
+"cached cross-store response" vs "origin fallback under pressure" is not distinguished. The
+missing `Cookie` in `Vary` is confirmed and makes the former structurally possible; the
+rate-limit escalation is confirmed directly.
+
+**Practical ceiling: ~9-10 requests before a 403.** At 24 products/page that is ~240
+products per burst, then a mandatory cooldown — the real input to the crawl-budget question.
+
 **Mandatory guard, implemented in the prototype:** every response is checked with
 `_echoed_stores(html) == {store_id}` and *refused* (`WrongStore`) otherwise, with a 120s
 backoff between attempts and ~8s pacing between pages. Never trust a 200.
