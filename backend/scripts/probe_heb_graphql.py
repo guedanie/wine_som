@@ -3,11 +3,12 @@
 H-E-B has returned "HTTP Error 502: Bad Gateway" from GitHub Actions on every
 weekly run since at least 2026-07-19 (last success); Central Market (same
 endpoint, different client header) returns 0 products every store in the same
-window. Matches the pattern already seen with Spec's/Twin Liquors/Vivino —
-datacenter IPs blocked, residential IPs fine. This probe calls the real
-scraper code (not a simplified reimplementation) from wherever it's run, so a
-clean result here on a residential IP (e.g. the mac mini) is strong evidence
-of an IP block rather than a broken query/schema change.
+window. CORRECTED 2026-08-25: this is NOT the datacenter-IP block first assumed — the
+probe fails from residential IPs too (so the mini won't fix it). Root cause is
+an Imperva Incapsula JavaScript challenge on the real product query (a light
+query slips through with a primed cookie; the full-fields query gets a 502
+`_Incapsula_Resource` JS-challenge page consistently). Full write-up +
+fix options: data/exploration/heb_incapsula_findings.md.
 
 Run from backend/:
     python3 -m scripts.probe_heb_graphql
