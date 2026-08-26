@@ -1,8 +1,10 @@
 # H-E-B / Central Market GraphQL — Incapsula outage (2026-08-25)
 
-**Verdict: BLOCKED by an Imperva Incapsula JavaScript challenge on the product
-query. NOT the datacenter-IP block previously assumed — fails from residential
-IPs too. Cookie-priming + curl is necessary but NOT sufficient.**
+**Verdict: Imperva Incapsula JavaScript challenge on the product query — NOT the
+datacenter-IP block previously assumed (fails from residential too), and curl/
+urllib CANNOT solve it. SOLVED in a spike (2026-08-25) with `patchright` (patched
+Playwright, headed) — see "SOLVED" below. Build + mini deployment pending
+(item 45).**
 
 ## Impact (why this matters)
 
@@ -77,3 +79,36 @@ Incapsula cookie.
 The configured Central Market store `61` returns `total=0` even when the API is
 reachable — store 61 appears no longer e-commerce-enabled. Store `51` returns
 `total=157`. When CM scraping is restored, revisit the `CM_STORES` IDs.
+
+## SOLVED — patchright (patched Playwright), headed (spike 2026-08-25)
+
+Vanilla Playwright Chromium is hard-blocked by Incapsula (`errorCode 15`,
+`incidentId`) headless AND headed — it fingerprints the CDP/automation tells.
+**`patchright`** (drop-in patched Playwright that strips `Runtime.enable`/CDP
+tells; reuses the cached Chromium) clears it with this exact recipe:
+
+  - `launch_persistent_context(profile_dir, headless=False, no_viewport=True)`
+    — headed, persistent profile, no viewport (patchright's max-stealth config;
+    headless still gets errorCode-15 blocked).
+  - `page.goto(home, wait_until="domcontentloaded")` — NOT `networkidle` (the SPA
+    never idles → 60s timeout).
+  - wait ~6s for the challenge JS to run + auto-reload; `title != ""` == cleared
+    (the real "H-E-B | Curbside Pickup…" title appears).
+  - POST `/graphql` from `page.evaluate` (in-browser `fetch` carries the solved
+    `reese84`+`incap_ses` cookies AND the real browser fingerprint) → **200**.
+
+Result (`scripts/spike_heb_playwright.py`): HEB store 567 → total=1999; CM store
+51 → total=157, both from one solved session.
+
+### Build path (item 45)
+1. Add `patchright` to backend deps; browser already cached on the mini.
+2. Rewrite HEB/CM fetch to run through one solved persistent browser session:
+   solve once, then paginate the productSearch POSTs via `page.evaluate` (all
+   in-browser). Re-solve (reload home) if a page starts 401ing mid-scrape.
+3. **Deployment risk (unverified from dev):** it must run HEADED, which needs a
+   GUI/Aqua session on the mini — a launchd *daemon* has no display. Run it from
+   a launchd *agent* in the logged-in GUI session (the mini already runs GUI
+   LaunchAgents for Vivino/extraction), or via `caffeinate`/an always-logged-in
+   session. Confirm on the mini before committing the cron.
+4. Slower + heavier than the old urllib path (a browser per run) — fine at weekly
+   cadence. Fix CM store IDs (61→0, 51→157) when wiring CM back up.
