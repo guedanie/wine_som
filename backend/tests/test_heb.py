@@ -173,36 +173,52 @@ def test_upsert_inventory_with_curbside_uses_store_ref():
     assert "retailer_name" not in rec and "zip_code" not in rec and "store_id" not in rec
 
 
-class _Resp:
-    def __init__(self, payload): self._p = payload
-    def read(self): return self._p.encode()
-    def __enter__(self): return self
-    def __exit__(self, *a): return False
+# --- browser-session re-solve/retry (item 45) ---------------------------------
+# HEB moved /graphql behind Incapsula; the network path is now a patchright
+# browser session. The retry logic (a challenged POST re-solves and retries)
+# lives in _BrowserSession._w_post and is exercised here with a FAKE page — no
+# real browser — by injecting a page whose .evaluate returns scripted responses.
+
+from scrapers.heb import _BrowserSession
 
 
-def _http_error():
-    return urllib.error.HTTPError("https://www.heb.com/graphql", 502, "Bad Gateway", {}, None)
+class _FakePage:
+    """.evaluate returns the next scripted {status, body} each call."""
+    def __init__(self, responses): self._responses = list(responses); self.calls = 0
+    def evaluate(self, _js, _args):
+        r = self._responses[self.calls]; self.calls += 1; return r
 
 
-def test_graphql_post_retries_on_transient_502_then_succeeds():
-    """The weekly scrape failed 3 weeks running on a 502 that cleared within minutes —
-    this locks in that HTTPError (a URLError subclass) is retried, not treated as fatal."""
-    calls = {"n": 0}
-    def flaky(req, timeout=0):
-        calls["n"] += 1
-        if calls["n"] < 3:
-            raise _http_error()
-        return _Resp('{"data": {"productSearch": {"total": 0, "records": []}}}')
-    with patch("urllib.request.urlopen", side_effect=flaky), patch("time.sleep"):
-        out = _graphql_post("{ productSearch { total } }")
-    assert out == {"data": {"productSearch": {"total": 0, "records": []}}}
-    assert calls["n"] == 3          # failed twice on 502, succeeded on the third
+def _session_with(responses):
+    s = _BrowserSession.__new__(_BrowserSession)   # skip __init__ (no thread/browser)
+    s._page = _FakePage(responses)
+    s._solves = 0
+    s._w_solve = lambda *a, **k: setattr(s, "_solves", s._solves + 1)
+    return s
 
 
-def test_graphql_post_raises_after_exhausting_retries():
-    with patch("urllib.request.urlopen", side_effect=_http_error()), patch("time.sleep"):
-        try:
-            _graphql_post("{ productSearch { total } }")
-            assert False, "should have raised"
-        except urllib.error.HTTPError:
-            pass
+def test_session_post_returns_parsed_json_on_200():
+    s = _session_with([{"status": 200, "body": '{"data": {"productSearch": {"total": 3}}}'}])
+    out = s._w_post("{ productSearch { total } }", "heb-com")
+    assert out == {"data": {"productSearch": {"total": 3}}}
+    assert s._solves == 0                # no re-solve needed
+
+
+def test_session_post_resolves_and_retries_on_challenge_then_succeeds():
+    s = _session_with([
+        {"status": 502, "body": "<html>_Incapsula_Resource</html>"},   # challenged
+        {"status": 200, "body": '{"data": {"productSearch": {"total": 0}}}'},
+    ])
+    out = s._w_post("{ productSearch { total } }", "heb-com")
+    assert out == {"data": {"productSearch": {"total": 0}}}
+    assert s._page.calls == 2 and s._solves == 1   # re-solved once, then succeeded
+
+
+def test_session_post_raises_after_exhausting_retries():
+    s = _session_with([{"status": 502, "body": "blocked"}] * 3)
+    try:
+        s._w_post("{ productSearch { total } }", "heb-com", retries=3)
+        assert False, "should have raised"
+    except RuntimeError:
+        pass
+    assert s._solves == 2               # re-solved between the 3 attempts (not after the last)

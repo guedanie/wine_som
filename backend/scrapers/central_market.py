@@ -16,6 +16,7 @@ from scrapers.heb import (
     HEBProduct,
     _parse_record,
     _PRODUCT_FIELDS,
+    graphql_post,
     fetch_wine_page as _heb_fetch_wine_page,
     HebScraper,
 )
@@ -45,34 +46,18 @@ _CM_HEADERS = {
 
 
 def fetch_cm_wine_page(offset: int = 0, limit: int = 60, store_id: str = "61"):
-    """Fetch one page of CM wine products using the central-market client name."""
-    import json
-    import urllib.request
-    import urllib.error
-    import time
-
+    """Fetch one page of CM wine products via the shared Incapsula-solving browser
+    session (heb.graphql_post), using the central-market client name."""
     query = (
         "{ productSearch(shoppingContext: CURBSIDE_PICKUP, query: \"wine\", "
         f"storeId: {store_id}, limit: {limit}, offset: {offset}) "
         f"{{ total records {{ {_PRODUCT_FIELDS} }} }} }}"
     )
-    body = json.dumps({"query": query}).encode("utf-8")
-    last_err = None
-    retries = 6  # matches heb.py's fetch_wine_page — see that function's docstring
-    for attempt in range(retries):
-        try:
-            req = urllib.request.Request(GRAPHQL_URL, data=body, headers=_CM_HEADERS, method="POST")
-            with urllib.request.urlopen(req, timeout=20) as resp:
-                data = json.loads(resp.read())
-            ps = (data.get("data") or {}).get("productSearch") or {}
-            total = ps.get("total") or 0
-            products = [p for raw in (ps.get("records") or []) if (p := _parse_record(raw))]
-            return total, products
-        except (urllib.error.URLError, TimeoutError) as e:
-            last_err = e
-            if attempt < retries - 1:
-                time.sleep(min(30, 3 * (attempt + 1)))
-    raise last_err
+    data = graphql_post(query, _CM_HEADERS)
+    ps = (data.get("data") or {}).get("productSearch") or {}
+    total = ps.get("total") or 0
+    products = [p for raw in (ps.get("records") or []) if (p := _parse_record(raw))]
+    return total, products
 
 
 class CentralMarketScraper(HebScraper):

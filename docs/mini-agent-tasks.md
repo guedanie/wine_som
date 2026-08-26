@@ -370,3 +370,47 @@ schedule alongside the Sunday Twin Liquors run.
 **Acceptance:** 3 stores rows created; each commits ≥several hundred priced wines;
 inventory visible in a 37203 (Corkdorks/Frugal) and 37215 (Green Hills) recommend
 request. Update `docs/reference/scrapers.md` + the CLAUDE.md scraper count on landing.
+
+---
+
+## Task: Deploy the H-E-B / Central Market Incapsula scraper on the mini — QUEUED 2026-08-25
+
+**Why:** H-E-B moved `heb.com/graphql` behind Imperva Incapsula (~2026-07-26); the
+GitHub-cron urllib scraper has failed every week since, so H-E-B (the biggest SA
+source, ~1,999 wines/store) is benched and SA testers get no H-E-B. The fix is
+built and locally verified on branch `fix/heb-incapsula-patchright` (PR open) —
+`scrapers/heb.py::_BrowserSession` solves Incapsula with **patchright** (patched
+Playwright) and pulls the real query. It runs end-to-end here (HEB 567 = 1999).
+
+**Why the mini:** the fix **must run HEADED** (Incapsula errorCode-15-blocks
+headless AND vanilla Playwright; only patchright + a headed persistent context
+clears it). A launchd *daemon* has no display → the browser can't launch. Run it
+from a **GUI LaunchAgent in the mini's logged-in Aqua session**, the same way the
+Vivino/extraction GUI agents run.
+
+**Deploy steps:**
+1. `pip install patchright` in the mini's backend venv (Chromium is already cached
+   from earlier Playwright use — else `patchright install chromium`).
+2. Merge/pull `fix/heb-incapsula-patchright`.
+3. **Confirm headed works on the mini first:** from the logged-in GUI session,
+   `python3 -m scripts.verify_heb_session` → expect HEB 567 = 1999. If the browser
+   won't launch (no display), the job is running in a daemon context — move it to a
+   GUI LaunchAgent (`Aqua` session type), like the existing Vivino agent.
+4. Add HEB + Central Market to the mini's weekly LaunchAgent chain (alongside
+   Spec's/Twin Liquors) and **REMOVE them from `weekly-scrape.yml`** (GitHub) so
+   they stop silently failing there. Keep `verify_scrape_runs.py` so a future
+   silent-zero is still caught.
+5. **Fix CM store ids BEFORE the first CM run:** every configured `CM_STORES` id
+   (61/420/552/653/747) now returns total=0 — HEB renumbered/disabled them (store
+   51 returns 157). Probe current CM store ids for Austin/Dallas/SA and update
+   `CM_STORES`, else CM commits 0 wines.
+
+**Landmines:** (1) the persistent-profile dir is `/tmp/heb_patchright_profile` —
+fine, but a stale/locked profile can wedge; delete it if a run hangs at launch.
+(2) Incapsula sessions lapse — `_w_post` re-solves on a challenged POST, but a very
+long multi-store run may re-solve several times (expected). (3) headed browser +
+`caffeinate` so the mini doesn't sleep mid-scrape.
+
+**Acceptance:** a live HEB run commits ~thousands of rows across the SA stores; a
+`scraper_runs` row shows status=success with a non-zero count; SA recommend
+requests surface H-E-B wines again (H-E-B un-benched once fresh <10d).

@@ -147,25 +147,137 @@ def _parse_record(raw: Dict[str, Any]) -> Optional[HEBProduct]:
     )
 
 
-def _graphql_post(query: str, timeout: int = 20, retries: int = 6) -> Dict[str, Any]:
-    """POST a GraphQL query to HEB and return the parsed JSON. Retries on transient network
-    errors — includes HTTPError (a URLError subclass), which is what a transient upstream
-    502 raises. Bumped from 3 to 6 attempts (~6s to ~75s of backoff) after the weekly scrape
-    failed 3 weeks running on a 502 that cleared within minutes — the old 3-attempt/~6s
-    budget couldn't outlast a short HEB-side blip."""
-    import time
-    body = json.dumps({"query": query}).encode("utf-8")
-    last_err = None
-    for attempt in range(retries):
-        try:
-            req = urllib.request.Request(GRAPHQL_URL, data=body, headers=_HEADERS, method="POST")
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
-                return json.loads(resp.read())
-        except (urllib.error.URLError, TimeoutError) as e:
-            last_err = e
+# --- Incapsula-solving browser session -------------------------------------
+#
+# heb.com/graphql sits behind Imperva Incapsula (added ~2026-07-26). curl/urllib
+# CANNOT solve its JavaScript challenge; vanilla Playwright is fingerprint-blocked
+# (errorCode 15) headless AND headed. `patchright` (patched Playwright) with a
+# headed persistent context clears it, and the query POSTed via in-browser
+# `page.evaluate` returns 200 (see scripts/spike_heb_playwright.py, item 45).
+#
+# The browser is expensive, so ONE session is solved per process and reused for
+# every page/store (HEB + Central Market — same endpoint). It's driven from a
+# single dedicated worker thread: `run_full` is an async coroutine and sync
+# patchright can't run inside an asyncio loop, but a worker thread has no loop.
+# Lazy-started on first query, torn down at process exit (atexit) — so no scraper
+# entry point needs to change. MUST run HEADED → needs a GUI session (the mini's
+# Aqua login, not a background launchd daemon).
+import atexit
+import os
+import tempfile
+import threading
+from concurrent.futures import ThreadPoolExecutor
+
+_PROFILE_DIR = os.path.join(tempfile.gettempdir(), "heb_patchright_profile")
+_HOME = "https://www.heb.com/"
+
+_POST_JS = """async ([q, cn, url]) => {
+    const r = await fetch(url, {
+        method: "POST",
+        headers: {"Content-Type": "application/json", "Apollographql-Client-Name": cn},
+        body: JSON.stringify({query: q}),
+    });
+    return {status: r.status, body: await r.text()};
+}"""
+
+
+class _BrowserSession:
+    """Owns a patchright persistent context on a single worker thread. Solves the
+    Incapsula challenge once, then serves in-browser GraphQL POSTs, re-solving if a
+    POST comes back challenged."""
+
+    def __init__(self):
+        self._ex = ThreadPoolExecutor(max_workers=1, thread_name_prefix="heb-browser")
+        self._started = False
+        self._pw = self._ctx = self._page = None
+
+    # --- these run INSIDE the worker thread (no asyncio loop there) ---
+    def _w_start(self) -> None:
+        from patchright.sync_api import sync_playwright
+        self._pw = sync_playwright().start()
+        self._ctx = self._pw.chromium.launch_persistent_context(
+            _PROFILE_DIR, headless=False, no_viewport=True)
+        self._page = self._ctx.pages[0] if self._ctx.pages else self._ctx.new_page()
+        self._w_solve()
+
+    def _w_solve(self, attempts: int = 5) -> None:
+        """Load the storefront and wait for the Incapsula JS challenge to clear
+        (a non-empty page title == the real page, i.e. challenge passed)."""
+        for _ in range(attempts):
+            try:
+                self._page.goto(_HOME, wait_until="domcontentloaded", timeout=45000)
+            except Exception:
+                pass
+            self._page.wait_for_timeout(6000)
+            if self._page.title():
+                return
+        raise RuntimeError("Incapsula challenge did not clear (title stayed blank)")
+
+    def _w_post(self, query: str, client_name: str, retries: int = 3) -> Dict[str, Any]:
+        for attempt in range(retries):
+            res = self._page.evaluate(_POST_JS, [query, client_name, GRAPHQL_URL])
+            if res.get("status") == 200:
+                try:
+                    return json.loads(res["body"])
+                except (json.JSONDecodeError, ValueError):
+                    pass                       # 200 but unparseable — treat as challenge
             if attempt < retries - 1:
-                time.sleep(min(30, 3 * (attempt + 1)))
-    raise last_err
+                self._w_solve()                # blocked/challenged → re-solve, retry
+        raise RuntimeError(
+            f"HEB GraphQL POST failed after {retries} attempts (last status "
+            f"{res.get('status')}): {str(res.get('body'))[:120]}")
+
+    def _w_close(self) -> None:
+        try:
+            if self._ctx:
+                self._ctx.close()
+            if self._pw:
+                self._pw.stop()
+        except Exception:
+            pass
+
+    # --- main-thread interface (dispatches to the worker) ---
+    def post(self, query: str, client_name: str) -> Dict[str, Any]:
+        if not self._started:
+            self._ex.submit(self._w_start).result()
+            self._started = True
+        return self._ex.submit(self._w_post, query, client_name).result()
+
+    def close(self) -> None:
+        if self._started:
+            try:
+                self._ex.submit(self._w_close).result(timeout=30)
+            except Exception:
+                pass
+            self._started = False
+        self._ex.shutdown(wait=False)
+
+
+_SESSION: Optional[_BrowserSession] = None
+_SESSION_LOCK = threading.Lock()
+
+
+def _session() -> _BrowserSession:
+    global _SESSION
+    with _SESSION_LOCK:
+        if _SESSION is None:
+            _SESSION = _BrowserSession()
+            atexit.register(_SESSION.close)
+    return _SESSION
+
+
+def graphql_post(query: str, headers: Dict[str, str], **_ignored) -> Dict[str, Any]:
+    """POST a GraphQL query through the Incapsula-solving browser session and
+    return parsed JSON. Shared by HEB and Central Market — the client name (the
+    only per-brand difference the endpoint cares about) rides the headers dict.
+    `**_ignored` swallows the old timeout/retries kwargs for call-site compat."""
+    client_name = headers.get("Apollographql-Client-Name", "heb-com")
+    return _session().post(query, client_name)
+
+
+def _graphql_post(query: str, timeout: int = 20, retries: int = 6) -> Dict[str, Any]:
+    """HEB-client wrapper (kept for call sites + tests that patch this name)."""
+    return graphql_post(query, _HEADERS)
 
 
 def fetch_wine_page(offset: int = 0, limit: int = 60, store_id: str = "567"):
