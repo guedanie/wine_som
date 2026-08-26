@@ -414,3 +414,44 @@ long multi-store run may re-solve several times (expected). (3) headed browser +
 **Acceptance:** a live HEB run commits ~thousands of rows across the SA stores; a
 `scraper_runs` row shows status=success with a non-zero count; SA recommend
 requests surface H-E-B wines again (H-E-B un-benched once fresh <10d).
+
+### DEPLOYED 2026-08-25 (from the mini)
+
+Steps 1-4 done; **step 5 (CM store ids) deferred** — see below.
+
+- `patchright` 1.60.1 installed (`/usr/bin/python3 -m pip install --user`), plus
+  `patchright install chromium` (the cache had neither; it pulled both
+  `chromium-1223` and the headless shell — the **full** build is the one that
+  matters, headless is fingerprint-blocked).
+- Headed launch confirmed working: console user is `danielguerrero`,
+  `launchctl managername` = **Aqua**, and `scripts/verify_heb_session` returned
+  **HEB 567 total=1999** with the solved session reused across pages.
+- `scripts/run_heb_launchd.sh` + `scripts/com.somm.heb.plist` → loaded as
+  `com.somm.heb`, **Sun 05:30 CT** (after extraction 03:00 / Twin 04:00 /
+  Spec's 05:00). Two deliberate departures from the Twin Liquors template:
+  **no `ProcessType Background`** and `LowPriorityIO false` (throttling stalls
+  the Incapsula solve), and the run is wrapped in **`caffeinate -i`** (a mid-run
+  sleep kills the browser session).
+- H-E-B + Central Market **removed from `weekly-scrape.yml`** (a CI runner has no
+  display, so headed can never work there) and dropped from its Slack summary
+  line. `verify_scrape_runs.py` still guards against a silent zero.
+- Live acceptance run: **5,661+ rows committed** within the first 20 minutes —
+  first H-E-B data since 2026-07-19.
+
+**Gotcha for the next run:** the scraper's `print`s have no `flush=True`, so with
+output redirected to a log the file looks **empty for many minutes** while the run
+is healthy. Don't kill it on silence — check progress in the DB instead:
+`select count(*) from retail_inventory where last_scraped_at > now() - interval '20 min'`.
+
+**Central Market still parked — and harder than the task assumed.** Not scheduled,
+because every configured `CM_STORES` id returns `total=0` and it would trip the
+silent-zero alert weekly. The task's "probe current CM store ids" step has a
+blocker worth recording: **the `Apollographql-Client-Name` header is NOT a
+discriminator** — store 567 (a regular H-E-B) returns 1999 under *both* `heb-com`
+and `central-market`, so `productSearch` alone cannot tell a CM store from an
+H-E-B one, and scanning neighbouring ids just finds live H-E-B stores. Schema
+probing via Apollo validation errors shows a root `store` field exists (it rejects
+`storeId` as an unknown argument) but the 400 body comes back truncated before the
+"Did you mean" suggestion. Next avenue: drive the **browser session** (already
+Incapsula-solved) to centralmarket.com's store locator and read the ids from the
+page — authoritative, and cheap now that the session exists.
