@@ -27,13 +27,17 @@ PY="/usr/bin/python3"
 source "$(dirname "$0")/lib_notify_slack.sh"
 
 START=$(date +%s)
-{
-  echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') | heb scrape start ==="
-  caffeinate -i "$PY" -c "import asyncio; from scrapers.heb import HebScraper; print(asyncio.run(HebScraper().run_full()))"
-  echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') | heb scrape end (exit $?) ==="
-  echo ""
-} >> "$LOG" 2>&1
+# NOTE: do NOT wrap this in a `{ ... } >> LOG` group and read $? afterwards —
+# that captures the group's LAST command (the trailing echo), so a failed scrape
+# reports exit 0 and Slack is told "OK". That is exactly the silent-failure mode
+# verify_scrape_runs.py exists to catch. Redirect per-command and capture the
+# python's own status directly. (run_twin_liquors_launchd.sh still has the
+# grouped form and mis-reports the same way — worth fixing there too.)
+echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') | heb scrape start ===" >> "$LOG" 2>&1
+caffeinate -i "$PY" -c "import asyncio; from scrapers.heb import HebScraper; print(asyncio.run(HebScraper().run_full()))" >> "$LOG" 2>&1
 EXIT=$?
+echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') | heb scrape end (exit $EXIT) ===" >> "$LOG" 2>&1
+echo "" >> "$LOG" 2>&1
 DURATION=$(( $(date +%s) - START ))
 
 if [ $EXIT -eq 0 ]; then

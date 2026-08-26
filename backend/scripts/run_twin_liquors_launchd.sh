@@ -17,13 +17,14 @@ PY="/usr/bin/python3"
 source "$(dirname "$0")/lib_notify_slack.sh"
 
 START=$(date +%s)
-{
-  echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') | twin liquors scrape start ==="
-  "$PY" -c "import asyncio; from scrapers.twin_liquors import TwinLiquorsScraper; print(asyncio.run(TwinLiquorsScraper().run_full()))"
-  echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') | twin liquors scrape end (exit $?) ==="
-  echo ""
-} >> "$LOG" 2>&1
+# `EXIT=$?` after a `{ ... } >> LOG` group captures the group's LAST command (the
+# trailing echo), NOT the python — so every run reported exit 0 and Slack was told
+# "OK" even when the run failed. Redirect per-command and capture directly.
+echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') | twin liquors scrape start ===" >> "$LOG" 2>&1
+"$PY" -c "import asyncio; from scrapers.twin_liquors import TwinLiquorsScraper; print(asyncio.run(TwinLiquorsScraper().run_full()))" >> "$LOG" 2>&1
 EXIT=$?
+echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') | twin liquors scrape end (exit $EXIT) ===" >> "$LOG" 2>&1
+echo "" >> "$LOG" 2>&1
 DURATION=$(( $(date +%s) - START ))
 
 if [ $EXIT -eq 0 ]; then

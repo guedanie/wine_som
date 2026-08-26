@@ -20,13 +20,14 @@ PY="/usr/bin/python3"
 source "$(dirname "$0")/lib_notify_slack.sh"
 
 START=$(date +%s)
-{
-  echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') | vivino run start (limit=$LIMIT) ==="
-  "$PY" scripts/run_vivino_sample.py --limit "$LIMIT"
-  echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') | vivino run end (exit $?) ==="
-  echo ""
-} >> "$LOG" 2>&1
+# `EXIT=$?` after a `{ ... } >> LOG` group captures the group's LAST command (the
+# trailing echo), NOT the python — so every run reported exit 0 and Slack was told
+# "OK" even when the run failed. Redirect per-command and capture directly.
+echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') | vivino run start (limit=$LIMIT) ===" >> "$LOG" 2>&1
+"$PY" scripts/run_vivino_sample.py --limit "$LIMIT" >> "$LOG" 2>&1
 EXIT=$?
+echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') | vivino run end (exit $EXIT) ===" >> "$LOG" 2>&1
+echo "" >> "$LOG" 2>&1
 DURATION=$(( $(date +%s) - START ))
 
 if [ $EXIT -eq 0 ]; then
