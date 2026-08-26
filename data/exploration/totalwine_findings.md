@@ -181,17 +181,75 @@ Harvest route (repeatable for any market): `local_delivery_pages_sitemap.xml` (2
 34 Texas) → `alcohol-delivery-near-me-{City}-{State}` page → scrape
 `/store-info/{state-city}/{id}` links. Austin/Dallas/Houston come the same way.
 
-## 8. REMAINING before a scraper is worth writing
+## 8. SOLVED 2026-08-26 — parsing works; identity from JSON-LD, price from the tile
 
-**Product identity extraction is not solved.** Prices parse cleanly, but the `href` regex
-used in the gate test returned **no** `/p/{productId}` matches, and an earlier attempt
-pulled only 51 links out of 613 `href=` occurrences. Prices without a product key are
-useless — this is the next thing to nail, and it is a parsing problem, not an access one.
-Anchor on `/p/{digits}` and treat the hashed CSS classes as unusable.
+Prototype: `backend/scripts/probe_totalwine_parse.py`. **24/24 products with
+`product_id` + `name` + `price`, on every store tested.**
+
+**Identity comes from JSON-LD, not the DOM.** Each category page carries
+`<script data-rh="true" type="application/ld+json">` holding an `ItemList` of 24 products
+with a canonical `url` (→ `/p/{productId}`) and `name`. (The earlier regex missed this
+because the tag has a `data-rh="true"` attribute *before* `type=` — it is not a bare
+`<script type="application/ld+json">`.)
+
+**Price comes from the tile, bounded by JSON-LD anchors.** JSON-LD carries no price. Each
+product's canonical path *does* appear as an `href`, but with a `?s={storeId}&igrules=true`
+query string — which is why an exact-path match found 0/24. Matching `path + r'\?s=\d+'`
+finds 24/24, and those offsets bound each tile; the price is the first `price__*` inside.
+The hashed CSS classes are used only *within* an already-established tile, never to find
+one, so a frontend rebuild degrades a price to `None` rather than mis-pairing it.
+
+### The scoping is real — proven on price, not on markers
+
+Same 24 products, three stores, one run:
+
+| product | SA (503) | CA (1108) |
+|---|---|---|
+| 223968750 Caymus | **$68.99** | $66.97 |
+| 20095750 | **$47.99** | $54.99 |
+| 231443750 Olema Sauv Blanc | **$12.99** | $15.99 |
+| 110475750 | **$19.49** | $19.99 |
+| 93152750 | **$22.99** | $20.99 |
+
+**8 of 24 priced differently**, and the two San Antonio stores (503, 504) agree with each
+other while both differ from California. Vintages differ too (Mina Mesa is "2023" in SA,
+unlabelled in CA), i.e. genuinely different inventory, not a price overlay.
+
+## 9. CRITICAL — the store cookie is silently ignored under load
+
+**The single most important operational fact about this target.** Past some request rate,
+Total Wine stops honouring `twm-userStoreInformation` and serves the DEFAULT California
+store (1108) — with **HTTP 200, no 429, no error, no marker**. Measured in one session:
+
+| condition | result |
+|---|---|
+| paced run, 8 requests ~1.5s apart | **8/8 correctly scoped to 503** |
+| immediately after a burst | **4/4 returned 1108** despite asking for 503 |
+| after a 120s pause | correctly scoped again (503, 97 "San Antonio" mentions) |
+
+An unguarded scraper would therefore fill the database with **California prices labelled
+as San Antonio** — silently, at 200 OK. That is precisely the false-availability class
+items 39/40/44 exist to prevent, and it is worse than an outage because nothing looks wrong.
+
+**Mandatory guard, implemented in the prototype:** every response is checked with
+`_echoed_stores(html) == {store_id}` and *refused* (`WrongStore`) otherwise, with a 120s
+backoff between attempts and ~8s pacing between pages. Never trust a 200.
+
+(This is the same lesson as the H-E-B `_w_solve` bug in item 45: a plausible-looking
+success signal — a page title there, a 200 here — is not proof the thing you needed
+actually happened. Validate the specific property you depend on.)
 
 ## Verdict
 
-**UNLOCKED for access and scoping; blocked only on HTML parsing.** The reusable insight from item 45
+**Technically solved end to end** — access (plain HTTP), store scoping (forgeable cookie),
+identity + price extraction (JSON-LD + tile) all work, verified against three stores with
+real price deltas.
+
+**The open question is now operational, not technical:** the silent de-scoping under load
+(§9) sets a hard ceiling on crawl rate. 24 products/page at ~8s pacing plus a 120s penalty
+on every de-scope, across N categories x M stores, is the number that decides whether this
+is worth building. Estimate that before writing a scraper — and never relax the store
+guard to go faster. The reusable insight from item 45
 (patchright beats Incapsula) is not merely irrelevant here; the browser is the one thing
 that reliably gets refused. What remains is ordinary product engineering: find how the
 site binds a store to a session over HTTP, and confirm prices actually move when it does.
