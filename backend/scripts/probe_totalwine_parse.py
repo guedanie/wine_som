@@ -13,14 +13,21 @@ TWO THINGS THIS ENCODES, both learned the hard way:
    every Total Wine frontend build, so they are used ONLY to find the price *within* a
    tile whose boundaries were established from the JSON-LD anchors.
 
-2. **The store cookie is silently ignored under load.** `twm-userStoreInformation`
-   scopes the page… until you make too many requests, at which point Total Wine serves
-   the DEFAULT California store (1108) with a 200 and no error of any kind. Measured:
-   8/8 correct in a paced run, then 4/4 wrong immediately after a burst, then correct
-   again after a 120s pause. **Never trust a response without checking the store it
-   actually came back as** — an unguarded scraper would silently fill the database with
-   California prices, which is exactly the false-availability class items 39/40/44 exist
-   to prevent.
+2. **Scope with `?storeId=` in the URL, NOT the cookie.** The cookie
+   (`twm-userStoreInformation`) works but is silently dropped under load: Total Wine then
+   serves the DEFAULT California store (1108) at 200 with no error — measured 8/8 correct
+   when paced, 4/4 wrong right after a burst, correct again after 120s. The default is
+   hard-coded, not geographic (a San Antonio residential IP with no cookie still gets
+   Sacramento).
+
+   `?storeId={id}` on the category URL scopes the same 24 products and reproduces every
+   known price delta (Olema $12.99 vs $15.99, Caymus $68.99 vs $66.97, Mina Mesa $12.99
+   vs $10.99 — 8 of 24 differ, identical to the cookie method). Because the store is in
+   the URL it is part of the cache key, so a `?storeId=503` request structurally cannot be
+   served a Sacramento response. Note `?s=` does NOT work here (it scopes product detail
+   pages only), and the page still carries some unpersonalised `1108` chrome — so the
+   guard below checks the store appears in the PRODUCT data rather than demanding 1108 be
+   absent.
 
 NOT a production scraper: no upserts, no store registry, no pagination beyond one page.
 Run from backend/:
@@ -58,16 +65,19 @@ def _echoed_stores(html: str) -> set:
 
 
 def fetch_scoped(url: str, store_id: str, state: str, retries: int = 3) -> str:
-    """GET `url` scoped to `store_id`, REFUSING any response that isn't that store.
+    """GET `url` scoped to `store_id` via the URL, REFUSING any response that isn't.
 
-    Raises WrongStore rather than returning plausible-looking wrong-city data."""
+    Store goes in the query string (cache-key safe); the cookie is sent too as a belt-and-
+    braces measure. Raises WrongStore rather than returning plausible wrong-city data."""
+    sep = "&" if "?" in url else "?"
+    scoped = f"{url}{sep}storeId={store_id}"
     seen = set()
     for attempt in range(retries):
         req = urllib.request.Request(
-            url, headers={"User-Agent": _UA, "Cookie": _store_cookie(store_id, state)})
+            scoped, headers={"User-Agent": _UA, "Cookie": _store_cookie(store_id, state)})
         html = urllib.request.urlopen(req, timeout=35).read().decode("utf8", "ignore")
         seen = _echoed_stores(html)
-        if seen == {store_id}:
+        if store_id in seen:          # page chrome may still carry the 1108 default
             return html
         if attempt < retries - 1:
             print(f"    de-scoped (got {sorted(seen)}), backing off {_BACKOFF_SECONDS:.0f}s…")
