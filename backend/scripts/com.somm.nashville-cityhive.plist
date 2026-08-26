@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.somm.nashville-cityhive</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/danielguerrero/dev/wine_app/backend/scripts/run_nashville_cityhive_launchd.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/danielguerrero/dev/wine_app/backend</string>
+
+    <!-- Weekly Sun 04:30 CT — after Twin Liquors (04:00), before Spec's (05:00).
+         Both Twin and this hit City Hive, so they are deliberately NOT concurrent:
+         overlapping sweeps against the same API would share one 1015 budget. -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key><integer>0</integer>
+        <key>Hour</key><integer>4</integer>
+        <key>Minute</key><integer>30</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>/Users/danielguerrero/Library/Logs/somm-nashville-cityhive.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/danielguerrero/Library/Logs/somm-nashville-cityhive.err.log</string>
+
+    <key>RunAtLoad</key>
+    <false/>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>LowPriorityIO</key>
+    <true/>
+</dict>
+</plist>

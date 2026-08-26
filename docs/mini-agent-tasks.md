@@ -302,7 +302,7 @@ Fast suite went 521→537 passing. Commits: 9972bec, a0bfe47, 1023477,
 
 ---
 
-## Task: Nashville City Hive scraper (Frugal MacDoogal + Corkdorks) — QUEUED 2026-08-01
+## Task: Nashville City Hive scraper (Frugal MacDoogal + Corkdorks) — ✅ DONE 2026-08-26
 
 **Goal:** one new scraper that adds **3 Nashville stores** — Frugal MacDoogal (1)
 + Corkdorks Midtown & Green Hills (2) — deepening thin tester inventory. All three
@@ -455,3 +455,31 @@ probing via Apollo validation errors shows a root `store` field exists (it rejec
 "Did you mean" suggestion. Next avenue: drive the **browser session** (already
 Incapsula-solved) to centralmarket.com's store locator and read the ids from the
 page — authoritative, and cheap now that the session exists.
+
+
+### Nashville City Hive — DONE 2026-08-26 (from the mini)
+
+`scrapers/nashville_cityhive.py` + 12 tests; `com.somm.nashville-cityhive` LaunchAgent
+loaded, **Sun 04:30 CT** (between Twin 04:00 and Spec's 05:00 — deliberately not
+concurrent with Twin, since both hit City Hive and would share one 1015 budget).
+No browser needed, so unlike `com.somm.heb` this does NOT require a GUI session.
+
+**First live run: 2,521 wines, zero throttling.** Frugal MacDoogal 763, Corkdorks
+Midtown 991, Corkdorks Green Hills 767 — **31.6% at $30+, 129 wines over $100**.
+Nashville market effect: premium inventory 2,279 → **3,075 (+35%)**, $100+ 347 →
+**476 (+37%)**, from only a 10% rise in total rows. The premium share of the market
+moved 8.8% → 10.8% (San Antonio/Austin is 14.6%, so a gap remains but is much closer).
+
+**Why it was worth doing:** Nashville looked covered on store count (35 Kroger +
+Harvest) but was not covered on customer segment — Kroger serves value shoppers and
+this app's users skew upscale. Store count was the wrong metric.
+
+**Two build notes for whoever touches it next:**
+1. **`client_origin` is per SITE, not per store.** Corkdorks' two branches share one;
+   Frugal has its own. A wrong origin returns an **empty list, not an error** — so
+   `_search_url` takes it explicitly rather than reading a module global.
+2. **Chunk DB writes at 200.** A 42-term sweep yields ~760 wines/store; the first run
+   gathered 760 and then died on a `400 Bad Request` from an oversized IN-clause.
+
+Config re-verified 2026-08-26 (api_key + all three client_origins unrotated). If a run
+returns nothing, re-grep `window.cityHiveWidgetLoaderConfig` — rotation fails silently.
