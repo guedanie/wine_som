@@ -95,7 +95,7 @@ Value is therefore narrower than hoped but real and well-targeted: **Dallas is a
 push** (CLAUDE.md "Dallas focus coming") and 24 Tom Thumb stores is a substantial add, with
 Austin's 10 Randalls behind it.
 
-## 5. OPEN — `/search/products` times out
+## 5. RESOLVED-AS-BLOCKED — the product search path is TARPITTED (2026-08-27)
 
 `autosuggest` returns 200/1,490 b with the apim key, but `search/products` and
 `v1/aisles/products` both **hang until timeout** (45 s) rather than erroring, with several
@@ -104,15 +104,49 @@ param shapes tried including the documented
 form. A hang rather than a 4xx suggests a missing/malformed required param sending the
 backend into a bad path, or an additional required header.
 
-**This is the one unknown left.** Everything else — access, auth, store discovery — works.
+### The real endpoint was found — and it still hangs
+
+The Angular bundle (`clientlib-angular-global.min.*.js`, 5 MB) carries a full per-environment
+config. Production is **`abs/pub/xapi/pgmsearch/v1/search/products`** — note `pgmsearch/v1/`,
+not the `xapi/search/products` guessed earlier — with its own key
+`5e790236c84e46338f4290aa1050cdd4` (= `apimProgramSubscriptionKey` from the page HTML).
+`getMoreSearchProducts()` in the same bundle gives the exact param set:
+
+```
+pageurl, url, request-id, pagename=search, rows, start, search-type=keyword,
+storeid, q, dvid=GhXAoLXN-ss-search, channel, uuid, featured, banner, includeOffer
+```
+
+Called with **all of it**, verbatim from their own code: **timeout at 90 s.**
+
+### The diagnostic that settles it
+
+| request | result |
+|---|---|
+| correct prod key | **hang, 45 s** |
+| deliberately WRONG key | **hang, 45 s** |
+| no key at all | **hang, 45 s** |
+
+A bad key returns **401 instantly** on `storeresolver` and `autosuggest` — same host, same
+gateway. Here all three behave identically, so **the request never reaches the auth layer**:
+this path is tarpitted at the edge, for us. It is not a parameter problem, not a key problem,
+and not fixable by refinement — correct and incorrect requests are treated the same.
+
+**This is a nastier pattern than Publix's 403 or Total Wine's stripped page**: a hang costs
+the client 45-90 s per attempt and returns no signal at all. Anything that retries naively
+burns its whole budget learning nothing.
+
+**Still working:** `storeresolver/*` (store-by-zip, verified 206 with real data) and
+`search/autosuggest` (200). So Albertsons is selectively blocking the catalogue path while
+leaving the cheap endpoints open.
 
 ## Next steps
 
-1. **Capture a real product search from the browser's own traffic.** The site itself calls
-   this endpoint successfully; the exact param set and headers are observable. This is
-   almost certainly a 10-minute fix rather than a research problem. Note: use devtools/HAR,
-   **not** an automated browser — untested here whether Albertsons fingerprints one (Total
-   Wine does), and it isn't needed for the HTTP path anyway.
+1. ~~Capture the site's own call~~ — **done, and it did not help.** The exact endpoint,
+   key and param set were recovered from the Angular bundle and the request still hangs
+   identically with a wrong key, so the block is upstream of auth. **Do not spend more time
+   on parameters.** The only untested avenue is a real browser session (whether Albertsons
+   fingerprints one is unknown), which is the same expensive path Publix would need.
 2. **Confirm wine is actually merchandised.** These are grocery banners; check the wine
    catalogue depth per store before investing (H-E-B's ~2,000/store is the benchmark).
 3. **Then decide scope.** Dallas (24) + Austin (10) only. Given Total Wine already covers
