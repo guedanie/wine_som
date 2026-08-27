@@ -14,16 +14,17 @@
     <key>WorkingDirectory</key>
     <string>/Users/danielguerrero/dev/wine_app/backend</string>
 
-    <!-- MONTHLY: the 1st at 06:00 CT, clear of every Sunday job. Total Wine is
-         PerimeterX-blocked (item 46); this is a canary probe, not a scrape, so it
-         costs one request in a blocked month. Monthly rather than weekly because PX
-         decays a risk score with QUIET — probing often would hold the block open. -->
-    <key>StartCalendarInterval</key>
-    <dict>
-        <key>Day</key><integer>1</integer>
-        <key>Hour</key><integer>6</integer>
-        <key>Minute</key><integer>0</integer>
-    </dict>
+    <!-- Every 10 days (864000s). StartInterval rather than StartCalendarInterval
+         because "every 10 days" has no calendar expression. Total Wine is
+         PerimeterX-blocked (item 46); this is a canary probe, not a scrape, so a
+         blocked cycle costs exactly one request. 10 days rather than monthly gives
+         ~3x the signal on when the block lifts at negligible added risk — a single
+         normal-UA GET is not what sustains a block earned by hundreds of rapid
+         pageSize=200 fetches. Every result is appended to
+         ~/Library/Logs/somm-totalwine-probes.tsv so the decay curve becomes
+         measurable instead of guessed. -->
+    <key>StartInterval</key>
+    <integer>864000</integer>
 
     <key>StandardOutPath</key>
     <string>/Users/danielguerrero/Library/Logs/somm-totalwine.out.log</string>

@@ -416,3 +416,59 @@ commercial anti-bot product that fingerprints continuously rather than a one-tim
 Re-probe occasionally — PX scores decay — but do not invest further until a request path
 survives a full store without escalating. Note the 996 banked wines will hit the 10-day
 staleness bench around **2026-09-05**.
+
+
+---
+
+## 12. CORRECTION #2, 2026-08-27 — not a permanent block either
+
+§11 concluded "IP-blocked by PerimeterX, stop here." That was also wrong. Measured the
+same morning, ~10 minutes after probing stopped:
+
+| check | result |
+|---|---|
+| canary ×6, 20 s apart | **6/6 OPEN** |
+| 1-page seed | **199 wines committed** |
+
+**The PX block decays in roughly ten minutes of quiet.** It is a rolling penalty, not a ban.
+
+### What the stripped pages actually are
+
+Page spread at `pageSize=200`, 30 s apart, immediately after the block cleared:
+
+| page | offset | products |
+|---|---|---|
+| 1 | 0 | **200** |
+| 2 | 200 | 0 |
+| 3 | 400 | **200** |
+| 6 | 1000 | 0 |
+| 10 | 1800 | 0 |
+| 11 | 2000 | **200** |
+| 12 | 2200 | 0 |
+| 16 | 3000 | 0 |
+
+**Page 11 succeeds while 6 and 10 fail**, so it is NOT a pagination depth cap either.
+Success is **random per request** — ~3/8 here — and independent of depth.
+
+### The corrected model — two independent phenomena
+
+1. **Intermittent SSR stripping.** Any request may return the page without its JSON-LD.
+   Roughly 40% succeed at 30 s pacing. Retrying the *same* page eventually works, because
+   the failure is per-request, not per-page.
+2. **A volume-triggered PX penalty** on top, which 403s everything and decays in ~10 min.
+
+Yesterday I read (1) as throttle escalation and removed the retry; this morning I read (2)
+as a permanent ban. Both readings were wrong, and the two effects had to be separated by
+measurement before either made sense.
+
+### What this means practically
+
+A crawl IS viable, just expensive: ~40% hit rate means ~75 requests per 30 good pages, so
+**~35-40 min/store at 30 s pacing** — call it a day's background work for 40 stores, not the
+1.6 h originally claimed. Retry-on-stripped is correct after all; the discipline is to pace
+generously so retries don't trip (2), and to keep the cursor so a 403 costs minutes, not a run.
+
+**Track record on this target: three readings, two wrong.** The lesson is not about
+PerimeterX — it is that a system with two overlapping failure modes cannot be characterised
+from a single run's pattern, and confident conclusions from one afternoon's data were the
+actual error.
