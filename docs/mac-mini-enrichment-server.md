@@ -92,3 +92,63 @@ removed from `weekly-scrape.yml` and belongs here (residential IP).
 - Reusable win: the same api_key + client_origin bypass likely unblocks the
   parked Nashville City Hive shops (Corkdorks, Frugal MacDoogal) — build those
   here too if Nashville coverage matters.
+
+---
+
+## Current LaunchAgent roster (2026-08-27)
+
+Seven agents are loaded. `launchctl list | grep somm` should show all of them.
+
+| agent | schedule (CT) | what it does | notes |
+|---|---|---|---|
+| `com.somm.extraction-enrich` | Sun 03:00 | local qwen extraction + persist_structure + blend/sweetness LLM pass | chain job |
+| `com.somm.twin-liquors` | Sun 04:00 | Twin Liquors City Hive sweep | City Hive 1015s datacenter IPs |
+| `com.somm.nashville-cityhive` | **Sun 04:30** | Frugal MacDoogal + Corkdorks ×2 | **added 2026-08-26.** Deliberately NOT concurrent with Twin — both hit City Hive and would share one 1015 budget |
+| `com.somm.specs` | Sun 05:00 | Spec's scrape + sweep + verify | |
+| `com.somm.heb` | **Sun 05:30** | H-E-B via the Incapsula browser session | **added 2026-08-26.** MUST run HEADED — see below |
+| `com.somm.vivino-enrich` | 2×/day | Vivino enrichment, 300/run | |
+| `com.somm.totalwine` | **every 10 days** | Total Wine canary probe | **added 2026-08-27.** A detector, not a scraper — see below |
+
+### `com.somm.heb` needs a GUI session — this one is different
+
+H-E-B moved `heb.com/graphql` behind Imperva Incapsula (~2026-07-26). Only **patchright
+with a HEADED persistent context** clears the challenge: vanilla Playwright is
+fingerprint-blocked (errorCode 15) headless *and* headed. A headed browser needs a real
+display, so this must run in the **logged-in Aqua session** — a launchd *daemon* has no
+display and the browser will not launch.
+
+Check with `launchctl managername` (expect `Aqua`) and `stat -f%Su /dev/console`.
+Deliberately **not** `ProcessType Background` and `LowPriorityIO false`: throttled CPU/IO
+stalls the Incapsula solve. Wrapped in `caffeinate -i` so a mid-run sleep can't kill the
+browser session. Requires `pip install --user patchright` + `patchright install chromium`
+(pulls both the headless shell and full Chromium — the **full** build is the one used).
+
+Every other agent here is plain HTTP and needs no GUI.
+
+### `com.somm.totalwine` is a probe, not a scrape
+
+Total Wine has two overlapping defences (item 46): ~40% of requests return a **stripped
+page** (no JSON-LD, HTTP 200), plus a **PerimeterX penalty** that 403s everything and decays
+in ~10 minutes of quiet. The job therefore makes **ONE canary request** and stops if refused
+— PX scores behaviour over time, so a blind retry loop would hold the block open. A blocked
+cycle **exits 0 and reports INFO, not FAIL**; alerting on an expected state is how real
+alerts get ignored. A green probe crawls only ONE page (`TW_PROBE_PAGES`) before reporting.
+
+Probe history accumulates in `~/Library/Logs/somm-totalwine-probes.tsv` so the decay curve
+becomes measured rather than guessed.
+
+### Gotcha: the launchd wrapper exit-code bug (fixed 2026-08-26)
+
+`EXIT=$?` placed **after** a `{ … } >> "$LOG" 2>&1` group captures the group's LAST command
+(the trailing `echo`), not the python inside it — so a failed run reported exit 0 and Slack
+was told "OK". `run_twin_liquors_launchd.sh` and `run_vivino_launchd.sh` did this for as long
+as they had run; `run_specs`/`run_extraction` were always correct (they capture inside the
+block). All fixed — redirect per-command and capture the python's status directly. **Copy a
+known-good wrapper when adding an agent, and verify a deliberate failure yields non-zero.**
+
+### Gotcha: scraper output looks dead when it isn't
+
+Scraper `print`s mostly lack `flush=True`, so with output redirected to a log the file can
+look **empty for many minutes** while a run is perfectly healthy. Don't kill on silence —
+check the database instead:
+`select count(*) from retail_inventory where last_scraped_at > now() - interval '20 min'`.
