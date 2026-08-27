@@ -360,3 +360,59 @@ Caveats to carry into a build: ~1 product per large page loses its price (199/20
 should be re-fetched individually via `/p/{id}?s={store}`; 3.3 MB per request is heavy, so
 stream/parse rather than holding many in memory; and the rate limit (~10 rapid requests →
 403) still applies, so pacing remains mandatory even though the request count is now small.
+
+
+---
+
+## 11. ⚠️ CORRECTION 2026-08-27 — it is PerimeterX, and we are IP-blocked
+
+The rested crawl test (the measurement §10 said would decide the crawl budget) never got a
+page: **HTTP 403 in 0.2 s on the first request**, after ~14 hours of no traffic.
+
+Scope check — every path is blocked, not just deep pagination:
+
+| request | result |
+|---|---|
+| `/` (homepage) | **403** |
+| `/wine/c/c0020` | **403** |
+| `?storeId=503` / `&pageSize=200` | **403** |
+| `/robots.txt` | 200 |
+
+The 403 body identifies the vendor:
+
+```html
+<meta name="description" content="px-captcha">
+window._pxAppId  = 'PXFF0j69T5';
+window._pxHostUrl = '/FF0j69T5/xhr';
+Retry-After: 0
+```
+
+**PerimeterX** (now HUMAN Security), not Imperva. That changes the whole picture:
+
+- Yesterday's "stripped page, then intermittent, then 403" was **PX escalating a risk score**,
+  which I read as ordinary rate limiting. The empty pages were not flaky rendering and not a
+  bandwidth throttle — they were an anti-bot system deciding about us in stages.
+- An overnight rest did not clear it, so this is **IP reputation**, not a token bucket.
+- The pacing work in §10 (45 s/page, 8 s seed) was tuning the wrong variable. You cannot
+  pace your way out of a system that is scoring *how you behave*, not *how fast*.
+
+### What still stands
+
+The extraction work is sound and independently verified: `?storeId=` scoping reproduces real
+per-store price deltas, JSON-LD gives clean identity, `pageSize=200` works, and **996 real
+San Antonio wines** sit in the database with correct prices and varietals. If a block-free
+path is ever found, the scraper is ready.
+
+### What does not
+
+The "~1.6 h for the full TX catalog" estimate, the seed-then-crawl schedule, and the
+"UNLOCKED / SOLVED end-to-end" framing in §7 and §10. Read those sections as *what the
+site permits when it isn't blocking you*, not as a delivery plan.
+
+### Recommendation
+
+**Stop here.** Total Wine sits closer to Publix (item 48) than to H-E-B (item 45): a
+commercial anti-bot product that fingerprints continuously rather than a one-time challenge.
+Re-probe occasionally — PX scores decay — but do not invest further until a request path
+survives a full store without escalating. Note the 996 banked wines will hit the 10-day
+staleness bench around **2026-09-05**.
