@@ -80,6 +80,38 @@ class WrongStore(Exception):
     """The page came back without the store we asked for — refuse it."""
 
 
+class Blocked(Exception):
+    """PerimeterX is refusing this IP. Not a bug and not a transient failure —
+    the expected state since 2026-08-27."""
+
+
+def is_blocked() -> Optional[str]:
+    """Canary: ONE cheap request to see whether PerimeterX still refuses us.
+
+    Returns a reason string when blocked, None when the path looks open. This runs
+    BEFORE any crawl so a scheduled probe costs a single request rather than
+    charging into the block and refreshing our risk score — PX scores behaviour
+    over time, so a blind monthly retry would keep the block alive rather than
+    letting it decay."""
+    try:
+        html = _get(WINE_CATEGORY, timeout=25)
+    except urllib.error.HTTPError as e:
+        if e.code in (403, 429):
+            body = ""
+            try:
+                body = e.read().decode("utf8", "ignore")[:400]
+            except Exception:
+                pass
+            vendor = "PerimeterX" if "px-captcha" in body or "_pxAppId" in body else "unknown"
+            return f"HTTP {e.code} ({vendor})"
+        return f"HTTP {e.code}"
+    except Exception as e:
+        return f"{type(e).__name__}"
+    if "px-captcha" in html[:2000]:
+        return "px-captcha interstitial"
+    return None
+
+
 @dataclass
 class TotalWineProduct:
     product_id: str
