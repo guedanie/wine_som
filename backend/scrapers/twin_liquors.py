@@ -23,6 +23,7 @@ from typing import Optional, List
 from urllib.parse import quote
 
 from scrapers.base import BaseScraper, RetailInventoryItem
+from scrapers.throttle import throttle_note
 from utils import infer_wine_type
 from utils.upc import canonical_upc
 
@@ -261,14 +262,17 @@ class TwinLiquorsScraper(BaseScraper):
         total = 0
         stores_ok = 0
         stores_failed: List[str] = []
+        throttled: List[str] = []
         try:
             for mid in stores:
                 by_id: dict = {}
+                store_throttled = False
                 for term in WINE_SEARCH_TERMS:
                     try:
                         raws = _fetch(mid, term)
                     except TwinRateLimited:
                         print(f"    rate-limited on '{term}' — skipping remaining terms for this store")
+                        store_throttled = True
                         break
                     for raw in raws:
                         p = _parse_product(raw, mid)
@@ -278,6 +282,8 @@ class TwinLiquorsScraper(BaseScraper):
 
                 products = list(by_id.values())
                 store_label = products[0].store_name if products else mid
+                if store_throttled:
+                    throttled.append(store_label)
                 # Per-store isolation: one store's DB commit failure must not nuke
                 # the rest of the run (learned 2026-07-09 — a PostgREST 400 on
                 # store N took down stores N+1..12 in the smoke test).
@@ -298,15 +304,25 @@ class TwinLiquorsScraper(BaseScraper):
             # writes cleanly; partial failures are recorded via error_message.
             # A migration to add 'partial' to the enum is a future improvement.
             status = "failed" if total == 0 else "success"
+            # A throttled run holds only PART of the catalog, so it must not be
+            # used to delist. status stays "success" (the enum has no 'partial'
+            # and real wines were committed); the note is what stops
+            # sweep_delisted — see scrapers/throttle.py.
+            notes = [n for n in (
+                (f"failed stores: {','.join(stores_failed)}" if stores_failed else None),
+                throttle_note(throttled),
+            ) if n]
             self.supabase.table("scraper_runs").update({
                 "status": status, "records_updated": total,
-                "error_message": (f"failed stores: {','.join(stores_failed)}" if stores_failed else None),
+                "error_message": "; ".join(notes) or None,
                 "completed_at": datetime.now(timezone.utc).isoformat(),
             }).eq("id", run_id).execute()
             print(f"  DONE — {stores_ok}/{len(stores)} stores OK, {total} wines committed"
-                  + (f", failed: {stores_failed}" if stores_failed else ""))
+                  + (f", failed: {stores_failed}" if stores_failed else "")
+                  + (f", throttled: {sorted(set(throttled))}" if throttled else ""))
             return {"wines_committed": total, "stores": len(stores),
-                    "stores_ok": stores_ok, "stores_failed": stores_failed}
+                    "stores_ok": stores_ok, "stores_failed": stores_failed,
+                    "throttled": sorted(set(throttled))}
 
         except Exception as e:
             self.supabase.table("scraper_runs").update({

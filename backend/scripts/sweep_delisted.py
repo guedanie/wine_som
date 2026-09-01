@@ -27,6 +27,12 @@ from typing import List, Dict, Any
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from scrapers.throttle import was_throttled  # noqa: E402
+
+# Every column eligible_runs() inspects. Kept as one constant so a new guard
+# condition can't silently read a column the query never fetched.
+RUN_COLUMNS = "retailer_name,status,records_updated,error_message,started_at"
+
 
 # scraper_runs names don't always match stores.retailer_name — the Kroger run
 # covers two banners whose stores are named individually.
@@ -36,9 +42,17 @@ _RUN_RETAILER_ALIASES = {
 
 
 def eligible_runs(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Only successful runs that actually wrote records may sweep."""
+    """Only successful, complete runs that actually wrote records may sweep.
+
+    "Complete" is the third condition and it is not implied by the other two: a
+    rate-limited run commits real wines and exits success, so it passes the
+    status/records guard while holding only part of the catalog. Sweeping on it
+    delists every store it never reached.
+    """
     return [r for r in rows
-            if r.get("status") == "success" and (r.get("records_updated") or 0) > 0]
+            if r.get("status") == "success"
+            and (r.get("records_updated") or 0) > 0
+            and not was_throttled(r.get("error_message"))]
 
 
 def sweep_run(sb, run: Dict[str, Any]) -> int:
@@ -88,7 +102,7 @@ def main() -> int:
     since = (datetime.now(timezone.utc) - timedelta(hours=args.since_hours)).isoformat()
     runs = (
         sb.table("scraper_runs")
-        .select("retailer_name,status,records_updated,started_at")
+        .select(RUN_COLUMNS)
         .gte("started_at", since)
         .order("started_at")
         .execute().data or []

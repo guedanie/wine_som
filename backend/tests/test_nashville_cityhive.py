@@ -120,3 +120,13 @@ def test_db_chunk_is_small_enough_for_a_full_term_sweep():
     that size returns 400 Bad Request on URL length (hit live 2026-08-26)."""
     from scrapers.nashville_cityhive import _DB_CHUNK
     assert _DB_CHUNK <= 200
+
+
+def test_throttle_note_is_recognised_by_the_sweep():
+    """Contract test: Nashville's error_message must be readable by
+    sweep_delisted. Its own run already reports throttling correctly — this
+    pins the format so a future edit can't silently drift out of the
+    marker the sweep greps for."""
+    from scrapers.throttle import was_throttled
+    note = f" (throttled: {sorted({'Frugal MacDoogal'})})".strip() or None
+    assert was_throttled(note)

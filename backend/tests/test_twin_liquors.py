@@ -90,3 +90,65 @@ def test_to_items_carries_street_address():
     p = _parse_product(_wine_raw(), MID)
     items = scraper._to_items([p], MID)
     assert items[0].address == "3850 S New Braunfels Ave #113"
+
+
+# ---------------------------------------------------------------------------
+# Throttle reporting (2026-08-31 incident)
+# ---------------------------------------------------------------------------
+
+def _run_full_with(monkeypatch, rate_limit_on):
+    """Drive run_full over two stores, raising TwinRateLimited on the given
+    search term. Returns (result_dict, scraper_runs_update_payload)."""
+    import asyncio
+    from unittest.mock import MagicMock
+    from scrapers import twin_liquors as tl
+
+    def fake_fetch(mid, term):
+        if term == rate_limit_on:
+            raise tl.TwinRateLimited()
+        return [_wine_raw(id=f"p-{mid}-{term}")]
+
+    import time as _time
+    monkeypatch.setattr(tl, "_fetch", fake_fetch)
+    # run_full does `import time` in its own body, so the module object itself
+    # must be patched rather than a twin_liquors attribute.
+    monkeypatch.setattr(_time, "sleep", lambda *_: None)
+    monkeypatch.setattr(tl, "WINE_SEARCH_TERMS", ["cabernet", "merlot"])
+
+    scraper = tl.TwinLiquorsScraper.__new__(tl.TwinLiquorsScraper)
+    scraper.supabase = MagicMock()
+    scraper._upsert_wines = MagicMock(return_value={})
+    scraper._upsert_inventory = MagicMock()
+
+    updates = []
+    table = scraper.supabase.table.return_value
+    table.insert.return_value.execute.return_value = MagicMock()
+    def capture_update(payload):
+        updates.append(payload)
+        return table
+    table.update.side_effect = capture_update
+    table.eq.return_value = table
+
+    result = asyncio.get_event_loop().run_until_complete(
+        scraper.run_full(merchant_ids=[MID, "store2"]))
+    return result, updates[-1]
+
+
+def test_rate_limited_store_is_reported_in_result(monkeypatch):
+    """Twin printed the skip to the log but returned a clean dict, so the run
+    recorded success and sweep_delisted delisted the stores it never reached."""
+    result, _ = _run_full_with(monkeypatch, rate_limit_on="cabernet")
+    assert result["throttled"] == [MID, "store2"]
+
+
+def test_rate_limited_run_marks_error_message_for_the_sweep(monkeypatch):
+    from scrapers.throttle import was_throttled
+    _, update = _run_full_with(monkeypatch, rate_limit_on="cabernet")
+    assert was_throttled(update["error_message"])
+
+
+def test_clean_run_reports_no_throttling(monkeypatch):
+    from scrapers.throttle import was_throttled
+    result, update = _run_full_with(monkeypatch, rate_limit_on=None)
+    assert result["throttled"] == []
+    assert not was_throttled(update["error_message"])

@@ -38,6 +38,7 @@ from typing import Any, Dict, List, Optional
 from urllib.parse import quote
 
 from scrapers.base import BaseScraper, RetailInventoryItem, _execute_with_retry
+from scrapers.throttle import throttle_note
 from scrapers.twin_liquors import (
     API_KEY, SEARCH_URL, WINE_SEARCH_TERMS, TwinProduct, TwinRateLimited,
     _CURL_HEADERS, _parse_product,
@@ -221,10 +222,11 @@ class NashvilleCityHiveScraper(BaseScraper):
                     total += len(items)
                     print(f"    committed {len(items)} wines", flush=True)
 
-            note = f" (throttled: {sorted(set(throttled))})" if throttled else ""
             self.supabase.table("scraper_runs").update({
                 "status": "success", "records_updated": total,
-                "error_message": note.strip() or None,
+                # Stops sweep_delisted delisting the stores this run never
+                # reached — see scrapers/throttle.py.
+                "error_message": throttle_note(throttled),
                 "completed_at": datetime.now(timezone.utc).isoformat(),
             }).eq("id", run_id).execute()
             return {"wines_committed": total, "stores": len(stores),

@@ -3,13 +3,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
 from unittest.mock import MagicMock, call
-from scripts.sweep_delisted import eligible_runs, sweep_run
+from scripts.sweep_delisted import eligible_runs, sweep_run, RUN_COLUMNS
 
 
 def _run(retailer="H-E-B", status="success", updated=34703,
-         started="2026-07-12T09:49:00+00:00"):
+         started="2026-07-12T09:49:00+00:00", error_message=None):
     return {"retailer_name": retailer, "status": status,
-            "records_updated": updated, "started_at": started}
+            "records_updated": updated, "started_at": started,
+            "error_message": error_message}
 
 
 def test_only_successful_nonzero_runs_are_swept():
@@ -23,6 +24,39 @@ def test_only_successful_nonzero_runs_are_swept():
         _run(retailer="Pogo's Wine & Spirits", status="running", updated=None),
     ]
     assert [r["retailer_name"] for r in eligible_runs(runs)] == ["H-E-B"]
+
+
+def test_throttled_run_does_not_sweep():
+    """A rate-limited run commits real wines and exits success, so the
+    status/records guard passes it — but the stores it never reached would be
+    read as delisted. Measured 2026-08-31: this would have flipped 1,839 Twin
+    Liquors and 179 Frugal MacDoogal in-stock rows to out-of-stock."""
+    runs = [
+        _run(retailer="Twin Liquors", status="success", updated=5550,
+             error_message="throttled: ['Bitters Marketplace', 'Four Points']"),
+        _run(retailer="Nashville Wine Merchants", status="success", updated=2418,
+             error_message="throttled: ['Frugal MacDoogal']"),
+        _run(retailer="Spec's", status="success", updated=63594),
+    ]
+    assert [r["retailer_name"] for r in eligible_runs(runs)] == ["Spec's"]
+
+
+def test_query_selects_every_column_the_guard_reads():
+    """eligible_runs() is only as good as the columns actually fetched. A guard
+    reading error_message while the query omits it passes every unit test and
+    does nothing in production — the column comes back absent, reads as None,
+    and every throttled run sweeps anyway."""
+    for column in ("status", "records_updated", "error_message", "started_at"):
+        assert column in RUN_COLUMNS
+
+
+def test_non_throttle_error_message_still_sweeps():
+    """Twin records per-store commit failures in the same column. That is a
+    different condition — the stores it DID reach are complete, so suppressing
+    the sweep would leave zombie rows forever."""
+    runs = [_run(retailer="Twin Liquors", status="success", updated=5550,
+                 error_message="failed stores: 5af17ad1")]
+    assert [r["retailer_name"] for r in eligible_runs(runs)] == ["Twin Liquors"]
 
 
 def _sb(store_ids, participating):
