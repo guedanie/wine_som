@@ -164,10 +164,15 @@ export default function ChatRecommend() {
   const navigate   = useNavigate();
   const isMobile   = useIsMobile();
   const { user, ready } = useAuth();
-  const { prefs, apiReq, reqId, _restored: _restoredNav } = state ?? {};
+  const { prefs, apiReq: apiReqNav, reqId, _restored: _restoredNav } = state ?? {};
   // Navigation state wins (in-app back / patched history entry); the
   // sessionStorage cache covers refresh + PWA restarts on the same run.
   const _restored = _restoredNav ?? loadCachedSession(reqId);
+  // A budget spoken mid-conversation has to update the request, so this can no
+  // longer be a plain read of navigation state. Seeded from nav state (or the
+  // restored chatState, which may carry a budget update made before a browser
+  // back / refresh — see item 38), then owned here.
+  const [apiReq, setApiReq] = useState(() => _restored?.apiReq ?? apiReqNav);
 
   // Ask face (aisle mode): arriving without a plan-mode brief IS the ask face —
   // it opens clean, no sliders, no redirect. Derived only from route state, so
