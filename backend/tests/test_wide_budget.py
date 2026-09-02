@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
-from recommendation.budget import budget_is_stated, effective_budget_max, WIDE_BUDGET_THRESHOLD
+from recommendation.budget import budget_is_stated, effective_budget_max, budget_widened, WIDE_BUDGET_THRESHOLD
 from recommendation.scorer import score_candidates
 from recommendation.claude_client import _build_user_message
 from recommendation.availability import availability_lines, PRESENT_NOT_SHORTLISTED
@@ -87,3 +87,13 @@ def test_effective_budget_prefers_the_resolved_value():
 def test_effective_budget_falls_back_to_the_request():
     assert effective_budget_max({}, 50.0) == 50.0
     assert effective_budget_max({"budget_max": None}, 50.0) == 50.0
+
+
+def test_budget_widened_detects_only_upward_moves():
+    """Narrowing needs no re-fetch — the pool already holds everything under
+    the lower ceiling. Only widening exposes wines the breadth query never
+    retrieved."""
+    assert budget_widened({"budget_max": 200.0}, 60.0) is True
+    assert budget_widened({"budget_max": 20.0}, 60.0) is False
+    assert budget_widened({"budget_max": 60.0}, 60.0) is False
+    assert budget_widened({}, 60.0) is False

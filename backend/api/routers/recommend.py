@@ -13,7 +13,7 @@ from fastapi.responses import StreamingResponse
 from api.schemas import RecommendRequest
 from db import get_supabase_client, get_service_client
 from recommendation.scorer import score_candidates
-from recommendation.budget import effective_budget_max
+from recommendation.budget import effective_budget_max, budget_widened
 from recommendation.claude_client import stream_recommendations
 from recommendation.intent import parse_message, merge_intent, intent_from_request
 from recommendation.availability import (axes_from_intent, catalog_terms,
@@ -557,8 +557,27 @@ async def recommend(req: RecommendRequest):
         def _q(since: Optional[str]) -> list:
             q = (supabase.table("retail_inventory").select(INVENTORY_SELECT)
                  .in_("store_ref", nearby_ids).eq("in_stock", True)
-                 .gte("price", req.budget_min).lte("price", req.budget_max)
+                 .gte("price", req.budget_min).lte("price", _budget)
                  .or_(",".join(conds), reference_table="wines"))
+            if since:
+                q = q.gte("last_scraped_at", since)
+            return q.limit(200).execute().data or []
+
+        rows = _q(stale_cutoff) or _q(None)
+        return [c for c in (_row_to_candidate(r) for r in rows) if c]
+
+    def _widen_fetch() -> list:
+        """Nearby inventory in the band the breadth query never asked for.
+
+        Breadth already fetched everything <= req.budget_max, so this asks only
+        for the newly-affordable slice above it — cheaper than re-running the
+        whole breadth query, and it merges cleanly."""
+        def _q(since: Optional[str]) -> list:
+            q = (supabase.table("retail_inventory").select(INVENTORY_SELECT)
+                 .in_("store_ref", nearby_ids).eq("in_stock", True)
+                 .gt("price", req.budget_max)
+                 .lte("price", _budget))
+            q = _apply_type_breadth_filter(q, breadth_types)
             if since:
                 q = q.gte("last_scraped_at", since)
             return q.limit(200).execute().data or []
@@ -654,15 +673,35 @@ async def recommend(req: RecommendRequest):
     top = _score_and_select(candidates)
     reason = deep_fetch_reason(resolved, top)
 
+    # A widened budget means the pool is capped at the OLD ceiling while the
+    # prompt will claim the new one. Re-fetch before anything reads `top`.
+    widened = budget_widened(resolved, req.budget_max)
+
     session_id = str(uuid.uuid4())
     _result: dict = {"narrative": [], "picks": []}
 
     def event_gen():
-        nonlocal top
-        if reason:
+        nonlocal top, candidates
+        if reason or widened:
             yield "data: " + json.dumps(
                 {"type": "status", "text": "Looking deeper into the cellar…"}) + "\n\n"
             try:
+                if widened:
+                    _wide = _widen_fetch()
+                    # Scope to the named retailer BEFORE merging. The retailer
+                    # filter above is a one-shot mutation of `candidates`, not a
+                    # re-asserted gate like filter_to_store — so an unscoped
+                    # merge would quietly hand back wines from retailers the
+                    # user excluded (item 36).
+                    if _wide and detected_retailer:
+                        _wide = [c for c in _wide
+                                 if detected_retailer in (c.get("retailer") or "")]
+                    if _wide:
+                        candidates = apply_type_gate(
+                            merge_candidates(candidates, _wide), req_types)
+                        top = _score_and_select(candidates)
+                        logger.info("WIDEN FETCH | %.0f→%.0f → +%d rows",
+                                    req.budget_max, _budget, len(_wide))
                 if reason == "named":
                     # One fetch per named bottle — a comparison ("Caymus or
                     # Bonanza?") must surface BOTH, so each name's matches are

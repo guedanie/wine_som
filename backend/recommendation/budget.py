@@ -36,3 +36,16 @@ def effective_budget_max(resolved: Dict[str, Any], request_max: float) -> float:
     """
     value = resolved.get("budget_max")
     return float(value) if isinstance(value, (int, float)) else float(request_max)
+
+
+def budget_widened(resolved: Dict[str, Any], request_max: float) -> bool:
+    """True when the user spoke a budget HIGHER than the one the fetch ran on.
+
+    Only widening matters: the breadth query already retrieved everything at or
+    below `request_max`, so narrowing is a scoring problem, while widening means
+    the newly-affordable wines are simply absent from the pool.
+    """
+    value = resolved.get("budget_max")
+    if not isinstance(value, (int, float)):
+        return False
+    return float(value) > float(request_max)
