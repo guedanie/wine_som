@@ -9,6 +9,7 @@ import unicodedata
 import anthropic
 from typing import Optional, List, Dict, Any, Tuple
 from config import settings
+from recommendation.budget import spoken_max_price
 
 logger = logging.getLogger(__name__)
 
@@ -196,8 +197,13 @@ def merge_intent(parsed: Optional[Dict[str, Any]], explicit: Dict[str, Any]) -> 
     # against a carried $60 is silently ignored, and a budget the user cannot
     # raise has no visible exit. The fetch-lag the guard protected against is
     # handled by the widen re-fetch in recommend.py instead.
-    max_price = parsed.get("max_price")
-    if isinstance(max_price, (int, float)) and max_price > 0:
-        out["budget_max"] = float(max_price)
-        out["budget_min"] = min(float(out.get("budget_min", 10.0)), float(max_price))
+    # "Did the user state a budget?" is defined once, in recommendation/budget.py,
+    # because budget_frame_values has to answer it identically — if the two
+    # disagree, the client carries a budget the scorer never applied (or worse,
+    # the reverse). They HAD disagreed: that guard excluded bool and this one
+    # did not, so `max_price: True` set a $1 budget here.
+    max_price = spoken_max_price(parsed)
+    if max_price is not None:
+        out["budget_max"] = max_price
+        out["budget_min"] = min(float(out.get("budget_min", 10.0)), max_price)
     return out

@@ -22,7 +22,7 @@ from recommendation.availability import (axes_from_intent, catalog_terms,
                                          axis_key, axis_label, availability_lines)
 from recommendation.producer_facts import fetch_producer_facts
 from recommendation.candidate_filters import (apply_type_gate, deep_fetch_reason,
-                                              detect_retailer, filter_to_store,
+                                              detect_retailer, filter_to_retailer, filter_to_store,
                                               is_referential,
                                               pin_prior_picks, prior_picks_from_history,
                                               resolve_store_scope,
@@ -687,15 +687,11 @@ async def recommend(req: RecommendRequest):
                 {"type": "status", "text": "Looking deeper into the cellar…"}) + "\n\n"
             try:
                 if widened:
-                    _wide = _widen_fetch()
-                    # Scope to the named retailer BEFORE merging. The retailer
-                    # filter above is a one-shot mutation of `candidates`, not a
-                    # re-asserted gate like filter_to_store — so an unscoped
-                    # merge would quietly hand back wines from retailers the
-                    # user excluded (item 36).
-                    if _wide and detected_retailer:
-                        _wide = [c for c in _wide
-                                 if detected_retailer in (c.get("retailer") or "")]
+                    # Scope before merging: the retailer narrowing above is a
+                    # one-shot mutation of `candidates`, not a re-asserted gate
+                    # like filter_to_store, so an unscoped merge hands back
+                    # retailers the user excluded (item 36).
+                    _wide = filter_to_retailer(_widen_fetch(), detected_retailer)
                     if _wide:
                         candidates = apply_type_gate(
                             merge_candidates(candidates, _wide), req_types)
@@ -719,7 +715,8 @@ async def recommend(req: RecommendRequest):
                     elif named_lists:
                         top = pin_named_matches(top, named_lists[0], cap=3)[:_MAX_CANDIDATES]
                 else:  # weak
-                    extra = _constraint_fetch()
+                    # Same one-shot-retailer-filter hazard as the widen branch.
+                    extra = filter_to_retailer(_constraint_fetch(), detected_retailer)
                     if extra:
                         top = _score_and_select(
                             apply_type_gate(merge_candidates(candidates, extra), req_types))

@@ -306,6 +306,22 @@ def filter_to_store(candidates: List[Dict[str, Any]],
     return [c for c in candidates if c.get("store_ref") == store_id]
 
 
+def filter_to_retailer(candidates: List[Dict[str, Any]],
+                       retailer: Optional[str]) -> List[Dict[str, Any]]:
+    """Scope rows to a named retailer. No-op (same list) when none was named.
+
+    Needed because the retailer narrowing in `recommend.py` is a ONE-SHOT
+    mutation of `candidates`, unlike `filter_to_store` which lives inside
+    `_score_and_select` and therefore re-asserts on every scoring pass. Any
+    deep fetch merged in AFTER that narrowing queries all nearby stores and
+    would quietly hand back retailers the user excluded (item 36), so each
+    one has to be scoped at the point of merge.
+    """
+    if not retailer:
+        return candidates
+    return [c for c in candidates if retailer in (c.get("retailer") or "")]
+
+
 def merge_candidates(breadth: List[Dict[str, Any]],
                      targeted: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Union breadth + targeted candidate dicts, deduped by (wine_id, store_ref)."""

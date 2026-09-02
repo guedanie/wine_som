@@ -3,11 +3,13 @@
 // omitted, so an unstated budget defaults to the wide-range sentinel the
 // backend's recommendation/budget.py treats as "no budget stated" — but once
 // the user speaks a number, the backend echoes it back via the `budget` SSE
-// frame (see ChatRecommend's `applyBudgetFrame`), and callers pass THAT
+// frame (see `applyBudgetFrame` in ./budget.js), and callers pass THAT
 // through here as budgetMin/budgetMax so the sentinel stops lying on the
 // next turn.
+import { WIDE_BUDGET_MIN, WIDE_BUDGET_MAX } from './budget.js';
+
 export function buildAskReq({ zip, message, history, storeRef, conversational = false,
-                              taste = null, budgetMin = 0, budgetMax = 10000 }) {
+                              taste = null, budgetMin = WIDE_BUDGET_MIN, budgetMax = WIDE_BUDGET_MAX }) {
   const req = {
     zip_code: zip, budget_min: budgetMin, budget_max: budgetMax,
     style_preferences: [], avoid: [],

@@ -51,6 +51,30 @@ def budget_widened(resolved: Dict[str, Any], request_max: float) -> bool:
     return float(value) > float(request_max)
 
 
+def spoken_max_price(parsed: Optional[Dict[str, Any]]) -> Optional[float]:
+    """The budget the user said out loud this turn, or None.
+
+    THE single definition of "the user stated a budget". Two consumers have to
+    agree on it — `merge_intent` (which decides whether the spoken cap replaces
+    the carried one) and `budget_frame_values` (which decides whether to tell
+    the client to carry anything). They were written separately and had already
+    drifted: this guard excluded `bool` and merge_intent's did not, so
+    `max_price: True` set a $1 budget on one path and was correctly ignored on
+    the other.
+
+    `bool` is the trap — it subclasses `int`, so a bare
+    `isinstance(x, (int, float))` accepts `True` and `float(True)` is 1.0.
+    """
+    if not parsed:
+        return None
+    value = parsed.get("max_price")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if not value > 0:          # also rejects NaN, which fails every comparison
+        return None
+    return float(value)
+
+
 def budget_frame_values(parsed: Optional[Dict[str, Any]],
                          resolved: Dict[str, Any]) -> Optional[Dict[str, float]]:
     """{"min": ..., "max": ...} to persist client-side, or None.
@@ -58,18 +82,12 @@ def budget_frame_values(parsed: Optional[Dict[str, Any]],
     Silence is load-bearing: this must return None on every turn the user
     did not speak a budget, or the client would pin a value the user never
     said and `budget_is_stated()` would start reporting a phantom budget on
-    every later turn. `parsed.max_price` is checked (not the wide sentinel
-    that always lives on the request) with the same numeric/positive test
-    merge_intent uses internally to decide whether a spoken budget replaces
-    the carried one — kept in sync deliberately, not shared, since
-    merge_intent is out of scope for this change. Values come from
-    `resolved` (post-merge_intent) rather than `parsed.max_price` alone
-    because merge_intent may additionally clamp budget_min against it.
+    every later turn. Values come from `resolved` (post-merge_intent) rather
+    than `parsed.max_price` alone because merge_intent may additionally clamp
+    budget_min against it.
     """
-    if not parsed:
-        return None
-    max_price = parsed.get("max_price")
-    if not isinstance(max_price, (int, float)) or isinstance(max_price, bool) or max_price <= 0:
+    max_price = spoken_max_price(parsed)
+    if max_price is None:
         return None
     return {
         "min": float(resolved.get("budget_min", 0.0)),

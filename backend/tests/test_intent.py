@@ -253,3 +253,12 @@ def test_max_price_preserves_budget_min_when_widening():
     merged = merge_intent(_parsed(80.0), _explicit(15.0, 50.0))
     assert merged["budget_max"] == 80.0
     assert merged["budget_min"] == 15.0
+
+
+def test_bool_max_price_is_not_a_one_dollar_budget():
+    """`True` is an int subclass in Python, so a bare isinstance(x, (int, float))
+    accepts it and `float(True)` is 1.0 — a $1 budget nobody asked for. The
+    frame builder in recommendation/budget.py already guarded against this and
+    merge_intent did not, so the two disagreed about what "stated" means."""
+    out = merge_intent({"max_price": True}, {"budget_min": 0, "budget_max": 60})
+    assert out["budget_max"] == 60

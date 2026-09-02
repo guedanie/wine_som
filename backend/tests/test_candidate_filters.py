@@ -547,3 +547,31 @@ def test_no_store_anywhere():
     from recommendation.candidate_filters import resolve_store_scope
     nearby = [{"id": "s1", "name": "Geraldine's Natural Wines"}]
     assert resolve_store_scope(None, nearby, "a bold red under $40") == (None, None)
+
+
+def test_filter_to_retailer_scopes_deep_fetch_rows():
+    """Deep fetches query all nearby stores. The retailer narrowing upstream is
+    a ONE-SHOT mutation of `candidates`, not a re-asserted gate like
+    filter_to_store — so rows merged in afterwards must be scoped themselves or
+    they hand back retailers the user excluded (item 36)."""
+    from recommendation.candidate_filters import filter_to_retailer
+    rows = [{"wine_id": "a", "retailer": "H-E-B"},
+            {"wine_id": "b", "retailer": "Spec's"},
+            {"wine_id": "c", "retailer": "H-E-B"}]
+    assert [c["wine_id"] for c in filter_to_retailer(rows, "H-E-B")] == ["a", "c"]
+
+
+def test_filter_to_retailer_is_a_noop_without_a_retailer():
+    """No retailer detected means no scoping — must return the rows untouched,
+    not an empty list."""
+    from recommendation.candidate_filters import filter_to_retailer
+    rows = [{"wine_id": "a", "retailer": "H-E-B"}]
+    assert filter_to_retailer(rows, None) is rows
+    assert filter_to_retailer(rows, "") is rows
+
+
+def test_filter_to_retailer_tolerates_a_missing_retailer_field():
+    from recommendation.candidate_filters import filter_to_retailer
+    rows = [{"wine_id": "a"}, {"wine_id": "b", "retailer": None},
+            {"wine_id": "c", "retailer": "H-E-B"}]
+    assert [c["wine_id"] for c in filter_to_retailer(rows, "H-E-B")] == ["c"]

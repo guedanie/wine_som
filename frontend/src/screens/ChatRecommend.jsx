@@ -11,6 +11,7 @@ import WineCardSkeleton from '../components/WineCardSkeleton.jsx';
 import CompareFrame from '../components/CompareFrame.jsx';
 import { streamRecommend, postFeedback, getNearbyStores } from '../lib/api.js';
 import { buildAskReq, ASK_INTENT_PILLS } from '../lib/askMode.js';
+import { applyBudgetFrame } from '../lib/budget.js';
 import { loadZip, saveZip } from '../lib/useIsMobile.js';
 import { naturalChatMode } from '../lib/flags.js';
 import { track } from '../lib/analytics.js';
@@ -34,19 +35,6 @@ function loadCachedSession(reqId) {
   } catch { return null; }
 }
 
-// Pure so it can be tested without mounting the screen. Returns the SAME object
-// when the frame is unusable, so a malformed frame can never blank a budget the
-// user actually set.
-export function applyBudgetFrame(req, frame) {
-  const max = frame?.max;
-  if (typeof max !== 'number' || !(max > 0)) return req;
-  // min is allowed to legitimately be 0 (a floor of "no minimum"), so it needs
-  // its own finite-number check rather than reusing max's `> 0` guard — the
-  // two look asymmetric but are each doing the right thing for their field.
-  // req itself is legitimately undefined on ASK turn 1 (no nav apiReq yet).
-  const min = Number.isFinite(frame.min) ? frame.min : (req?.budget_min ?? 0);
-  return { ...req, budget_min: min, budget_max: max };
-}
 
 const DEFAULT_FOLLOWUPS = ["Anything from Burgundy?", "What about under $30?", "Something to cellar"];
 

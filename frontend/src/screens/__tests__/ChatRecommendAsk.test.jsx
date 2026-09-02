@@ -4,7 +4,8 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import ChatRecommend, { applyBudgetFrame } from '../ChatRecommend.jsx';
+import ChatRecommend from '../ChatRecommend.jsx';
+import { applyBudgetFrame } from '../../lib/budget.js';
 
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
