@@ -34,6 +34,20 @@ function loadCachedSession(reqId) {
   } catch { return null; }
 }
 
+// Pure so it can be tested without mounting the screen. Returns the SAME object
+// when the frame is unusable, so a malformed frame can never blank a budget the
+// user actually set.
+export function applyBudgetFrame(req, frame) {
+  const max = frame?.max;
+  if (typeof max !== 'number' || !(max > 0)) return req;
+  // min is allowed to legitimately be 0 (a floor of "no minimum"), so it needs
+  // its own finite-number check rather than reusing max's `> 0` guard — the
+  // two look asymmetric but are each doing the right thing for their field.
+  // req itself is legitimately undefined on ASK turn 1 (no nav apiReq yet).
+  const min = Number.isFinite(frame.min) ? frame.min : (req?.budget_min ?? 0);
+  return { ...req, budget_min: min, budget_max: max };
+}
+
 const DEFAULT_FOLLOWUPS = ["Anything from Burgundy?", "What about under $30?", "Something to cellar"];
 
 function SommelierBubble({ children, vote, onVote }) {
@@ -264,7 +278,7 @@ export default function ChatRecommend() {
       }));
     } catch { /* private mode */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, picks, followups, wineVotes, messageVotes]);
+  }, [messages, picks, followups, wineVotes, messageVotes, apiReq]);
 
   if (!prefs && !askMode) return <Navigate to="/" replace />;
 
@@ -340,6 +354,11 @@ export default function ChatRecommend() {
               return msgs;
             });
           }
+        } else if (event.type === 'budget') {
+          // The user said a number out loud. Carry it so the NEXT request sends
+          // a real budget_max instead of the wide sentinel — that is what makes
+          // the fetch, scorer, oracle and prompt agree from turn 2 on.
+          setApiReq(prev => applyBudgetFrame(prev, event));
         } else if (event.type === 'suggestions') {
           setFollowups(event.suggestions);
         } else if (event.type === 'error') {
@@ -414,8 +433,10 @@ export default function ChatRecommend() {
     tasteFor().then(taste => callRecommend({ ...apiReq, message: text, conversation_history: history, conversational: naturalChatMode(), taste }));
   };
 
-  // Ask face send: wide-budget sentinel (no sliders in here), structured
-  // store_ref when a standing store is set.
+  // Ask face send: no sliders in here, so budget starts at the wide sentinel —
+  // but once the user speaks a number, `apiReq` carries the value the backend
+  // echoed back via the `budget` frame, and every send after that uses it
+  // instead. Also sends structured store_ref when a standing store is set.
   const handleAskSend = (text) => {
     if (loading || streaming || !text.trim()) return;
     // Lazy location: the zip request arrives INSIDE the conversation, once,
@@ -432,6 +453,7 @@ export default function ChatRecommend() {
     tasteFor().then(taste => callRecommend(buildAskReq({
       zip: askZip, message: text, history: history.length ? history : undefined,
       storeRef, conversational: history.length > 0 && naturalChatMode(), taste,
+      budgetMin: apiReq?.budget_min ?? 0, budgetMax: apiReq?.budget_max ?? 10000,
     })));
   };
 
@@ -456,6 +478,7 @@ export default function ChatRecommend() {
     tasteFor().then(taste => callRecommend(buildAskReq({
       zip: zipDraft, message: text, history: history.length ? history : undefined,
       storeRef, conversational: false, taste,
+      budgetMin: apiReq?.budget_min ?? 0, budgetMax: apiReq?.budget_max ?? 10000,
     })));
   };
 
@@ -617,6 +640,7 @@ export default function ChatRecommend() {
         tasteFor().then(taste => callRecommend(buildAskReq({
           zip: askZip, message: q, history: history.length ? history : undefined,
           conversational: naturalChatMode(), taste,   // storeRef omitted → widen
+          budgetMin: apiReq?.budget_min ?? 0, budgetMax: apiReq?.budget_max ?? 10000,
         })));
       }}
         style={{ marginTop: 8, cursor: 'pointer', background: 'none', color: 'var(--bordeaux)',

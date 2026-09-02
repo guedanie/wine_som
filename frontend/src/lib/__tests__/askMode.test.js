@@ -30,6 +30,18 @@ describe('buildAskReq', () => {
     expect(req.conversation_history).toHaveLength(1);
     expect(req.conversational).toBe(true);
   });
+
+  it('omitting budget params still yields the wide sentinel', () => {
+    const req = buildAskReq({ zip: '78209', message: 'caymus or bonanza?' });
+    expect(req).toMatchObject({ budget_min: 0, budget_max: 10000 });
+  });
+
+  it('passing a spoken budget overrides the sentinel', () => {
+    const req = buildAskReq({
+      zip: '78209', message: 'and under $60?', budgetMin: 0, budgetMax: 60,
+    });
+    expect(req).toMatchObject({ budget_min: 0, budget_max: 60 });
+  });
 });
 
 describe('ASK_INTENT_PILLS', () => {

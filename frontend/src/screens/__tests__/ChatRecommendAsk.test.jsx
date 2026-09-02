@@ -4,7 +4,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import ChatRecommend from '../ChatRecommend.jsx';
+import ChatRecommend, { applyBudgetFrame } from '../ChatRecommend.jsx';
 
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
@@ -307,5 +307,40 @@ describe('hard store filter — check nearby (item 44)', () => {
     await userEvent.type(screen.getAllByRole('textbox')[0], 'a red for pizza{Enter}');
     await screen.findByText('Some Red');
     expect(screen.queryByText('Check nearby stores')).toBeNull();
+  });
+});
+
+describe('budget frame', () => {
+  it('replaces the carried budget in either direction', () => {
+    expect(applyBudgetFrame({ budget_min: 0, budget_max: 10000 },
+                            { type: 'budget', min: 0, max: 60 }))
+      .toEqual({ budget_min: 0, budget_max: 60 });
+    expect(applyBudgetFrame({ budget_min: 0, budget_max: 60 },
+                            { type: 'budget', min: 0, max: 200 }))
+      .toEqual({ budget_min: 0, budget_max: 200 });
+  });
+
+  it('leaves the request untouched on a malformed frame', () => {
+    const req = { budget_min: 0, budget_max: 60 };
+    expect(applyBudgetFrame(req, { type: 'budget' })).toBe(req);
+    expect(applyBudgetFrame(req, { type: 'budget', max: null })).toBe(req);
+  });
+
+  it('a budget spoken on turn 1 reaches turn 2s actual request (closes the loop)', async () => {
+    streamRecommend
+      .mockImplementationOnce(async function* () {
+        yield { type: 'token', text: 'Around $60 sounds right.' };
+        yield { type: 'budget', min: 0, max: 60 };
+      })
+      .mockImplementationOnce(async function* () {
+        yield { type: 'token', text: 'Here you go.' };
+      });
+    renderAsk();
+    await userEvent.type(screen.getAllByRole('textbox')[0], 'anything under $60?{Enter}');
+    await screen.findByText('Around $60 sounds right.');
+    await userEvent.type(screen.getAllByRole('textbox')[0], 'something else{Enter}');
+    await waitFor(() => expect(streamRecommend).toHaveBeenCalledTimes(2));
+    expect(streamRecommend.mock.calls[0][0].budget_max).toBe(10000);   // turn 1: sentinel
+    expect(streamRecommend.mock.calls[1][0].budget_max).toBe(60);      // turn 2: carried
   });
 });

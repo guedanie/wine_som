@@ -125,6 +125,24 @@ it('sends conversational:false on a follow-up when natural mode is off', async (
   vi.unstubAllGlobals();
 });
 
+it('a budget spoken on turn 1 reaches turn 2s actual request (closes the loop)', async () => {
+  streamRecommend
+    .mockImplementationOnce(async function* () {
+      yield { type: 'token', text: 'Let us keep it near $45.' };
+      yield { type: 'budget', min: 0, max: 45 };
+    })
+    .mockImplementationOnce(async function* () {
+      yield { type: 'token', text: 'Here you go.' };
+    });
+  renderScreen();
+  await waitFor(() => screen.getByText('Let us keep it near $45.'));
+  const input = screen.getAllByPlaceholderText('Ask a follow-up…')[0];
+  await userEvent.type(input, 'something else{Enter}');
+  await waitFor(() => expect(streamRecommend).toHaveBeenCalledTimes(2));
+  expect(streamRecommend.mock.calls[0][0].budget_max).toBe(60);   // turn 1: nav apiReq fixture
+  expect(streamRecommend.mock.calls[1][0].budget_max).toBe(45);   // turn 2: carried
+});
+
 it('renders picks as conversational messages on mobile (Option C — name link, price, no card/sheet)', async () => {
   window.matchMedia = vi.fn().mockImplementation(q => ({
     matches: true, media: q, addEventListener: () => {}, removeEventListener: () => {},

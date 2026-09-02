@@ -1,10 +1,15 @@
 // frontend/src/lib/askMode.js
 // Aisle-mode ("Ask") request shape. Budget is a hard SQL filter that can't be
-// omitted, so an unstated budget is the wide-range sentinel the backend's
-// recommendation/budget.py treats as "no budget stated".
-export function buildAskReq({ zip, message, history, storeRef, conversational = false, taste = null }) {
+// omitted, so an unstated budget defaults to the wide-range sentinel the
+// backend's recommendation/budget.py treats as "no budget stated" — but once
+// the user speaks a number, the backend echoes it back via the `budget` SSE
+// frame (see ChatRecommend's `applyBudgetFrame`), and callers pass THAT
+// through here as budgetMin/budgetMax so the sentinel stops lying on the
+// next turn.
+export function buildAskReq({ zip, message, history, storeRef, conversational = false,
+                              taste = null, budgetMin = 0, budgetMax = 10000 }) {
   const req = {
-    zip_code: zip, budget_min: 0, budget_max: 10000,
+    zip_code: zip, budget_min: budgetMin, budget_max: budgetMax,
     style_preferences: [], avoid: [],
     message, conversational, taste,
   };
