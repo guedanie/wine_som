@@ -173,6 +173,28 @@ you just answered a food question — vary the suggestions.\
 """
 
 
+# Prompt caching. The rendered prefix is tools -> system -> messages, and both
+# _TOOL and _SYSTEM_PROMPT are module constants with no interpolation — so a
+# single breakpoint on the last system block caches the tool schema AND the
+# ~1,738-token system prompt together, on every recommendation.
+#
+# Caching is a PREFIX MATCH: one differing byte anywhere before the breakpoint
+# invalidates it. Nothing per-request (a timestamp, a zip, a session id) may
+# ever be interpolated into _SYSTEM_PROMPT or _TOOL — put it in the user
+# message, which renders after the breakpoint and costs nothing to vary.
+_SYSTEM_BLOCKS = [{
+    "type": "text",
+    "text": _SYSTEM_PROMPT,
+    "cache_control": {"type": "ephemeral"},
+}]
+
+
+def system_blocks() -> List[Dict[str, Any]]:
+    """The system prompt as a cache-broken block list. Shared by both call
+    sites so the two can never drift out of a common cache entry."""
+    return _SYSTEM_BLOCKS
+
+
 def _format_wine(wine: Dict[str, Any]) -> str:
     location = ", ".join(filter(None, [
         wine.get("varietal") or "",
@@ -660,7 +682,7 @@ def stream_recommendations(
             with _anthropic_client.messages.stream(
                 model="claude-sonnet-4-6",
                 max_tokens=800,
-                system=_SYSTEM_PROMPT,
+                system=system_blocks(),
                 messages=[{"role": "user", "content": user_msg}],
                 tools=[_TOOL],
                 tool_choice={"type": "tool", "name": "recommend_wines"},
@@ -680,6 +702,19 @@ def stream_recommendations(
                     yield (typ, val)
 
                 final = stream.get_final_message()
+
+            # Cache hit rate is only knowable from production traffic, so log it.
+            # Isolated: the stream has already completed and the user is waiting
+            # on picks — a telemetry failure must never turn a finished
+            # recommendation into "service unavailable" (it does, unguarded).
+            try:
+                u = final.usage
+                logger.info("CLAUDE CACHE | read=%d write=%d uncached=%d",
+                            getattr(u, "cache_read_input_tokens", 0) or 0,
+                            getattr(u, "cache_creation_input_tokens", 0) or 0,
+                            u.input_tokens)
+            except Exception:
+                logger.debug("CLAUDE CACHE | usage unavailable", exc_info=True)
 
             tool_block = next((b for b in final.content if b.type == "tool_use"), None)
             if tool_block is None:
@@ -707,7 +742,7 @@ def get_recommendations(
     response = _anthropic_client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=800,
-        system=_SYSTEM_PROMPT,
+        system=system_blocks(),
         messages=[{"role": "user", "content": user_msg}],
         tools=[_TOOL],
         tool_choice={"type": "tool", "name": "recommend_wines"},

@@ -603,3 +603,96 @@ def test_no_standing_store_directive_when_absent():
               "budget_min": 10.0, "budget_max": 50.0, "message": "a red for pizza"}
     msg = _build_user_message([], intent)
     assert "standing in" not in msg.lower()
+
+
+# ---------------------------------------------------------------------------
+# Prompt caching — the ~1,738-token system prompt is byte-identical on every
+# request, so it should be served from cache rather than re-billed each call.
+# ---------------------------------------------------------------------------
+
+def _cands():
+    return [{"wine_id": "w1", "name": "Test Wine", "price": 20.0, "retailer": "HEB",
+             "tasting_notes": None, "structure_profile": None, "varietal": "Malbec",
+             "region": "Mendoza", "country": "Argentina"}]
+
+
+def test_system_prompt_is_sent_as_a_cached_block():
+    """Caching is a prefix match over tools -> system -> messages, so a breakpoint
+    on the last system block covers the tool schema too."""
+    from recommendation.claude_client import system_blocks
+    blocks = system_blocks()
+    assert isinstance(blocks, list) and blocks
+    assert blocks[-1]["cache_control"] == {"type": "ephemeral"}
+    assert blocks[-1]["type"] == "text"
+
+
+def test_cached_prefix_is_byte_identical_across_requests():
+    """The whole mechanism rests on this: one differing byte anywhere in the
+    prefix invalidates it. Nothing per-request may leak into the system blocks."""
+    import json
+    from recommendation.claude_client import system_blocks
+    assert json.dumps(system_blocks(), sort_keys=True) == \
+        json.dumps(system_blocks(), sort_keys=True)
+
+
+def test_streaming_call_sends_the_cached_system():
+    from unittest.mock import patch
+    from recommendation.claude_client import stream_recommendations
+    intent = {"wine_type": "red", "flavors": [], "avoid": [],
+              "budget_min": 10, "budget_max": 50}
+    with patch("recommendation.claude_client._anthropic_client") as mock_client:
+        mock_client.messages.stream.side_effect = Exception("stop here")
+        list(stream_recommendations(_cands(), intent))
+    system = mock_client.messages.stream.call_args.kwargs["system"]
+    assert system[-1]["cache_control"] == {"type": "ephemeral"}
+
+
+def test_non_streaming_call_sends_the_cached_system():
+    from unittest.mock import patch
+    from recommendation.claude_client import get_recommendations
+    intent = {"wine_type": "red", "flavors": [], "avoid": [],
+              "budget_min": 10, "budget_max": 50}
+    with patch("recommendation.claude_client._anthropic_client") as mock_client:
+        mock_client.messages.create.side_effect = Exception("stop here")
+        try:
+            get_recommendations(_cands(), intent)
+        except Exception:
+            pass
+    system = mock_client.messages.create.call_args.kwargs["system"]
+    assert system[-1]["cache_control"] == {"type": "ephemeral"}
+
+
+def test_cache_logging_never_breaks_a_completed_stream():
+    """Observability is not worth a failed recommendation. If reading usage
+    throws (SDK shape change, missing field), the picks the user already waited
+    for must still arrive — same posture as the item-39 false-absence tripwire."""
+    from unittest.mock import patch, MagicMock
+    from recommendation.claude_client import stream_recommendations
+
+    tool_block = MagicMock(type="tool_use")
+    tool_block.input = {"narrative": "n", "picks": [{"wine_id": "w1", "why": "y"}],
+                        "followup_suggestions": []}
+
+    class _FinalNoUsage:
+        """A real class, not a MagicMock — MagicMock fabricates .usage on access,
+        so it can never reproduce the failure this test exists to catch."""
+        content = [tool_block]
+
+        @property
+        def usage(self):
+            raise AttributeError("usage unavailable")
+
+    final = _FinalNoUsage()
+
+    stream_cm = MagicMock()
+    stream_cm.__enter__.return_value.__iter__.return_value = iter([])
+    stream_cm.__enter__.return_value.get_final_message.return_value = final
+
+    intent = {"wine_type": "red", "flavors": [], "avoid": [],
+              "budget_min": 10, "budget_max": 50}
+    with patch("recommendation.claude_client._anthropic_client") as mock_client:
+        mock_client.messages.stream.return_value = stream_cm
+        events = list(stream_recommendations(_cands(), intent))
+
+    assert not [v for t, v in events if t == "error"]
+    assert [v for t, v in events if t == "picks"] == [[{"wine_id": "w1", "why": "y"}]]
