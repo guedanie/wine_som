@@ -11,7 +11,7 @@ direction, since a budget the user says out loud also has to be able to RAISE a
 carried one ("actually, up to $200").
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 # The considered face's slider tops out well under this; anything at or above
 # it can only be the wide-range sentinel.
@@ -49,3 +49,29 @@ def budget_widened(resolved: Dict[str, Any], request_max: float) -> bool:
     if not isinstance(value, (int, float)):
         return False
     return float(value) > float(request_max)
+
+
+def budget_frame_values(parsed: Optional[Dict[str, Any]],
+                         resolved: Dict[str, Any]) -> Optional[Dict[str, float]]:
+    """{"min": ..., "max": ...} to persist client-side, or None.
+
+    Silence is load-bearing: this must return None on every turn the user
+    did not speak a budget, or the client would pin a value the user never
+    said and `budget_is_stated()` would start reporting a phantom budget on
+    every later turn. `parsed.max_price` is checked (not the wide sentinel
+    that always lives on the request) with the same numeric/positive test
+    merge_intent uses internally to decide whether a spoken budget replaces
+    the carried one — kept in sync deliberately, not shared, since
+    merge_intent is out of scope for this change. Values come from
+    `resolved` (post-merge_intent) rather than `parsed.max_price` alone
+    because merge_intent may additionally clamp budget_min against it.
+    """
+    if not parsed:
+        return None
+    max_price = parsed.get("max_price")
+    if not isinstance(max_price, (int, float)) or isinstance(max_price, bool) or max_price <= 0:
+        return None
+    return {
+        "min": float(resolved.get("budget_min", 0.0)),
+        "max": float(resolved.get("budget_max", max_price)),
+    }

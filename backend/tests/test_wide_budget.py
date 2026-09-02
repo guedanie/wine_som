@@ -7,7 +7,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
-from recommendation.budget import budget_is_stated, effective_budget_max, budget_widened, WIDE_BUDGET_THRESHOLD
+from recommendation.budget import (budget_is_stated, effective_budget_max, budget_widened,
+                                    WIDE_BUDGET_THRESHOLD, budget_frame_values)
 from recommendation.scorer import score_candidates
 from recommendation.claude_client import _build_user_message
 from recommendation.availability import availability_lines, PRESENT_NOT_SHORTLISTED
@@ -97,3 +98,43 @@ def test_budget_widened_detects_only_upward_moves():
     assert budget_widened({"budget_max": 20.0}, 60.0) is False
     assert budget_widened({"budget_max": 60.0}, 60.0) is False
     assert budget_widened({}, 60.0) is False
+
+
+def test_budget_frame_values_when_spoken():
+    """A spoken budget produces the frame content, sourced from the resolved
+    (post-merge_intent) min/max — not the parsed max_price alone, since
+    merge_intent may clamp budget_min against it."""
+    parsed = {"max_price": 50.0}
+    resolved = {"budget_min": 10.0, "budget_max": 50.0}
+    assert budget_frame_values(parsed, resolved) == {"min": 10.0, "max": 50.0}
+
+
+def test_budget_frame_values_none_when_not_spoken():
+    resolved = {"budget_min": 0.0, "budget_max": 10000.0}
+    assert budget_frame_values(None, resolved) is None
+    assert budget_frame_values({}, resolved) is None
+    assert budget_frame_values({"max_price": None}, resolved) is None
+    assert budget_frame_values({"max_price": 0}, resolved) is None
+    assert budget_frame_values({"max_price": -5.0}, resolved) is None
+    assert budget_frame_values({"max_price": "twenty"}, resolved) is None
+    # bool is an int subclass in Python, so True would otherwise sail through
+    # the isinstance check and pin a $1 budget. This is the one clause a future
+    # reader is most likely to "simplify away" as redundant.
+    assert budget_frame_values({"max_price": True}, resolved) is None
+
+
+def test_budget_frame_values_are_floats():
+    """The frame crosses the wire and comes back as a budget_max. Haiku emits
+    50 as readily as 50.0, and `10 == 10.0` in Python — so an equality
+    assertion alone would still pass with the float() coercion deleted."""
+    frame = budget_frame_values({"max_price": 50}, {"budget_min": 10, "budget_max": 50})
+    assert all(isinstance(v, float) for v in frame.values())
+
+
+def test_budget_frame_reports_the_clamped_floor():
+    """The reason this function takes `resolved` and not just `max_price`:
+    merge_intent clamps budget_min down against a lower spoken cap, so "$5"
+    against a carried $10 floor resolves to min=5. Reading the parse alone
+    would emit an inverted range."""
+    assert budget_frame_values({"max_price": 5.0},
+                               {"budget_min": 5.0, "budget_max": 5.0}) == {"min": 5.0, "max": 5.0}

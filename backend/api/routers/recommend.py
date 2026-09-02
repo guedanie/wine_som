@@ -13,7 +13,7 @@ from fastapi.responses import StreamingResponse
 from api.schemas import RecommendRequest
 from db import get_supabase_client, get_service_client
 from recommendation.scorer import score_candidates
-from recommendation.budget import effective_budget_max, budget_widened
+from recommendation.budget import effective_budget_max, budget_widened, budget_frame_values
 from recommendation.claude_client import stream_recommendations
 from recommendation.intent import parse_message, merge_intent, intent_from_request
 from recommendation.availability import (axes_from_intent, catalog_terms,
@@ -808,6 +808,20 @@ async def recommend(req: RecommendRequest):
                                 {"type": "availability", "lines": _lines}) + "\n\n"
                     except Exception:
                         logger.exception("AVAILABILITY | line render failed")
+                    # Tells the client what budget to carry into the NEXT turn —
+                    # emitted only when the user actually spoke one this turn.
+                    # Silence otherwise is load-bearing: a client-pinned value the
+                    # user never said would make budget_is_stated() report a
+                    # phantom budget forever after. Wrapped like the availability
+                    # frame above — the picks the user already has must not be
+                    # lost to a rendering failure in a frame that is pure bonus.
+                    try:
+                        _budget_frame = budget_frame_values(parsed, resolved)
+                        if _budget_frame:
+                            yield "data: " + json.dumps(
+                                {"type": "budget", **_budget_frame}) + "\n\n"
+                    except Exception:
+                        logger.exception("BUDGET | frame render failed")
             elif event_type == "suggestions":
                 yield "data: " + json.dumps({"type": "suggestions", "suggestions": data}) + "\n\n"
             elif event_type == "error":
