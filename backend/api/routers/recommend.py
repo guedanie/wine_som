@@ -24,7 +24,7 @@ from recommendation.candidate_filters import (apply_type_gate, deep_fetch_reason
                                               detect_retailer, filter_to_store,
                                               is_referential,
                                               pin_prior_picks, prior_picks_from_history,
-                                              resolve_requested_store,
+                                              resolve_store_scope,
                                               ensure_region_representation,
                                               merge_candidates, pin_comparison_matches,
                                               pin_named_matches,
@@ -419,14 +419,22 @@ async def recommend(req: RecommendRequest):
     _cmp_wines = resolved.get("wine_names") or []
     resolved["comparison_wines"] = _cmp_wines if len(_cmp_wines) >= 2 else None
 
-    detected_store = resolve_requested_store(
+    # Two different claims, deliberately not one value (see resolve_store_scope):
+    # `standing` is the picker's store — the user is there, so it HARD-filters.
+    # `mentioned` is a fuzzy free-text guess — it scopes the targeted fetch and
+    # boosts ranking, but must never delete the catalog on a bad match.
+    standing_store, mentioned_store = resolve_store_scope(
         req.store_ref, stores_meta.data or [], req.message)
+    detected_store = standing_store or mentioned_store
     detected_retailer = detect_retailer(req.message, list(retailer_to_stores))
-    if req.store_ref and detected_store and detected_store.get("id") == req.store_ref:
-        logger.info("STORE | structured store_ref honored: %s", detected_store.get("name"))
-    # Tell the prompt which store the user is standing in (item 44) so it recommends
-    # only from those shelves and offers to check nearby when the fit is thin.
-    resolved["standing_store"] = detected_store["name"] if detected_store else None
+    if standing_store:
+        logger.info("STORE | standing (picked): %s", standing_store.get("name"))
+    elif mentioned_store:
+        logger.info("STORE | mentioned in text (soft): %s", mentioned_store.get("name"))
+    # Only a STANDING store may tell the prompt "you are in this shop, recommend
+    # only from these shelves" (item 44). A guessed store saying that produces a
+    # confident, wrong, store-scoped absence.
+    resolved["standing_store"] = standing_store["name"] if standing_store else None
 
     # Availability oracle: count full nearby inventory for the constraints the user
     # actually named. Fired here so its latency overlaps the candidate fetch/scoring;
@@ -605,11 +613,11 @@ async def recommend(req: RecommendRequest):
         # scoring choke point) so the breadth pool AND every deep-fetch merge are
         # covered. An empty result is the honest "store has nothing" signal; we
         # never silently widen (that requires the user dropping store_ref).
-        if detected_store:
+        if standing_store:
             _before_store = len(pool)
-            pool = filter_to_store(pool, detected_store["id"])
+            pool = filter_to_store(pool, standing_store["id"])
             logger.info("STORE FILTER | %s → %d/%d candidates",
-                        detected_store.get("name"), len(pool), _before_store)
+                        standing_store.get("name"), len(pool), _before_store)
         scored = score_candidates(resolved, pool)
         # No silent caps: `avoid` is a HARD exclusion, and a bogus one ("nothing from
         # Mendoza right?" once parsed Mendoza into avoid) silently deleted 275 of 300
@@ -629,8 +637,12 @@ async def recommend(req: RecommendRequest):
         sel = _select_diverse_top(scored, _MAX_CANDIDATES, _RETAILER_CAP, _VARIETAL_CAP)
         sel = ensure_region_representation(
             sel, scored, resolved.get("regions") or [], _MAX_CANDIDATES)
-        # (Store scoping is now a hard filter above — every survivor is already
-        # in-store, so no post-sort by store is needed.)
+        # A store named in free text is a soft preference: sort its rows to the
+        # front so an accurate mention still leads, while a misfire only costs
+        # ordering rather than deleting every other store's wines.
+        if mentioned_store:
+            _mid = mentioned_store["id"]
+            sel.sort(key=lambda c: c.get("store_ref") != _mid)
         # A referential follow-up must keep its subjects in front — a
         # comparison cannot lose the wines it is about (item 41).
         if referential and prior_cands:

@@ -174,18 +174,52 @@ def _store_tokens(s: str) -> List[str]:
     return [w for w in words if len(w) > 2 and w not in _STORE_STOPWORDS]
 
 
+# 0.80 let ordinary words impersonate store tokens: 'ave'~'have' scores .857,
+# 'san'~'an'/'four'~'for'/'lovers'~'over'/'monroe'~'more' all score .800. On the
+# live catalog that made 12 of 145 stores reachable by a word like "an" or
+# "have". Measured on real store names, every false positive sits at or below
+# .857 while genuine matches — including the 'lincon'→'lincoln' typo this
+# tolerance exists for (.923) — sit at or above .923, so .90 separates them.
+_STORE_MATCH_CUTOFF = 0.90
+
+# Ordinary conversation and wine vocabulary. Dropped from the MESSAGE side only:
+# a store name may legitimately contain one of these ("W.W. White H-E-B"), but a
+# user typing it is almost never naming a store, and an EXACT collision survives
+# the cutoff above. Same remedy as item 42's producer-token stopwords, which hit
+# this class when "close" matched the producer "Closerie".
+_CHAT_STOPWORDS = {
+    "any", "anything", "some", "something", "have", "has", "had", "get", "got",
+    "carry", "carries", "stock", "want", "need", "like", "likes", "looking",
+    "look", "find", "show", "tell", "give", "recommend", "suggest", "about",
+    "more", "most", "over", "under", "for", "but", "this", "that", "these",
+    "those", "there", "here", "what", "which", "who", "when", "where", "why",
+    "how", "does", "did", "was", "were", "are", "been", "with", "from", "into",
+    "than", "then", "they", "them", "your", "you", "mine", "one", "two", "all",
+    "can", "could", "would", "should", "will", "just", "only", "also", "very",
+    "really", "good", "best", "better", "nice", "please", "thanks", "bottle",
+    "red", "white", "rose", "price", "budget", "cheap", "expensive", "pair",
+    "pairs", "goes", "buy", "drink", "open", "night", "dinner",
+}
+
+
+def _message_tokens(s: str) -> List[str]:
+    """Store-name tokens minus ordinary chat words — the message side of the
+    match, where an everyday word must never stand in for a store token."""
+    return [w for w in _store_tokens(s) if w not in _CHAT_STOPWORDS]
+
+
 def detect_store(message: str, nearby_stores: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """Fuzzy-match a store named in the message against the nearby stores.
     Tolerates typos ('lincon'); returns None when no distinctive store token
     matches (e.g. only the retailer word 'heb' appears)."""
-    msg = _store_tokens(message)
+    msg = _message_tokens(message)
     if not msg:
         return None
     best, best_score = None, 0
     for st in nearby_stores:
         name_toks = _store_tokens(st.get("name", ""))
         score = sum(1 for nt in name_toks
-                    if difflib.get_close_matches(nt, msg, n=1, cutoff=0.8))
+                    if difflib.get_close_matches(nt, msg, n=1, cutoff=_STORE_MATCH_CUTOFF))
         # strict > keeps the first (nearest, since nearby_stores is distance-ordered) on ties
         if score > best_score:
             best, best_score = st, score
@@ -235,18 +269,30 @@ def pin_prior_picks(top: List[Dict[str, Any]], prior_cands: List[Dict[str, Any]]
     return pin_named_matches(top, ordered, cap=cap)
 
 
-def resolve_requested_store(store_ref: Optional[str],
-                            stores: List[Dict[str, Any]],
-                            message: Optional[str]) -> Optional[Dict[str, Any]]:
-    """The session's standing store: a structured store_ref (aisle-mode store
-    picker) wins over free-text detection. A ref that isn't among the NEARBY
-    stores is ignored (a stale pick carried over from another zip) rather than
-    trusted, falling back to detecting a store named in the message."""
+def resolve_store_scope(store_ref: Optional[str],
+                        stores: List[Dict[str, Any]],
+                        message: Optional[str]):
+    """Split the store scope into (standing, mentioned) — two different claims
+    that used to be one value, which is how a fuzzy guess inherited a hard
+    filter's authority.
+
+    standing: a structured store_ref from the aisle store picker. The user is
+        physically in that building, which is what licenses item 44's HARD
+        filter — a bottle on another store's shelf is useless to them.
+    mentioned: a store name recovered from free text. This is a GUESS. It may
+        scope a targeted fetch and boost ranking, but it must never delete the
+        rest of the catalog: when detect_store misfired on 'have'~'Ave' the
+        hard filter turned that into a confident "we don't carry Overture"
+        while six bottles sat in nearby stores.
+
+    A store_ref that isn't among the NEARBY stores is a stale pick carried over
+    from another zip — ignored, then free text gets its turn.
+    """
     if store_ref:
         for st in stores:
             if st.get("id") == store_ref:
-                return st
-    return detect_store(message or "", stores)
+                return st, None
+    return None, detect_store(message or "", stores)
 
 
 def filter_to_store(candidates: List[Dict[str, Any]],

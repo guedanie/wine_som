@@ -351,7 +351,7 @@ def test_pin_comparison_matches_caps_per_name():
 
 # ---- structured store_ref (aisle-mode delta 1) ----
 
-from recommendation.candidate_filters import resolve_requested_store
+from recommendation.candidate_filters import resolve_store_scope
 
 _STORES = [
     {"id": "s1", "retailer_name": "H-E-B", "name": "H-E-B Lincoln Heights"},
@@ -360,17 +360,24 @@ _STORES = [
 
 
 def test_resolve_requested_store_by_ref_wins_over_message():
-    st = resolve_requested_store("s2", _STORES, "anything at lincoln heights?")
-    assert st["id"] == "s2"
+    """The picker's store is where the user is standing; a store named in the
+    same breath doesn't override it (and isn't reported as mentioned)."""
+    standing, mentioned = resolve_store_scope("s2", _STORES, "anything at lincoln heights?")
+    assert standing["id"] == "s2"
+    assert mentioned is None
 
 
 def test_resolve_requested_store_unknown_ref_falls_back_to_detection():
-    st = resolve_requested_store("stale-ref-from-old-zip", _STORES, "anything at lincoln heights?")
-    assert st is not None and st["id"] == "s1"
+    """A stale ref from another zip yields no STANDING store — the text match is
+    only a mention, so it must not inherit the hard filter."""
+    standing, mentioned = resolve_store_scope(
+        "stale-ref-from-old-zip", _STORES, "anything at lincoln heights?")
+    assert standing is None
+    assert mentioned is not None and mentioned["id"] == "s1"
 
 
 def test_resolve_requested_store_none_when_no_ref_and_no_mention():
-    assert resolve_requested_store(None, _STORES, "a bold red for tonight") is None
+    assert resolve_store_scope(None, _STORES, "a bold red for tonight") == (None, None)
 
 
 # ---- item 41: referent carry across turns ----
@@ -452,3 +459,91 @@ def test_filter_to_store_empty_when_store_absent():
 def test_filter_to_store_noop_on_falsy_store():
     cands = [{"wine_id": "w1", "store_ref": "s1"}]
     assert filter_to_store(cands, None) == cands
+
+
+# ---------------------------------------------------------------------------
+# Ordinary chat words must not lock a store (2026-09-01 Overture incident)
+# ---------------------------------------------------------------------------
+
+def test_detect_store_ignores_ordinary_english_words():
+    """'Do you have Overture?' scoped the whole request to 'Blanco and West Ave
+    H-E-B' because difflib rates 'ave' vs 'have' at 0.857. Item 44 then hard-
+    filtered the pool to that store and deleted the six Overture bottles the
+    named fetch had just gone and found."""
+    nearby = [
+        {"id": "s1", "name": "Blanco and West Ave H-E-B"},
+        {"id": "s2", "name": "San Antonio - De Zavala"},
+        {"id": "s3", "name": "Twin Liquors - Four Points"},
+        {"id": "s4", "name": "Central Market Lovers Lane"},
+    ]
+    assert detect_store("Do you have Overture?", nearby) is None
+    assert detect_store("do you carry an italian red", nearby) is None
+    assert detect_store("looking for something under $40", nearby) is None
+    assert detect_store("tell me more about this one", nearby) is None
+    assert detect_store("is it any good, and what goes with it", nearby) is None
+
+
+def test_detect_store_still_matches_a_genuinely_named_store():
+    """The precision fix must not cost recall — a real store name, including a
+    typo, still has to resolve."""
+    nearby = [
+        {"id": "s1", "name": "Blanco and West Ave H-E-B"},
+        {"id": "s2", "name": "San Antonio - De Zavala"},
+    ]
+    assert detect_store("anything at the Blanco store?", nearby)["id"] == "s1"
+    assert detect_store("what's at de zavala", nearby)["id"] == "s2"
+    # The documented typo tolerance (a dropped letter) survives the stricter
+    # cutoff: 'lincon'/'lincoln' scores .923.
+    assert detect_store("bordeaux at heb lincon heights",
+                        [{"id": "s9", "name": "Lincoln Heights Market H-E-B"}])["id"] == "s9"
+
+
+def test_detect_store_gives_up_short_word_substitutions():
+    """Deliberate limit, not an oversight. A one-letter SUBSTITUTION in a short
+    word ('blanko'/'blanco') scores .833 and no longer resolves, because that is
+    the same range ordinary words score in — .857 for 'have'/'ave'. Precision is
+    worth more than this: a missed detection now only costs a ranking boost
+    (detection is soft — see resolve_store_scope), while a false one used to
+    delete the entire catalog."""
+    nearby = [{"id": "s1", "name": "Blanco and West Ave H-E-B"}]
+    assert detect_store("bordeaux at blanko", nearby) is None
+
+
+# ---------------------------------------------------------------------------
+# Standing (picked) store vs mentioned (guessed) store
+# ---------------------------------------------------------------------------
+
+def test_picked_store_is_standing_not_merely_mentioned():
+    """A structured store_ref comes from the aisle store picker — the user
+    really is in that building, which is what licenses item 44's hard filter."""
+    from recommendation.candidate_filters import resolve_store_scope
+    nearby = [{"id": "s1", "name": "Geraldine's Natural Wines"},
+              {"id": "s2", "name": "Blanco and West Ave H-E-B"}]
+    standing, mentioned = resolve_store_scope("s1", nearby, "something for pizza")
+    assert standing["id"] == "s1"
+    assert mentioned is None
+
+
+def test_text_named_store_is_mentioned_not_standing():
+    """Free text is a GUESS. It may scope a fetch and boost ranking, but it must
+    not license deleting the rest of the catalog — that is what turned a fuzzy
+    'have'/'Ave' hit into a false 'we don't carry Overture'."""
+    from recommendation.candidate_filters import resolve_store_scope
+    nearby = [{"id": "s1", "name": "Geraldine's Natural Wines"},
+              {"id": "s2", "name": "Blanco and West Ave H-E-B"}]
+    standing, mentioned = resolve_store_scope(None, nearby, "what's at geraldine's?")
+    assert standing is None
+    assert mentioned["id"] == "s1"
+
+
+def test_stale_store_ref_from_another_zip_is_ignored():
+    from recommendation.candidate_filters import resolve_store_scope
+    nearby = [{"id": "s1", "name": "Geraldine's Natural Wines"}]
+    standing, mentioned = resolve_store_scope("gone", nearby, "a bold red")
+    assert standing is None and mentioned is None
+
+
+def test_no_store_anywhere():
+    from recommendation.candidate_filters import resolve_store_scope
+    nearby = [{"id": "s1", "name": "Geraldine's Natural Wines"}]
+    assert resolve_store_scope(None, nearby, "a bold red under $40") == (None, None)
