@@ -6,8 +6,12 @@ sends a deliberately wide range (0-10000) instead of dropping the field. That
 sentinel must read as "no budget stated" everywhere budget shows up: the scorer
 must not chase 0.85x$10,000 bottles, the prompt must not say "your budget", and
 availability lines must not count things "in budget". A spoken cap ("under
-$20") re-tightens budget_max via merge_intent, making it stated again.
+$20") replaces budget_max via merge_intent, making it stated again — in either
+direction, since a budget the user says out loud also has to be able to RAISE a
+carried one ("actually, up to $200").
 """
+
+from typing import Any, Dict
 
 # The considered face's slider tops out well under this; anything at or above
 # it can only be the wide-range sentinel.
@@ -20,3 +24,15 @@ def budget_is_stated(budget_max) -> bool:
         return float(budget_max) < WIDE_BUDGET_THRESHOLD
     except (TypeError, ValueError):
         return True
+
+
+def effective_budget_max(resolved: Dict[str, Any], request_max: float) -> float:
+    """The budget to count and render against.
+
+    A budget spoken THIS turn lives only in `resolved` — `req.budget_max` is
+    still whatever the client sent (the wide sentinel, in ASK mode). Counting
+    against the request value would tell the user "12 in budget" while the
+    narrative says $60.
+    """
+    value = resolved.get("budget_max")
+    return float(value) if isinstance(value, (int, float)) else float(request_max)

@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parents[1]))
 
-from recommendation.budget import budget_is_stated, WIDE_BUDGET_THRESHOLD
+from recommendation.budget import budget_is_stated, effective_budget_max, WIDE_BUDGET_THRESHOLD
 from recommendation.scorer import score_candidates
 from recommendation.claude_client import _build_user_message
 from recommendation.availability import availability_lines, PRESENT_NOT_SHORTLISTED
@@ -75,3 +75,15 @@ def test_availability_line_drops_in_budget_wording_when_wide():
 def test_availability_line_keeps_in_budget_wording_when_stated():
     lines = availability_lines([_fact()], [], 50.0)
     assert lines and "in budget" in lines[0]
+
+
+def test_effective_budget_prefers_the_resolved_value():
+    """On the turn a budget is spoken, req.budget_max is still the wide
+    sentinel. Counting 'in budget' against 10000 while the prompt says $60
+    makes the oracle and the narrative disagree."""
+    assert effective_budget_max({"budget_max": 60.0}, 10000.0) == 60.0
+
+
+def test_effective_budget_falls_back_to_the_request():
+    assert effective_budget_max({}, 50.0) == 50.0
+    assert effective_budget_max({"budget_max": None}, 50.0) == 50.0

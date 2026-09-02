@@ -13,6 +13,7 @@ from fastapi.responses import StreamingResponse
 from api.schemas import RecommendRequest
 from db import get_supabase_client, get_service_client
 from recommendation.scorer import score_candidates
+from recommendation.budget import effective_budget_max
 from recommendation.claude_client import stream_recommendations
 from recommendation.intent import parse_message, merge_intent, intent_from_request
 from recommendation.availability import (axes_from_intent, catalog_terms,
@@ -448,7 +449,8 @@ async def recommend(req: RecommendRequest):
     _fallback_terms = terms_in_message(req.message, catalog_terms(supabase))
     _axes = axes_from_intent(resolved, scope_label=_scope_label, scope_store_ids=_scope_ids,
                              fallback_terms=_fallback_terms)
-    _axis_counts = fetch_axis_counts(supabase, _axes, nearby_ids, req.budget_max) if _axes else {}
+    _budget = effective_budget_max(resolved, req.budget_max)
+    _axis_counts = fetch_axis_counts(supabase, _axes, nearby_ids, _budget) if _axes else {}
     if _axes:
         logger.info("AVAILABILITY | axes=%d counted=%d", len(_axes), len(_axis_counts))
 
@@ -761,7 +763,7 @@ async def recommend(req: RecommendRequest):
                     # failure here must never break the stream.
                     try:
                         _lines = availability_lines(
-                            resolved.get("availability_facts") or [], top, req.budget_max)
+                            resolved.get("availability_facts") or [], top, _budget)
                         if _lines:
                             yield "data: " + json.dumps(
                                 {"type": "availability", "lines": _lines}) + "\n\n"
