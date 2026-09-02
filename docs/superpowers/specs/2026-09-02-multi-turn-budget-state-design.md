@@ -155,19 +155,30 @@ stateless and the frontend already restores chat state from `sessionStorage` on 
    into the pool before scoring, mirroring `_constraint_fetch`. Without this the turn that
    widens answers from a pool capped at the old budget while claiming the new one.
 
-4. **Nothing else.** The scorer, oracle, and prompt are untouched. They begin behaving
-   correctly the moment `req.budget_max` stops lying.
+4. **`api/routers/recommend.py` — the oracle counts against the resolved budget.**
+   `fetch_axis_counts` (line 443) and `availability_lines` (line 764) both read
+   `req.budget_max` directly. The client echo fixes them from turn 2 onward, but **not on
+   the turn the budget is spoken** — there `req.budget_max` is still the wide sentinel while
+   `resolved` holds the real number, so the oracle counts everything as in-budget while the
+   prompt says `$60`. A shared `effective_budget_max(resolved, req.budget_max)` helper
+   prefers the resolved value at both call sites.
+
+   (This was missed in the first draft of this design, which asserted the oracle needed no
+   change. It does — the echo is a turn-2 mechanism and the speaking turn needs its own fix.)
+
+5. **Nothing else.** The scorer and the prompt are untouched. They begin behaving correctly
+   the moment `req.budget_max` stops lying.
 
 ### Frontend
 
-5. **`ChatRecommend.jsx` — `apiReq` becomes React state.** It is currently destructured
+6. **`ChatRecommend.jsx` — `apiReq` becomes React state.** It is currently destructured
    straight from router navigation state (line 167) and is therefore immutable mid-
    conversation. `useState` seeded from navigation state preserves every existing consumer
    (`{...apiReq}` spreads at lines 230 and 409) while allowing updates. It is already
    included in `chatState` and the patched history entry, so item 38's browser-back and
    sessionStorage restore keep working with no further change.
 
-6. **Handle the `budget` frame** alongside the existing `availability` handler (line 324),
+7. **Handle the `budget` frame** alongside the existing `availability` handler (line 324),
    updating the request state.
 
 ## Guardrails
