@@ -152,9 +152,9 @@ def intent_from_request(wine_type: Optional[str], style_preferences: List[str],
 
 def merge_intent(parsed: Optional[Dict[str, Any]], explicit: Dict[str, Any]) -> Dict[str, Any]:
     """Merge parsed NL intent into the explicit-field intent. Explicit wins on scalar
-    conflicts; flavors/avoid are unioned. A spoken price cap ("under $20") TIGHTENS
-    the scoring window so the budget pull re-centers on what was asked — it never
-    widens it (the inventory fetch already capped candidates at the slider max)."""
+    conflicts; flavors/avoid are unioned. A spoken price cap ("under $20") overrides
+    the carried budget in either direction — the inventory fetch lag the old tighten-only
+    guard protected against is now handled by the widen re-fetch in recommend.py."""
     if not parsed:
         return explicit
     out = dict(explicit)
@@ -189,9 +189,15 @@ def merge_intent(parsed: Optional[Dict[str, Any]], explicit: Dict[str, Any]) -> 
         out.get("avoid"), out.get("regions"), out.get("grapes"), out.get("wine_type"))
     if _dropped:
         logger.info("INTENT | dropped contradicted avoid term(s): %s", _dropped)
+    # A budget the user SAYS wins over whatever the request carried, in either
+    # direction. The old `max_price < budget_max` guard existed because the
+    # inventory fetch had already capped candidates at the slider max — but once
+    # a budget is carried across turns that guard becomes a trap: "up to $200"
+    # against a carried $60 is silently ignored, and a budget the user cannot
+    # raise has no visible exit. The fetch-lag the guard protected against is
+    # handled by the widen re-fetch in recommend.py instead.
     max_price = parsed.get("max_price")
     if isinstance(max_price, (int, float)) and max_price > 0:
-        if max_price < float(out.get("budget_max", 50.0)):
-            out["budget_max"] = float(max_price)
-            out["budget_min"] = min(float(out.get("budget_min", 10.0)), float(max_price))
+        out["budget_max"] = float(max_price)
+        out["budget_min"] = min(float(out.get("budget_min", 10.0)), float(max_price))
     return out

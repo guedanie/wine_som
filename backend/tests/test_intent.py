@@ -48,11 +48,12 @@ def test_max_price_tightens_scoring_window():
     assert merged["budget_min"] == 10.0
 
 
-def test_max_price_never_widens_the_window():
-    """The fetch already capped candidates at the slider max — a spoken price
-    above it must not pretend the window is wider than the pool."""
+def test_max_price_now_widens_when_explicitly_stated():
+    """Once a budget is carried across turns, the old tighten-only guard
+    becomes a trap: 'actually, up to $80' against a carried $50 was silently
+    ignored. A spoken price now wins in either direction."""
     merged = merge_intent(_parsed(80.0), _explicit(10.0, 50.0))
-    assert merged["budget_max"] == 50.0
+    assert merged["budget_max"] == 80.0
 
 
 def test_max_price_below_floor_clamps_min_too():
@@ -242,3 +243,13 @@ def test_intent_from_request_has_empty_wine_names():
     intent = intent_from_request(wine_type=None, style_preferences=[], avoid=[],
                                  budget_min=10.0, budget_max=50.0)
     assert intent["wine_names"] == []
+
+
+def test_max_price_preserves_budget_min_when_widening():
+    """When a spoken budget widens ('up to $80' against carried $50 max),
+    budget_min should be unchanged — the window expands upward, not downward.
+    (The renamed `test_max_price_now_widens_when_explicitly_stated` tests the
+    widening itself but does not assert budget_min.)"""
+    merged = merge_intent(_parsed(80.0), _explicit(15.0, 50.0))
+    assert merged["budget_max"] == 80.0
+    assert merged["budget_min"] == 15.0
