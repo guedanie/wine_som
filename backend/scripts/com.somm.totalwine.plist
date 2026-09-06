@@ -14,17 +14,39 @@
     <key>WorkingDirectory</key>
     <string>/Users/danielguerrero/dev/wine_app/backend</string>
 
-    <!-- Every 10 days (864000s). StartInterval rather than StartCalendarInterval
-         because "every 10 days" has no calendar expression. Total Wine is
-         PerimeterX-blocked (item 46); this is a canary probe, not a scrape, so a
-         blocked cycle costs exactly one request. 10 days rather than monthly gives
-         ~3x the signal on when the block lifts at negligible added risk — a single
-         normal-UA GET is not what sustains a block earned by hundreds of rapid
-         pageSize=200 fetches. Every result is appended to
-         ~/Library/Logs/somm-totalwine-probes.tsv so the decay curve becomes
-         measurable instead of guessed. -->
-    <key>StartInterval</key>
-    <integer>864000</integer>
+    <!-- WEEKLY, Sunday 06:30 CT. Was StartInterval 864000 ("every 10 days"),
+         which NEVER FIRED ONCE: StartInterval counts from when the job is
+         LOADED, so the 2026-08-28 reboot restarted the clock, and `launchctl
+         print` showed `runs = 0` on 2026-09-06. A schedule that silently resets
+         is not a schedule. StartCalendarInterval is wall-clock, so a reboot
+         cannot postpone it and launchd runs a missed occurrence at the next
+         opportunity.
+
+         Weekly, not 10-daily, for two reasons. The staleness bench is 10 days,
+         so a 10-day probe sits exactly ON it — even a working probe left Total
+         Wine at the edge of invisible (the runner script flagged this itself).
+         And 10 days of near-total quiet demonstrably did NOT clear the block:
+         probed 2026-09-06 after the canary had never run, still HTTP 403
+         (PerimeterX). So the "PX decays with quiet" reasoning behind the
+         original cadence is weakened, and spacing probes further apart buys
+         nothing.
+
+         The cost of a blocked week is still exactly one request — is_blocked()
+         makes a single GET and the runner stops there — so weekly probing does
+         not resemble the hundreds of rapid pageSize=200 fetches that earned the
+         block. Runs after H-E-B (05:30) to avoid overlapping it.
+
+         Every result appends to ~/Library/Logs/somm-totalwine-probes.tsv so the
+         decay curve is measured rather than assumed. -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>0</integer>
+        <key>Hour</key>
+        <integer>6</integer>
+        <key>Minute</key>
+        <integer>30</integer>
+    </dict>
 
     <key>StandardOutPath</key>
     <string>/Users/danielguerrero/Library/Logs/somm-totalwine.out.log</string>
