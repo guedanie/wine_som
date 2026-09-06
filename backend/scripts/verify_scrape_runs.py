@@ -16,7 +16,7 @@ import os
 import sys
 import urllib.request
 from datetime import datetime, timedelta, timezone
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Set
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -26,17 +26,64 @@ SILENT_ZERO_MSG = (
 )
 
 
-def classify_runs(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Return the runs that need eyes: success-with-zero-records ("silent
-    zero"), failed, and partial. Running rows are in-flight, not issues."""
+# A run still `running` past this never closed. Above the longest same-cycle
+# scrape (Spec's ~30 min, H-E-B ~50 min) and below a full day.
+#
+# Honest about its reach: this does NOT catch a row that fails to close at the
+# very end of the cycle that created it — Kroger's was ~10 minutes old when the
+# workflow's own verify ran. It catches a genuine hang, and a straggler from a
+# prior invocation inside the lookback window. The Kroger recurrence is
+# prevented at source in scrapers/kroger.py; this is the net for the class.
+#
+# The local-LLM extraction chain legitimately runs ~13h, so exclude it from the
+# caller that does not own it rather than raising this above a full day.
+STUCK_AFTER_HOURS = 6.0
+
+
+def classify_runs(rows: List[Dict[str, Any]],
+                  now: Optional[datetime] = None,
+                  exclude: Optional[Set[str]] = None,
+                  stuck_after_hours: float = STUCK_AFTER_HOURS) -> List[Dict[str, Any]]:
+    """Return the runs that need eyes.
+
+    Four kinds: success-with-zero-records ("silent zero"), failed, partial, and
+    **stuck** — a row still `running` long after any plausible duration.
+
+    The stuck check exists because `running` was a blind spot. Kroger wrote an
+    invalid status ("partial", which the scraper_runs CHECK enum rejects), the
+    terminal update raised, the workflow's continue-on-error swallowed it, and
+    the row sat at `running`/0 for two weeks. Nothing was failing, so nothing
+    complained — while sweep_delisted skipped the retailer the whole time.
+
+    `exclude` scopes the check to runs the CALLER owns. GitHub and the mini both
+    verify by time window and therefore see each other's runs, so GitHub was
+    going red for an H-E-B failure it neither ran nor could fix. Excluding is
+    deliberately opt-OUT rather than opt-in: a newly added scraper is verified by
+    default, and forgetting to exclude a moved one fails loudly instead of
+    silently skipping it.
+    """
+    now = now or datetime.now(timezone.utc)
+    exclude = exclude or set()
     issues = []
     for r in rows:
+        if r.get("retailer_name") in exclude:
+            continue
         status = r.get("status")
         updated = r.get("records_updated") or 0
         if status == "success" and updated == 0:
             issues.append({"kind": "silent_zero", "run": r})
         elif status in ("failed", "partial"):
             issues.append({"kind": status, "run": r})
+        elif status == "running":
+            started = r.get("started_at")
+            if not started:
+                continue
+            try:
+                began = datetime.fromisoformat(str(started).replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if (now - began).total_seconds() > stuck_after_hours * 3600:
+                issues.append({"kind": "stuck", "run": r})
     return issues
 
 
@@ -76,7 +123,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--since-hours", type=float, default=24.0,
                         help="how far back to check scraper_runs (default 24)")
+    parser.add_argument("--exclude", default="",
+                        help="comma-separated retailer_names this caller does not "
+                             "own (GitHub and the mini both see each other's runs)")
     args = parser.parse_args()
+    exclude = {n.strip() for n in args.exclude.split(",") if n.strip()}
 
     from db import get_service_client
     sb = get_service_client()
@@ -91,11 +142,13 @@ def main() -> int:
         .data
     )
 
-    issues = classify_runs(rows)
+    issues = classify_runs(rows, exclude=exclude)
     flip_silent_zeroes(sb, issues)
     _notify_slack(issues)
 
-    print(f"checked {len(rows)} run(s) since {since[:16]}")
+    skipped = sum(1 for r in rows if r.get("retailer_name") in exclude)
+    print(f"checked {len(rows) - skipped} run(s) since {since[:16]}"
+          + (f" ({skipped} excluded: {sorted(exclude)})" if skipped else ""))
     for r in rows:
         print(f"  {r['started_at'][:16]}  {r['retailer_name']:28s} "
               f"{r['status']:9s} records={r.get('records_updated')}")

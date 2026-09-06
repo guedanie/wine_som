@@ -40,8 +40,15 @@ VERIFY_EXIT=0
   echo "--- chaining sweep_delisted (--since-hours 6) ---"
   "$PY" -m scripts.sweep_delisted --since-hours 6
   SWEEP_EXIT=$?
+  # Mirror of the exclusion in .github/workflows/weekly-scrape.yml: the two
+  # verifiers read scraper_runs by time window, so each would otherwise report
+  # the other's failures. This one owns the mini's scrapers; GitHub owns its
+  # own. The extraction/structure-LLM chains are excluded from BOTH because
+  # they legitimately run for hours (~13h observed) — far past any stuck
+  # threshold useful for a scrape, and they have their own launchd logs.
   echo "--- chaining verify_scrape_runs (--since-hours 6) ---"
-  "$PY" -m scripts.verify_scrape_runs --since-hours 6
+  "$PY" -m scripts.verify_scrape_runs --since-hours 6 --exclude \
+    "Geraldine's Natural Wines,AOC Selections,US Natural Wine,Antonelli's Cheese Shop,Harvest Wine Market,Pogo's Wine & Spirits,Kroger (multi-banner),Extraction (local qwen),Structure LLM (local qwen)"
   VERIFY_EXIT=$?
   echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') | wrapper end (scrape=$SCRAPE_EXIT sweep=$SWEEP_EXIT verify=$VERIFY_EXIT) ==="
   echo ""

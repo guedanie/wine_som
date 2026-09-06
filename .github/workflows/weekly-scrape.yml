@@ -156,7 +156,15 @@ jobs:
         if: always()
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: python3 -m scripts.verify_scrape_runs --since-hours 24
+        # Verification reads scraper_runs by TIME WINDOW, so without --exclude
+        # this job sees the mini's runs too and goes red for failures it neither
+        # caused nor can fix (2026-09-06: red because H-E-B failed on the mini
+        # at 10:30). Exclude is opt-OUT on purpose — a scraper added here is
+        # verified by default, and one moved to the mini without being listed
+        # fails loudly rather than going silently unchecked.
+        run: |
+          python3 -m scripts.verify_scrape_runs --since-hours 24 --exclude \
+            "H-E-B,Central Market,Spec's,Twin Liquors,Nashville Wine Merchants,Total Wine & More,Extraction (local qwen),Structure LLM (local qwen)"
 
       # No-op until the SLACK_WEBHOOK_URL secret is configured.
       - name: Notify Slack

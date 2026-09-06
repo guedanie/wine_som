@@ -374,7 +374,14 @@ class KrogerScraper(BaseScraper):
                     failed.append(f"{market['city']}/{store['name']}")
                     print(f"   [{market['city']}] {store['name']}: FAILED — {e}")
 
-        status = "success" if not failed else "partial"
+        # scraper_runs.status has a CHECK enum of success|failed|running — there
+        # is no 'partial'. Writing one raised on the terminal update, the
+        # workflow's continue-on-error swallowed it, and the row sat at
+        # `running`/0 forever: sweep_delisted skips anything not success-with-
+        # records, so Kroger silently went unswept for two weeks (781 stale
+        # in-stock rows by 2026-09-06). Per-store failures go in error_message,
+        # exactly as twin_liquors.py does.
+        status = "failed" if total == 0 else "success"
         self.supabase.table("scraper_runs").update({
             "status": status, "records_updated": total,
             "error_message": ("stores failed: " + ", ".join(failed)) if failed else None,
