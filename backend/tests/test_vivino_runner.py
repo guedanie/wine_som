@@ -59,18 +59,26 @@ def test_ci_profile_is_conservative():
     importlib.reload(runner)  # restore local profile for other tests
 
 
-def test_local_profile_is_crawl_grade():
+def test_rate_profile_is_crawl_grade():
     """Vivino began throttling the residential IP ~2026-07-10: every 300-limit
     run aborted after ~40 consecutive fetch failures (~42 wines/day written,
-    log-verified 07-10..07-16). The local profile now crawls like CI did —
-    slower per-request, but it outlasts the throttle window."""
-    import importlib, os
-    assert os.environ.get("GITHUB_ACTIONS") != "true"
-    mod = importlib.reload(runner)
-    assert mod.CONCURRENCY == 1
-    assert mod.REQ_DELAY >= 2.0
-    assert mod.PAUSE_SECONDS >= 300
-    assert mod.MAX_PAUSES >= 5
+    log-verified 07-10..07-16). The profile crawls — slower per-request, but it
+    outlasts the throttle window instead of aborting.
+
+    Was `test_local_profile_is_crawl_grade`, and it opened with
+    `assert os.environ.get("GITHUB_ACTIONS") != "true"` plus an
+    `importlib.reload`. Both were vestiges of a time when the runner picked
+    different constants for CI and the mini. run_vivino_sample.py says it
+    plainly now — "One crawl profile everywhere now" — so the constants are
+    unconditional module literals: nothing to reload, and no reason to care
+    where the test runs. The guard turned "not applicable" into "failure" and
+    could never pass in CI; it survived because nothing ran this suite in CI
+    until 2026-09-08.
+    """
+    assert runner.CONCURRENCY == 1
+    assert runner.REQ_DELAY >= 2.0
+    assert runner.PAUSE_SECONDS >= 300
+    assert runner.MAX_PAUSES >= 5
 
 
 class _FakeTier:
