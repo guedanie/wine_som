@@ -72,7 +72,12 @@ jobs:
           python -m pytest tests/ -m "not integration" -q -rf 2>&1 | tee /tmp/pytest.out
         continue-on-error: false
 
-      - name: Surface failures in the job summary
+      # Raw Actions logs need an API token and the job summary is not exposed on
+      # the check-run API, so a failure was undiagnosable without credentials.
+      # `::error::` workflow commands become check-run ANNOTATIONS, which the
+      # API does serve unauthenticated for a public repo — so the reason a build
+      # went red is readable by whoever is fixing it.
+      - name: Surface failures where they can actually be read
         if: failure()
         shell: bash
         run: |
@@ -82,6 +87,13 @@ jobs:
             tail -60 /tmp/pytest.out
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          # One annotation per failing test, plus the counts line.
+          grep -E '^(FAILED|ERROR) ' /tmp/pytest.out | head -20 | while read -r line; do
+            echo "::error::${line}"
+          done
+          tail -3 /tmp/pytest.out | grep -E 'passed|failed|error' | while read -r line; do
+            echo "::error::pytest summary: ${line}"
+          done
 
   frontend:
     runs-on: ubuntu-latest
