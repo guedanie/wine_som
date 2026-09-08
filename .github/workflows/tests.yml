@@ -59,8 +59,29 @@ jobs:
 
       # -m "not integration" is the same invocation CLAUDE.md documents for local
       # runs, so a green CI and a green laptop mean the same thing.
+      #
+      # Output is teed to the job summary because raw Actions logs need an API
+      # token to read, which not everyone debugging a red build will have. The
+      # summary renders on the run page and is reachable via the check-run API,
+      # so a failure is diagnosable without credentials. `pipefail` keeps the
+      # step's exit code pytest's, not tee's.
       - name: Run fast suite
-        run: python -m pytest tests/ -m "not integration" -q
+        shell: bash
+        run: |
+          set -o pipefail
+          python -m pytest tests/ -m "not integration" -q -rf 2>&1 | tee /tmp/pytest.out
+        continue-on-error: false
+
+      - name: Surface failures in the job summary
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo '### Backend fast suite failed'
+            echo '```'
+            tail -60 /tmp/pytest.out
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   frontend:
     runs-on: ubuntu-latest
