@@ -1,0 +1,89 @@
+name: Tests
+
+# Runs the fast suites on every push and PR. Before this existed (2026-09-08)
+# nothing ran them automatically — 853 backend + 302 frontend tests executed only
+# when someone remembered. That is how the Kroger run-record bug survived two
+# weeks: three layers each reported success and no check contradicted them.
+#
+# Deliberately excluded here: anything needing real credentials. The `integration`
+# marker covers tests that hit live Supabase, and the scripts/verify_*.py data
+# guards run on a schedule with secrets, not on every push — a per-push job that
+# needs secrets does not run on forks and turns red for reasons a contributor
+# cannot fix.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push supersedes an in-flight run on the same ref.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: backend
+
+    # NOT secrets — deliberately fake. config.py's Settings has no defaults for
+    # the three supabase fields and instantiates at import, so without these
+    # every test errors during collection (verified: 35 collection errors in a
+    # clean checkout). The fast suite never opens a connection; these exist only
+    # to satisfy pydantic at import time. Anything that would actually dial out
+    # belongs behind the `integration` marker.
+    env:
+      SUPABASE_URL: https://ci.invalid
+      SUPABASE_ANON_KEY: ci-not-a-secret
+      SUPABASE_SERVICE_ROLE_KEY: ci-not-a-secret
+      ANTHROPIC_API_KEY: ci-not-a-secret
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # -m "not integration" is the same invocation CLAUDE.md documents for local
+      # runs, so a green CI and a green laptop mean the same thing.
+      - name: Run fast suite
+        run: python -m pytest tests/ -m "not integration" -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # `npm test` is `vitest` (watch mode) — CI needs the one-shot `run`.
+      - name: Run vitest
+        run: npx vitest run

@@ -15,8 +15,14 @@ async def test_health():
     assert response.json()["status"] == "ok"
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_search_wines_returns_list():
+    """Hits the live Supabase catalog through the route, so it belongs behind
+    the integration marker. It was unmarked and therefore ran in the "fast,
+    secret-less" suite — where it only ever passed because a developer machine
+    has ../.env. In a clean checkout it fails with httpx.ConnectError, which is
+    what surfaced when CI was first stood up (2026-09-08)."""
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/api/wines/search?q=cabernet")
     assert response.status_code == 200
