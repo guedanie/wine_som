@@ -4,6 +4,7 @@ import {
   DISCOVERY_REGIONS, REGION_POSTERS, STYLE_WINE_TYPE, VARIETAL_OPTS, regionSlug,
 } from '../lib/regions.js';
 import { searchWines } from '../lib/api.js';
+import { BUDGET_SLIDER } from '../lib/budget.js';
 import { track } from '../lib/analytics.js';
 import useIsMobile, { saveZip } from '../lib/useIsMobile.js';
 import { useUserZip } from '../lib/useUserZip.js';
@@ -323,7 +324,7 @@ export default function SearchScreen() {
                 <span className="t-eyebrow">Max price</span>
                 <span style={{ fontFamily: 'var(--font-serif)', fontSize: 22, color: 'var(--bordeaux)' }}>{maxPrice >= 200 ? '$200+' : `$${maxPrice}`}</span>
               </div>
-              <input type="range" min={15} max={200} step={5} value={maxPrice} aria-label="Max price"
+              <input type="range" min={BUDGET_SLIDER.min} max={BUDGET_SLIDER.max} step={BUDGET_SLIDER.step} value={maxPrice} aria-label="Max price"
                 onChange={e => setMaxPrice(Number(e.target.value))} style={{ width: '100%', height: 4 }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--faded)', marginTop: 6 }}><span>$15</span><span>$200</span></div>
             </div>
@@ -436,7 +437,7 @@ export default function SearchScreen() {
                 {maxPrice >= 200 ? '$200+' : `$${maxPrice}`}
               </span>
             </div>
-            <input type="range" min={15} max={200} step={5} value={maxPrice}
+            <input type="range" min={BUDGET_SLIDER.min} max={BUDGET_SLIDER.max} step={BUDGET_SLIDER.step} value={maxPrice}
               aria-label="Max price"
               onChange={e => setMaxPrice(Number(e.target.value))}
               style={{ width: '100%' }} />

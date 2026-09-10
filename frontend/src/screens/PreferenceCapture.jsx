@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Eyebrow from '../components/Eyebrow.jsx';
 import Btn from '../components/Btn.jsx';
 import { buildApiReq, VARIETAL_OPTS } from '../lib/regions.js';
+import { BUDGET_SLIDER } from '../lib/budget.js';
 import { track } from '../lib/analytics.js';
 import useIsMobile, { loadZip, saveZip } from '../lib/useIsMobile.js';
 import uuid from '../lib/uuid.js';
@@ -90,11 +91,11 @@ export default function PreferenceCapture() {
               <Eyebrow>Budget per bottle</Eyebrow>
               <span style={{ fontFamily: 'var(--font-serif)', fontSize: 26, color: 'var(--bordeaux)' }}>up to ${budget}</span>
             </div>
-            <input type="range" min={15} max={200} step={5} value={budget}
+            <input type="range" min={BUDGET_SLIDER.min} max={BUDGET_SLIDER.max} step={BUDGET_SLIDER.step} value={budget}
               onChange={e => setBudget(+e.target.value)}
               style={{ width: '100%', height: 4 }} />
             <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--faded)', marginTop: 6 }}>
-              <span>$15</span><span>$200</span>
+              <span>${BUDGET_SLIDER.min}</span><span>${BUDGET_SLIDER.max}</span>
             </div>
           </div>
 
@@ -195,7 +196,7 @@ export default function PreferenceCapture() {
             <Eyebrow>Budget ceiling</Eyebrow>
             <span style={{ fontFamily: 'var(--font-serif)', fontSize: 23, color: 'var(--bordeaux)' }}>${budget}</span>
           </div>
-          <input type="range" min={15} max={150} value={budget}
+          <input type="range" min={BUDGET_SLIDER.min} max={BUDGET_SLIDER.max} step={BUDGET_SLIDER.step} value={budget}
             onChange={e => setBudget(+e.target.value)}
             style={{ width: '100%', marginTop: 14 }}
           />

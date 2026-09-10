@@ -13,6 +13,18 @@
 export const WIDE_BUDGET_MIN = 0;
 export const WIDE_BUDGET_MAX = 10000;
 
+// Bounds for every price/budget slider in the app. One home because they had
+// already drifted: PreferenceCapture's mobile layout ran 15/200/5 while its own
+// desktop layout ran 15/150 with no step, so the same person got a different
+// ceiling depending on device — and desktop produced odd values like $137 while
+// mobile snapped to fives. SearchScreen's two sliders already used 15/200/5,
+// which is why those are the canonical numbers rather than a fresh choice.
+//
+// Raising `max` is a real product decision, not a cosmetic one: the scorer
+// targets 0.85 x max, so a higher ceiling pulls every recommendation upward.
+// See CLAUDE.md item 55 before changing it.
+export const BUDGET_SLIDER = { min: 15, max: 200, step: 5 };
+
 /**
  * Apply a `budget` SSE frame to a request object.
  *
