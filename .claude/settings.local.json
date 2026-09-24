@@ -3,7 +3,8 @@
     "allow": [
       "Bash(git pull *)",
       "Bash(scutil --get ComputerName)",
-      "Bash(python3 -c ' *)"
+      "Bash(python3 -c ' *)",
+      "Read(//Users/danielguerrero/Library/Logs/**)"
     ]
   },
   "enabledPlugins": {
