@@ -7,7 +7,9 @@ from config import settings
 from recommendation.budget import budget_is_stated
 from recommendation.availability import format_fact_block, NOT_IN_CATALOG
 from recommendation.producer_facts import format_producer_block
-from recommendation.web_search import WEB_SEARCH_TOOL, off_catalog_bottles, off_catalog_directive
+from recommendation.web_search import (
+    WEB_SEARCH_TOOL, off_catalog_bottles, off_catalog_directive,
+    should_offer_web_search)
 
 logger = logging.getLogger(__name__)
 
@@ -307,6 +309,7 @@ def _build_user_message(
     intent: Dict[str, Any],
     conversation_history: Optional[List[Dict[str, Any]]] = None,
     conversational: bool = False,
+    off_catalog: Optional[List[str]] = None,
 ) -> str:
     listings = "\n\n".join(
         f"{i + 1}. [wine_id: {w.get('wine_id')}] {_format_wine(w)}"
@@ -469,8 +472,9 @@ def _build_user_message(
     # the API call only when this directive is non-empty (see
     # stream_recommendations). Per-turn data, so it lives here, not in the
     # cached system prompt.
-    web_search_directive = off_catalog_directive(
-        off_catalog_bottles(intent.get("availability_facts") or []))
+    if off_catalog is None:
+        off_catalog = off_catalog_bottles(intent.get("availability_facts") or [])
+    web_search_directive = off_catalog_directive(off_catalog)
 
     # Aisle mode sends a wide-range sentinel instead of a real budget — the
     # somm must not invent one ("outside your budget") the user never stated.
@@ -698,26 +702,29 @@ def stream_recommendations(
 
     Raises on init failure so the router can return 500 before streaming starts.
     """
-    user_msg = _build_user_message(candidates, intent, conversation_history, conversational)
-    user_message = intent.get("message") or ""
-
     # Anthropic's forced single-tool tool_choice (the default below) makes any
     # OTHER tool -- including a server tool like web_search -- uncallable. Only
     # relax it, and only add web_search, on a turn where the availability oracle
     # confirmed a named bottle is off-catalog (see recommendation/web_search.py).
-    off_catalog = off_catalog_bottles(intent.get("availability_facts") or [])
-    tools = [_TOOL, WEB_SEARCH_TOOL] if off_catalog else [_TOOL]
-    tool_choice = ({"type": "any"} if off_catalog
+    _availability_facts = intent.get("availability_facts") or []
+    off_catalog = off_catalog_bottles(_availability_facts)
+    gated = should_offer_web_search(_availability_facts)  # == bool(off_catalog); the design's named gate, now actually used
+    tools = [_TOOL, WEB_SEARCH_TOOL] if gated else [_TOOL]
+    tool_choice = ({"type": "any"} if gated
                   else {"type": "tool", "name": "recommend_wines"})
     # Gated turns share this output budget with the model's server_tool_use
     # search request AND the web_search_tool_result content Anthropic injects
     # (search snippets count as output tokens) -- all BEFORE recommend_wines
     # even starts writing. 800 was sized for narrative+picks alone.
-    max_tokens = 2000 if off_catalog else 800
+    max_tokens = 2000 if gated else 800
+
+    user_msg = _build_user_message(
+        candidates, intent, conversation_history, conversational, off_catalog=off_catalog)
+    user_message = intent.get("message") or ""
 
     logger.info(
         "CLAUDE | streaming | message=%r history_turns=%d candidates=%d web_search=%s",
-        user_message[:60], len(conversation_history or []), len(candidates), bool(off_catalog),
+        user_message[:60], len(conversation_history or []), len(candidates), gated,
     )
 
     def _gen():
