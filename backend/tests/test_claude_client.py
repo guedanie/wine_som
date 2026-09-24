@@ -836,3 +836,10 @@ def test_gated_turn_with_no_tool_use_block_fails_open():
     error_events = [v for t, v in events if t == "error"]
     assert error_events == ["Recommendation service unavailable"]
     assert [v for t, v in events if t == "picks"] == []
+
+
+def test_system_prompt_states_web_search_sourcing_contract():
+    from recommendation.claude_client import _SYSTEM_PROMPT
+    low = _SYSTEM_PROMPT.lower()
+    assert "web search" in low
+    assert "never present it as something in stock" in low or "never state a price" in low
