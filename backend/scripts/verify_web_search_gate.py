@@ -6,6 +6,7 @@ the actual availability oracle against live inventory, then through the gate
 and the user-message builder -- confirming the directive appears and the tool
 would be attached, without spending an actual Anthropic API call.
 """
+import sys
 from db import get_supabase_client
 from utils.geo import find_nearby_store_ids
 from recommendation.availability import axes_from_intent, fetch_axis_counts, derive_state, axis_key
@@ -49,10 +50,15 @@ def main():
               f"(allowed_domains={WEB_SEARCH_TOOL['allowed_domains']})")
     else:
         # If this specific bottle is ever actually stocked, the test's premise
-        # is stale rather than the gate being broken -- print, don't fail loud.
-        print(f"  NOTE: bottle resolved {state}, not NOT_IN_CATALOG -- gate correctly "
-              f"did not fire. Pick a different OFF_CATALOG_BOTTLE if this persists.")
+        # went stale -- fail loudly (not the gate being broken) rather than
+        # silently exiting 0 having never exercised the branch this script
+        # exists to test. A future dev should pick a new OFF_CATALOG_BOTTLE.
         assert bottles == []
+        print(f"  PREMISE STALE: bottle resolved {state}, not NOT_IN_CATALOG -- the gate "
+              f"correctly did NOT fire for it, but this script's core assertions never ran. "
+              f"Pick a different OFF_CATALOG_BOTTLE (a real bottle genuinely absent from the "
+              f"catalog) and re-run.")
+        sys.exit(1)
 
     print("OK — off-catalog web search gate verified against live inventory")
 
