@@ -7,7 +7,7 @@ from config import settings
 from recommendation.budget import budget_is_stated
 from recommendation.availability import format_fact_block, NOT_IN_CATALOG
 from recommendation.producer_facts import format_producer_block
-from recommendation.web_search import off_catalog_bottles, off_catalog_directive
+from recommendation.web_search import WEB_SEARCH_TOOL, off_catalog_bottles, off_catalog_directive
 
 logger = logging.getLogger(__name__)
 
@@ -681,9 +681,18 @@ def stream_recommendations(
     user_msg = _build_user_message(candidates, intent, conversation_history, conversational)
     user_message = intent.get("message") or ""
 
+    # Anthropic's forced single-tool tool_choice (the default below) makes any
+    # OTHER tool -- including a server tool like web_search -- uncallable. Only
+    # relax it, and only add web_search, on a turn where the availability oracle
+    # confirmed a named bottle is off-catalog (see recommendation/web_search.py).
+    off_catalog = off_catalog_bottles(intent.get("availability_facts") or [])
+    tools = [_TOOL, WEB_SEARCH_TOOL] if off_catalog else [_TOOL]
+    tool_choice = ({"type": "any"} if off_catalog
+                  else {"type": "tool", "name": "recommend_wines"})
+
     logger.info(
-        "CLAUDE | streaming | message=%r history_turns=%d candidates=%d",
-        user_message[:60], len(conversation_history or []), len(candidates),
+        "CLAUDE | streaming | message=%r history_turns=%d candidates=%d web_search=%s",
+        user_message[:60], len(conversation_history or []), len(candidates), bool(off_catalog),
     )
 
     def _gen():
@@ -694,8 +703,8 @@ def stream_recommendations(
                 max_tokens=800,
                 system=system_blocks(),
                 messages=[{"role": "user", "content": user_msg}],
-                tools=[_TOOL],
-                tool_choice={"type": "tool", "name": "recommend_wines"},
+                tools=tools,
+                tool_choice=tool_choice,
             ) as stream:
                 def _fragments():
                     for event in stream:

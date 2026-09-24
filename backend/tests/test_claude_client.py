@@ -721,3 +721,79 @@ def test_cache_logging_never_breaks_a_completed_stream():
 
     assert not [v for t, v in events if t == "error"]
     assert [v for t, v in events if t == "picks"] == [[{"wine_id": "w1", "why": "y"}]]
+
+
+# ---------------------------------------------------------------------------
+# web_search gating — Anthropic's forced single-tool tool_choice makes any
+# OTHER tool (including web_search) uncallable, so on a turn where the
+# availability oracle confirms a named bottle is off-catalog, tool_choice must
+# relax to {"type": "any"} and web_search must be attached to `tools`.
+# ---------------------------------------------------------------------------
+
+def test_ordinary_turn_keeps_single_forced_tool():
+    """No off-catalog bottle -> tools/tool_choice are exactly today's shape,
+    unaffected by this feature."""
+    from unittest.mock import patch
+    from recommendation.claude_client import stream_recommendations, _TOOL
+    intent = {"wine_type": "red", "flavors": [], "avoid": [],
+              "budget_min": 10, "budget_max": 50}
+    with patch("recommendation.claude_client._anthropic_client") as mock_client:
+        mock_client.messages.stream.side_effect = Exception("stop here")
+        list(stream_recommendations(_cands(), intent))
+    kwargs = mock_client.messages.stream.call_args.kwargs
+    assert kwargs["tools"] == [_TOOL]
+    assert kwargs["tool_choice"] == {"type": "tool", "name": "recommend_wines"}
+
+
+def test_gated_turn_adds_web_search_tool_and_relaxes_tool_choice():
+    """A confirmed off-catalog bottle attaches web_search AND relaxes tool_choice
+    to 'any' -- forcing recommend_wines alone would make web_search uncallable."""
+    from unittest.mock import patch
+    from recommendation.claude_client import stream_recommendations, _TOOL
+    from recommendation.web_search import WEB_SEARCH_TOOL
+    intent = {"wine_type": "red", "flavors": [], "avoid": [],
+              "budget_min": 10, "budget_max": 50,
+              "availability_facts": [{"label": "Chateau Talbot", "state": _NOT_IN_CATALOG,
+                                      "axis": {"kind": "name", "value": "Chateau Talbot",
+                                               "scope": None}}]}
+    with patch("recommendation.claude_client._anthropic_client") as mock_client:
+        mock_client.messages.stream.side_effect = Exception("stop here")
+        list(stream_recommendations(_cands(), intent))
+    kwargs = mock_client.messages.stream.call_args.kwargs
+    assert kwargs["tools"] == [_TOOL, WEB_SEARCH_TOOL]
+    assert kwargs["tool_choice"] == {"type": "any"}
+
+
+def test_gated_turn_still_finds_recommend_wines_block_among_others():
+    """final.content can contain server_tool_use / web_search_tool_result blocks
+    ahead of our tool_use block -- the b.type == "tool_use" filter must still
+    find recommend_wines regardless of order."""
+    from unittest.mock import patch, MagicMock
+    from recommendation.claude_client import stream_recommendations
+
+    search_block = MagicMock(type="server_tool_use")
+    result_block = MagicMock(type="web_search_tool_result")
+    tool_block = MagicMock(type="tool_use")
+    tool_block.input = {"narrative": "n", "picks": [{"wine_id": "w1", "why": "y"}],
+                        "followup_suggestions": []}
+
+    final = MagicMock()
+    final.content = [search_block, result_block, tool_block]
+    final.usage = MagicMock(cache_read_input_tokens=0, cache_creation_input_tokens=0,
+                            input_tokens=10)
+
+    stream_cm = MagicMock()
+    stream_cm.__enter__.return_value.__iter__.return_value = iter([])
+    stream_cm.__enter__.return_value.get_final_message.return_value = final
+
+    intent = {"wine_type": "red", "flavors": [], "avoid": [],
+              "budget_min": 10, "budget_max": 50,
+              "availability_facts": [{"label": "Chateau Talbot", "state": _NOT_IN_CATALOG,
+                                      "axis": {"kind": "name", "value": "Chateau Talbot",
+                                               "scope": None}}]}
+    with patch("recommendation.claude_client._anthropic_client") as mock_client:
+        mock_client.messages.stream.return_value = stream_cm
+        events = list(stream_recommendations(_cands(), intent))
+
+    assert not [v for t, v in events if t == "error"]
+    assert [v for t, v in events if t == "picks"] == [[{"wine_id": "w1", "why": "y"}]]
