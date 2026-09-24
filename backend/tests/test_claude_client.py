@@ -489,6 +489,31 @@ def test_no_producer_block_when_no_facts():
     assert "VERIFIED PRODUCER" not in msg
 
 
+# ── web search directive ──────────────────────────────────────────────
+
+from recommendation.availability import NOT_IN_CATALOG as _NOT_IN_CATALOG
+
+
+def test_web_search_directive_present_for_off_catalog_bottle():
+    msg = _build_user_message([{"wine_id": "1", "name": "X"}], _intent(
+        availability_facts=[{"label": "Chateau Talbot", "state": _NOT_IN_CATALOG,
+                             "axis": {"kind": "name", "value": "Chateau Talbot", "scope": None}}]))
+    assert "OFF-CATALOG BOTTLE" in msg
+    assert "Chateau Talbot" in msg
+
+
+def test_no_web_search_directive_when_bottle_is_present():
+    msg = _build_user_message([{"wine_id": "1", "name": "X"}], _intent(
+        availability_facts=[{"label": "Chateau Talbot", "state": PRESENT_SHORTLISTED,
+                             "axis": {"kind": "name", "value": "Chateau Talbot", "scope": None}}]))
+    assert "OFF-CATALOG BOTTLE" not in msg
+
+
+def test_no_web_search_directive_without_facts():
+    msg = _build_user_message([{"wine_id": "1", "name": "X"}], _intent())
+    assert "OFF-CATALOG BOTTLE" not in msg
+
+
 def test_both_fact_blocks_render_with_separate_self_contained_headings():
     """When the availability oracle AND the producer lookup both fire in the same turn,
     the producer hedging rule must get its OWN heading — not get folded into the

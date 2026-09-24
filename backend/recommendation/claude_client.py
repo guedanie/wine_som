@@ -7,6 +7,7 @@ from config import settings
 from recommendation.budget import budget_is_stated
 from recommendation.availability import format_fact_block, NOT_IN_CATALOG
 from recommendation.producer_facts import format_producer_block
+from recommendation.web_search import off_catalog_bottles, off_catalog_directive
 
 logger = logging.getLogger(__name__)
 
@@ -443,6 +444,14 @@ def _build_user_message(
         # same turn (the heading would still read "availability" for a producer rule).
         producer_rules = f"\n\nPRODUCER RULES (these override recall):\n1. {producer_rule_text}"
 
+    # Web search license: a named bottle that resolved NOT_IN_CATALOG this turn
+    # may be looked up via the web_search tool, which claude_client attaches to
+    # the API call only when this directive is non-empty (see
+    # stream_recommendations). Per-turn data, so it lives here, not in the
+    # cached system prompt.
+    web_search_directive = off_catalog_directive(
+        off_catalog_bottles(intent.get("availability_facts") or []))
+
     # Aisle mode sends a wide-range sentinel instead of a real budget — the
     # somm must not invent one ("outside your budget") the user never stated.
     budget_line = (
@@ -470,6 +479,7 @@ def _build_user_message(
         f"{producer_block}"
         f"{availability_rules}"
         f"{producer_rules}"
+        f"{web_search_directive}"
         f"{followup_directive}"
     )
 
