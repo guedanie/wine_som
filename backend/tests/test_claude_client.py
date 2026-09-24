@@ -843,3 +843,31 @@ def test_system_prompt_states_web_search_sourcing_contract():
     low = _SYSTEM_PROMPT.lower()
     assert "web search" in low
     assert "never present it as something in stock" in low or "never state a price" in low
+
+
+def test_off_catalog_search_is_framed_as_overlay_not_fourth_mode():
+    """The Off-Catalog Bottle Search section must explicitly state it is an overlay
+    on top of existing modes, not a fourth competing mode (code review item 1)."""
+    from recommendation.claude_client import _SYSTEM_PROMPT
+    low = _SYSTEM_PROMPT.lower()
+    assert "overlay" in low
+    assert "not a fourth mode" in low or "not a separate route" in low
+    # Verify it appears in the Off-Catalog section specifically
+    assert "## Off-Catalog Bottle Search" in _SYSTEM_PROMPT
+    off_catalog_start = _SYSTEM_PROMPT.index("## Off-Catalog Bottle Search")
+    off_catalog_section = _SYSTEM_PROMPT[off_catalog_start:off_catalog_start + 500]
+    assert "overlay" in off_catalog_section.lower()
+
+
+def test_tool_use_recap_includes_off_catalog_picks_rule():
+    """The Tool Use section must document pick-count rules for Off-Catalog Bottle Search,
+    clarifying it allows empty picks or close-comparison wines even in Education Mode
+    (code review item 2)."""
+    from recommendation.claude_client import _SYSTEM_PROMPT
+    assert "## Tool Use" in _SYSTEM_PROMPT
+    tool_use_start = _SYSTEM_PROMPT.index("## Tool Use")
+    # Grab enough of the section to reach past all three bullet points
+    tool_use_section = _SYSTEM_PROMPT[tool_use_start:tool_use_start + 1000]
+    low = tool_use_section.lower()
+    assert "off-catalog bottle search" in low
+    assert ("picks: []" in tool_use_section and "close" in low) or "comparison" in low

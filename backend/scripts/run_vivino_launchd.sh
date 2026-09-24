@@ -24,15 +24,21 @@ START=$(date +%s)
 # trailing echo), NOT the python — so every run reported exit 0 and Slack was told
 # "OK" even when the run failed. Redirect per-command and capture directly.
 echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') | vivino run start (limit=$LIMIT) ===" >> "$LOG" 2>&1
-"$PY" scripts/run_vivino_sample.py --limit "$LIMIT" >> "$LOG" 2>&1
+# Capture this run's own output rather than grepping the whole (cumulative) log
+# file below — a run with fewer than 3 matching stat lines (e.g. "0 wines to
+# process" only prints 2) used to have `tail -3` reach backward into the
+# PREVIOUS run's block, stitching a stale "Matched + written" line from hours
+# earlier into a Slack message that read as garbled for a perfectly clean run.
+RUN_OUTPUT=$("$PY" scripts/run_vivino_sample.py --limit "$LIMIT" 2>&1)
 EXIT=$?
+printf '%s\n' "$RUN_OUTPUT" >> "$LOG"
 echo "=== $(date '+%Y-%m-%d %H:%M:%S %Z') | vivino run end (exit $EXIT) ===" >> "$LOG" 2>&1
 echo "" >> "$LOG" 2>&1
 DURATION=$(( $(date +%s) - START ))
 
 if [ $EXIT -eq 0 ]; then
-  # Parse the tail of this run's summary block for a Slack-friendly one-liner
-  SUMMARY=$(grep -E "Matched \+ written|No search hit|Fetch failures" "$LOG" | tail -3 | tr '\n' ' ' | sed 's/  */ /g')
+  # Parse the tail of THIS run's summary block for a Slack-friendly one-liner
+  SUMMARY=$(printf '%s\n' "$RUN_OUTPUT" | grep -E "Matched \+ written|No search hit|Fetch failures|No wines to process" | tail -3 | tr '\n' ' ' | sed 's/  */ /g')
   notify_slack "Vivino enrichment" "OK" "duration ${DURATION}s (limit=${LIMIT}) — ${SUMMARY:-run completed}"
 else
   notify_slack "Vivino enrichment" "FAIL" "exit ${EXIT} after ${DURATION}s (limit=${LIMIT})" "$LOG"
