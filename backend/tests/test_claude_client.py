@@ -743,6 +743,7 @@ def test_ordinary_turn_keeps_single_forced_tool():
     kwargs = mock_client.messages.stream.call_args.kwargs
     assert kwargs["tools"] == [_TOOL]
     assert kwargs["tool_choice"] == {"type": "tool", "name": "recommend_wines"}
+    assert kwargs["max_tokens"] == 800
 
 
 def test_gated_turn_adds_web_search_tool_and_relaxes_tool_choice():
@@ -762,6 +763,7 @@ def test_gated_turn_adds_web_search_tool_and_relaxes_tool_choice():
     kwargs = mock_client.messages.stream.call_args.kwargs
     assert kwargs["tools"] == [_TOOL, WEB_SEARCH_TOOL]
     assert kwargs["tool_choice"] == {"type": "any"}
+    assert kwargs["max_tokens"] == 2000
 
 
 def test_gated_turn_still_finds_recommend_wines_block_among_others():
@@ -797,3 +799,40 @@ def test_gated_turn_still_finds_recommend_wines_block_among_others():
 
     assert not [v for t, v in events if t == "error"]
     assert [v for t, v in events if t == "picks"] == [[{"wine_id": "w1", "why": "y"}]]
+
+
+def test_gated_turn_with_no_tool_use_block_fails_open():
+    """On a gated turn, tool_choice only guarantees SOME tool is called --
+    web_search itself satisfies that. If the model calls web_search and never
+    follows up with recommend_wines, final.content has no tool_use block at
+    all: tool_block is None, ValueError raises, and the surrounding
+    try/except must turn that into the generic error event rather than an
+    unhandled exception. Accepted fail-open behavior (Task 3 review, issue 1)
+    -- this locks it in as a regression guard."""
+    from unittest.mock import patch, MagicMock
+    from recommendation.claude_client import stream_recommendations
+
+    search_block = MagicMock(type="server_tool_use")
+    result_block = MagicMock(type="web_search_tool_result")
+
+    final = MagicMock()
+    final.content = [search_block, result_block]
+    final.usage = MagicMock(cache_read_input_tokens=0, cache_creation_input_tokens=0,
+                            input_tokens=10)
+
+    stream_cm = MagicMock()
+    stream_cm.__enter__.return_value.__iter__.return_value = iter([])
+    stream_cm.__enter__.return_value.get_final_message.return_value = final
+
+    intent = {"wine_type": "red", "flavors": [], "avoid": [],
+              "budget_min": 10, "budget_max": 50,
+              "availability_facts": [{"label": "Chateau Talbot", "state": _NOT_IN_CATALOG,
+                                      "axis": {"kind": "name", "value": "Chateau Talbot",
+                                               "scope": None}}]}
+    with patch("recommendation.claude_client._anthropic_client") as mock_client:
+        mock_client.messages.stream.return_value = stream_cm
+        events = list(stream_recommendations(_cands(), intent))
+
+    error_events = [v for t, v in events if t == "error"]
+    assert error_events == ["Recommendation service unavailable"]
+    assert [v for t, v in events if t == "picks"] == []

@@ -689,6 +689,11 @@ def stream_recommendations(
     tools = [_TOOL, WEB_SEARCH_TOOL] if off_catalog else [_TOOL]
     tool_choice = ({"type": "any"} if off_catalog
                   else {"type": "tool", "name": "recommend_wines"})
+    # Gated turns share this output budget with the model's server_tool_use
+    # search request AND the web_search_tool_result content Anthropic injects
+    # (search snippets count as output tokens) -- all BEFORE recommend_wines
+    # even starts writing. 800 was sized for narrative+picks alone.
+    max_tokens = 2000 if off_catalog else 800
 
     logger.info(
         "CLAUDE | streaming | message=%r history_turns=%d candidates=%d web_search=%s",
@@ -700,7 +705,7 @@ def stream_recommendations(
         try:
             with _anthropic_client.messages.stream(
                 model="claude-sonnet-4-6",
-                max_tokens=800,
+                max_tokens=max_tokens,
                 system=system_blocks(),
                 messages=[{"role": "user", "content": user_msg}],
                 tools=tools,
