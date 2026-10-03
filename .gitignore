@@ -22,3 +22,6 @@ backend/enrichment/matching/eval/eval_report.md
 
 # Total Wine crawl bookmark — mini-local runtime state, not source
 data/totalwine_cursor.json
+
+# Local git worktrees for isolated feature branches
+.worktrees/
