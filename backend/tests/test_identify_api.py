@@ -56,10 +56,27 @@ async def test_unreadable_label_returns_200_with_unreadable_status():
 
 @pytest.mark.asyncio
 async def test_non_image_upload_returns_400():
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
-        resp = await ac.post("/api/identify",
-                             files={"photo": ("notes.txt", b"hello", "text/plain")})
+    with patch("api.routers.identify.read_label") as mock_read_label:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            resp = await ac.post("/api/identify",
+                                 files={"photo": ("notes.txt", b"hello", "text/plain")})
     assert resp.status_code == 400
+    mock_read_label.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_oversized_upload_returns_400():
+    # Real bytes, genuinely larger than _MAX_UPLOAD_BYTES -- exercises the
+    # actual FastAPI/Starlette upload machinery (photo.size), not a mocked
+    # stand-in that would prove nothing about the real code path.
+    from api.routers.identify import _MAX_UPLOAD_BYTES
+    oversized = b"\xff\xd8\xff\xe0" + b"0" * (_MAX_UPLOAD_BYTES + 1)
+    with patch("api.routers.identify.read_label") as mock_read_label:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            resp = await ac.post("/api/identify",
+                                 files={"photo": ("bottle.jpg", oversized, "image/jpeg")})
+    assert resp.status_code == 400
+    mock_read_label.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -97,3 +114,16 @@ def test_fetch_candidates_returns_empty_for_no_tokens():
     result = _fetch_candidates(mock_sb, {"producer": None, "wine_name": None})
     assert result == []
     mock_sb.table.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_identify_returns_429_when_limited():
+    # The route dependency closes over the limiter OBJECT at import time --
+    # patch the method on that object, not the module attribute (mirrors
+    # test_recommend_returns_429_when_limited in test_deploy_hardening.py).
+    import api.routers.identify as identify_mod
+    with patch.object(identify_mod._identify_limiter, "allow", return_value=False):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+            resp = await ac.post("/api/identify",
+                                 files={"photo": ("bottle.jpg", _JPEG_BYTES, "image/jpeg")})
+    assert resp.status_code == 429

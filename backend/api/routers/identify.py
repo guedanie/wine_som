@@ -32,6 +32,7 @@ _identify_limiter = RateLimiter(limit=30, window_seconds=3600)
 
 _CANDIDATE_LIMIT = 120
 _MAX_TOKENS_FOR_SEARCH = 6
+_MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10MB -- generous for a phone photo, cheap insurance
 
 
 def _fetch_candidates(supabase, read: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -62,6 +63,9 @@ async def identify_bottle(photo: UploadFile = File(...)):
     if not content_type.startswith("image/"):
         raise HTTPException(status_code=400,
                             detail="Upload an image file (jpeg/png/heic).")
+    if photo.size is not None and photo.size > _MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400,
+                            detail="Photo is too large (max 10MB).")
 
     image_bytes = await photo.read()
 
