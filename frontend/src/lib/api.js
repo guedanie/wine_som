@@ -123,3 +123,14 @@ export async function* streamSomm({ wine, message, history, taste }) {
     }
   }
 }
+
+export async function identifyBottle(photoFile) {
+  const form = new FormData();
+  form.append('photo', photoFile);
+  const res = await fetch(`${BASE}/api/identify`, { method: 'POST', body: form });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.detail ?? `HTTP ${res.status}`);
+  }
+  return res.json();
+}

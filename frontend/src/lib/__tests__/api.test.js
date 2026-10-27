@@ -1,4 +1,4 @@
-import { streamRecommend, getWine } from '../api.js';
+import { streamRecommend, getWine, identifyBottle } from '../api.js';
 
 beforeEach(() => { vi.stubGlobal('fetch', vi.fn()); });
 afterEach(() => { vi.unstubAllGlobals(); });
@@ -84,5 +84,47 @@ describe('getRegionWines', () => {
     const { getRegionWines } = await import('../api.js');
     await getRegionWines('Napa Valley', '78209');
     expect(fetch).toHaveBeenCalledWith(expect.stringMatching(/Napa%20Valley/));
+  });
+});
+
+describe('identifyBottle', () => {
+  it('POSTs the photo as multipart form data to /api/identify', async () => {
+    const file = new File(['fake-bytes'], 'bottle.jpg', { type: 'image/jpeg' });
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ status: 'exact', wine: { id: 'w1', name: 'Esprit de Tablas' } }),
+    });
+
+    const result = await identifyBottle(file);
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/api/identify'),
+      expect.objectContaining({ method: 'POST' })
+    );
+    const [, options] = fetch.mock.calls[0];
+    expect(options.body).toBeInstanceOf(FormData);
+    expect(options.body.get('photo')).toBe(file);
+    expect(result).toEqual({ status: 'exact', wine: { id: 'w1', name: 'Esprit de Tablas' } });
+  });
+
+  it('throws with the API detail message on a non-ok response', async () => {
+    const file = new File(['fake-bytes'], 'bottle.jpg', { type: 'image/jpeg' });
+    fetch.mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ detail: 'Upload an image file (jpeg/png/heic).' }),
+    });
+
+    await expect(identifyBottle(file)).rejects.toThrow('Upload an image file (jpeg/png/heic).');
+  });
+
+  it('falls back to an HTTP-status message when the error body has no detail', async () => {
+    const file = new File(['fake-bytes'], 'bottle.jpg', { type: 'image/jpeg' });
+    fetch.mockResolvedValueOnce({
+      ok: false,
+      status: 502,
+      json: async () => { throw new Error('not json'); },
+    });
+
+    await expect(identifyBottle(file)).rejects.toThrow('HTTP 502');
   });
 });
