@@ -197,13 +197,13 @@ export function BottomTabs() {
         const active = tab.match(pathname);
         return (
           <button key={tab.id} onClick={() => navigate(tab.to)} style={{
-            flex: 1, cursor: 'pointer', background: 'none', border: 'none',
+            flex: 1, minWidth: 0, cursor: 'pointer', background: 'none', border: 'none',
             padding: '10px 0 12px', display: 'flex', flexDirection: 'column',
             alignItems: 'center', gap: 3,
             color: active ? 'var(--bordeaux)' : 'var(--faded)',
           }}>
             {tab.icon}
-            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: active ? 600 : 400 }}>
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: active ? 600 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {tab.label}
             </span>
           </button>
