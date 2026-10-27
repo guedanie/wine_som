@@ -84,6 +84,8 @@ def test_classify_unstocked_confident_read_no_match():
             "vintage": "2018", "confidence": 0.85, "is_wine": True}
     res = classify_scan(read, cands)
     assert res["status"] == "unstocked"
+    assert res["producer"] == "Clos Rougeard"
+    assert res["wine_name"] == "Le Bourg"
 
 
 def test_classify_unreadable_when_read_empty():

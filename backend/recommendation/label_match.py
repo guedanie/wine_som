@@ -71,6 +71,8 @@ def classify_scan(read: Optional[Dict[str, Any]],
     strong = [(s, c) for s, c in scored if s >= MATCH_FLOOR]
     if not strong:
         result["status"] = "unstocked"
+        result["producer"] = read.get("producer")
+        result["wine_name"] = read.get("wine_name")
         return result
 
     top_score = strong[0][0]

@@ -15,6 +15,7 @@ const BTN = {
   cursor: 'pointer', background: 'var(--bordeaux)', color: 'var(--cream)',
   border: 'none', borderRadius: 0, padding: '12px 20px',
   fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500,
+  display: 'inline-block',
 };
 const GHOST_BTN = {
   cursor: 'pointer', background: 'none', color: 'var(--bordeaux)',
@@ -64,7 +65,16 @@ export default function Identify() {
   }
 
   const fileInput = (testId) => (
-    <label style={BTN}>
+    <label
+      style={BTN}
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          e.currentTarget.querySelector('input').click();
+        }
+      }}
+    >
       Show me the bottle
       <input
         type="file"
@@ -149,8 +159,7 @@ export default function Identify() {
   }
 
   if (status === 'unstocked') {
-    const read = result.read || {};
-    const named = [read.producer, read.wine_name].filter(Boolean).join(' ');
+    const named = [result.producer, result.wine_name].filter(Boolean).join(' ');
     return (
       <div style={WRAP}>
         <div style={SOMM_LINE}>

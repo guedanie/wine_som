@@ -86,7 +86,7 @@ describe('Identify screen', () => {
   });
 
   it('renders the unstocked state with no card and no dead end', async () => {
-    identifyBottle.mockResolvedValue({ status: 'unstocked', read: { producer: 'Cobos', wine_name: 'Volturno' } });
+    identifyBottle.mockResolvedValue({ status: 'unstocked', producer: 'Cobos', wine_name: 'Volturno' });
     renderScreen();
     selectPhoto();
     expect(await screen.findByText(/Volturno/i)).toBeInTheDocument();
