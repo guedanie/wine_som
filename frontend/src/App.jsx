@@ -17,6 +17,7 @@ import Saved from './screens/Saved.jsx';
 import Account from './screens/Account.jsx';
 import Cellar from './screens/Cellar.jsx';
 import TasteProfile from './screens/TasteProfile.jsx';
+import Identify from './screens/Identify.jsx';
 
 function AppRoutes() {
   const { pathname } = useLocation();
@@ -36,6 +37,7 @@ function AppRoutes() {
       <Route path="/account" element={<Account />} />
       <Route path="/cellar" element={<Cellar />} />
       <Route path="/taste" element={<TasteProfile />} />
+      <Route path="/identify" element={<Identify />} />
     </Routes>
   );
 }
