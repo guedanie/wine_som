@@ -16,3 +16,8 @@ it('renders a Discover nav link', () => {
   render(<MemoryRouter><NavBar /></MemoryRouter>);
   expect(screen.getByRole('link', { name: /discover/i })).toBeInTheDocument();
 });
+
+it('renders a Scan nav link', () => {
+  render(<MemoryRouter><NavBar /></MemoryRouter>);
+  expect(screen.getByRole('link', { name: /scan/i })).toBeInTheDocument();
+});

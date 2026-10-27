@@ -22,7 +22,7 @@ export default function NavBar() {
 
       {/* Links — centered */}
       <div style={{ display: 'flex', gap: 2, alignItems: 'center', justifyContent: 'center' }}>
-        {[['Recommend', '/'], ['Discover', '/discover']].map(([label, to]) => (
+        {[['Recommend', '/'], ['Discover', '/discover'], ['Scan', '/identify']].map(([label, to]) => (
           <NavLink key={to} to={to} end
             style={({ isActive }) => ({
               fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 500,
